@@ -108,8 +108,8 @@ func RenderBuildModal(m model.UIState) string {
 
 	modalBox := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("208")).
-		Background(lipgloss.Color("234")).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
 		Padding(1, 2, 1, 2).
 		Width(m.TerminalW - 4).
 		Render(body.String())

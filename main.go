@@ -696,7 +696,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		if msg.String() == "ctrl+q" {
 			return m, tea.Quit
 		}
 
@@ -734,6 +734,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state.MvnStep = model.StepSelectMvnAction
 			m.state.SelectedMenuIdx = 0
 			m.state.SelectedMvnIdx = 0
+			return m, nil
+		}
+
+		if msg.String() == "ctr+t" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateDashboard
 			return m, nil
 		}
 
@@ -825,9 +830,32 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.state.ViewState == model.StateFuzzyModal {
-		var fuzzyViewCmd tea.Cmd
-		m.state.FuzzyViewer, fuzzyViewCmd = m.state.FuzzyViewer.Update(msg)
-		cmds = append(cmds, fuzzyViewCmd)
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			// Forward scrolling keys explicitly down to the live viewport instance
+			case "pgup", "pgdown", "up", "down":
+				var cmd tea.Cmd
+				m.state.FuzzyViewer, cmd = m.state.FuzzyViewer.Update(msg)
+				return m, cmd
+
+			case "ctrl+j", "tab":
+				if len(m.state.FuzzyResults) > 0 {
+					m.state.SelectedFuzzy = (m.state.SelectedFuzzy + 1) % len(m.state.FuzzyResults)
+					m.syncFuzzyPreviewPane()
+					// Pro-Tip: Call your preview-reloader function here to sync the right pane content on change!
+				}
+				return m, nil
+
+			case "ctrl+k", "shift+tab":
+				if len(m.state.FuzzyResults) > 0 {
+					m.state.SelectedFuzzy = (m.state.SelectedFuzzy - 1 + len(m.state.FuzzyResults)) % len(m.state.FuzzyResults)
+					// Pro-Tip: Call your preview-reloader function here to sync the right pane content on change!
+					m.syncFuzzyPreviewPane()
+				}
+				return m, nil
+			}
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -872,6 +900,7 @@ func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
 func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.MvnStep {
 	case model.StepSelectMvnAction:
@@ -1211,6 +1240,29 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case "ctrl+e":
+		if len(m.state.TreeNodes) == 0 || m.state.SelectedFile < 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
+			return m, nil
+		}
+
+		// 2. Target the highlighted node
+		selectedNode := m.state.TreeNodes[m.state.SelectedFile]
+
+		// 3. Prevent trying to open folders in NeoVim
+		if selectedNode.IsDir {
+			return m, nil
+		}
+
+		// 4. Instantiate the system application execution argument context
+		// (Change selectedNode.Path to whatever field holds your full system filepath)
+		c := exec.Command("nvim", selectedNode.FullPath)
+
+		// 5. Hand raw terminal process control directly over to NeoVim
+		return m, tea.ExecProcess(c, func(err error) tea.Msg {
+			// This callback loop executes automatically the moment you type ':q' or ':wq' in nvim
+			return nil // Returning nil forces bubbletea to safely clear the terminal and redraw your dashboard
+		})
+
 	case "left", "h":
 		if m.state.ActiveFocus == model.FocusTree && len(m.state.TreeNodes) > 0 {
 			idx := m.state.SelectedFile
@@ -1296,7 +1348,7 @@ func (m *appModel) View() string {
 	case model.StateSessionLogsModal:
 		return components.RenderSessionLogsModal(m.state)
 	case model.StateFuzzyModal:
-		return components.RenderFuzzyModal(m.state)
+		return components.RenderFuzzyModal(&m.state)
 	case model.StateConfigDeckModal:
 		return components.RenderConfigDeckModal(m.state)
 	default:

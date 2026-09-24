@@ -44,10 +44,10 @@ func RenderGitOpsModal(m model.UIState) string {
 
 	modalBox := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("45")).
-		Background(lipgloss.Color("234")).
-		Padding(1, 4, 1, 4).
-		Width(75).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
+		Padding(1, 2, 1, 2).
+		Width(m.TerminalW - 4).
 		Render(modalBody.String())
 
 	return lipgloss.Place(

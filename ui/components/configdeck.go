@@ -56,9 +56,9 @@ func RenderConfigDeckModal(m model.UIState) string {
 
 	modalBox := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("214")).
-		Background(lipgloss.Color("234")).
-		Padding(1, 4, 1, 4).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
+		Padding(1, 2, 1, 2).
 		Width(m.TerminalW - 4).
 		Render(body.String())
 

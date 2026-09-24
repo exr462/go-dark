@@ -14,6 +14,7 @@ func RenderHelpModal(m model.UIState) string {
 	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Width(14)
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	authorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#dcdcdd")).Align(lipgloss.Center).Height(10)
 
 	body.WriteString(titleStyle.Render("📖 Go-Dark Command & Shortcuts Cheat Sheet") + "\n\n")
 
@@ -30,26 +31,29 @@ func RenderHelpModal(m model.UIState) string {
 	body.WriteString(row("q / Ctrl+C", "Quit application immediately"))
 	body.WriteString("\n")
 
-	body.WriteString(sectionStyle.Render("🎛️ MODAL INTERFACE TOGGLES (From Dashboard)"))
+	body.WriteString(sectionStyle.Render("🎛️ MODAL INTERFACE TOGGLES (From Dashboard)" + "\n"))
 	body.WriteString(row("Ctrl+N", "Open 'Add New Project' configuration modal form"))
 	body.WriteString(row("Ctrl+G", "Open 'Git Hub Operations Center' control module"))
 	body.WriteString(row("Ctrl+J", "Open 'Java Environment SDK Manager' (JDK) module"))
 	body.WriteString(row("Ctrl+U", "Open 'Maven Manager' (MVN) module"))
 	body.WriteString(row("Ctrl+B", "Open 'Build' (JDK) module"))
+	body.WriteString(row("Ctrl+F", "Open 'Fuzzy finder"))
+	body.WriteString(row("Ctrl+E", "Opens a terminal and nvim to edit the file"))
 	body.WriteString("\n")
 
 	body.WriteString(sectionStyle.Render("✍️ DATA ENTRY FORMS (Installer / Add Project / Add JDK / Add MVN)"))
 	body.WriteString(row("Tab / Down", "Move cursor focus forward to next input field"))
 	body.WriteString(row("Shift+Tab / Up", "Move cursor focus backward to previous input field"))
 	body.WriteString(row("Enter", "Submit form data, save configurations, and commit files"))
-	body.WriteString(row("Esc", "Safely exit active wizard without saving records"))
+	body.WriteString(row("Esc", "Safely exit active wizard without saving records") + "\n\n")
 
+	body.WriteString(authorStyle.Render("🤖 Author: Daniel Noulet © 2026"))
 	helpBox := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("86")).
-		Background(lipgloss.Color("234")).
-		Padding(1, 4, 1, 4).
-		Width(75).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
+		Padding(1, 2, 1, 2).
+		Width(m.TerminalW - 4).
 		Render(body.String())
 
 	return lipgloss.Place(

@@ -40,7 +40,7 @@ func RenderMainBody(m model.UIState) string {
 
 	// 2. FIXED: RENDER THE DYNAMIC TREE HIERARCHY IN THE CENTER COLUMN
 	var treeList strings.Builder
-	treeList.WriteString(titleStyle.Render("🌿 Workspace Directory Tree") + "\n\n")
+	treeList.WriteString(titleStyle.Render("🌿 Workspace Directory Tree (ctrl+E to edit the file") + "\n\n")
 
 	if len(m.TreeNodes) == 0 {
 		treeList.WriteString("  \x1b[90m(No workspace directories loaded)\x1b[0m")

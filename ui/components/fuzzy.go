@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderFuzzyModal(m model.UIState) string {
+func RenderFuzzyModal(m *model.UIState) string {
 	var body strings.Builder
 
 	// Style tokens
@@ -83,8 +83,7 @@ func RenderFuzzyModal(m model.UIState) string {
 	}
 
 	// FIXED: Enforce absolute panel limits on LipGloss style instead of manual loop padding
-	leftPanel := borderPaneStyle.Copy().
-		Width(containerWidth).
+	leftPanel := borderPaneStyle.Width(containerWidth).
 		Height(listHeight).
 		MaxWidth(containerWidth).
 		MaxHeight(listHeight).
@@ -95,8 +94,7 @@ func RenderFuzzyModal(m model.UIState) string {
 	rightBody.WriteString(panelTitleStyle.Render("🗒 Live File View Context Preview:") + "\n\n")
 	rightBody.WriteString(m.FuzzyViewer.View())
 
-	rightPanel := borderPaneStyle.Copy().
-		Width(containerWidth).
+	rightPanel := borderPaneStyle.Width(containerWidth).
 		Height(listHeight).
 		MaxWidth(containerWidth).
 		MaxHeight(listHeight).
@@ -111,26 +109,11 @@ func RenderFuzzyModal(m model.UIState) string {
 	// Outer main container frame
 	modalBox := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("99")).
-		Background(lipgloss.Color("234")).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
 		Padding(1, 2, 1, 2).
 		Width(m.TerminalW - 4).
 		Render(body.String())
 
 	return lipgloss.Place(m.TerminalW, m.TerminalH, lipgloss.Center, lipgloss.Center, modalBox)
-}
-
-// Quick inline min/max helper functions to assure compilation completes out of the box
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

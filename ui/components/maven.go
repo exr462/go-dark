@@ -76,10 +76,10 @@ func RenderMvnConfigModal(m Modal.UIState) string {
 
 	modalBox := Lipgloss.NewStyle().
 		Border(Lipgloss.DoubleBorder()).
-		BorderForeground(Lipgloss.Color("33")).
-		Background(Lipgloss.Color("234")).
-		Padding(1, 4, 1, 4).
-		Width(75).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
+		Padding(1, 2, 1, 2).
+		Width(m.TerminalW - 4).
 		Render(modalBody.String())
 
 	return Lipgloss.Place(m.TerminalW, m.TerminalH, Lipgloss.Center, Lipgloss.Center, modalBox, Lipgloss.WithWhitespaceChars("░"), Lipgloss.WithWhitespaceForeground(Lipgloss.Color("236")))

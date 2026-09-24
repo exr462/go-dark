@@ -51,10 +51,10 @@ func RenderInstaller(m model.UIState) string {
 
 	installerBox := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color("45")).
-		Background(lipgloss.Color("234")).
-		Padding(2, 6, 2, 6).
-		Width(75).
+		BorderForeground(ModalBorderColor).
+		Background(ModalBackground).
+		Padding(1, 2, 1, 2).
+		Width(m.TerminalW - 4).
 		Render(boxContent)
 
 	return lipgloss.Place(
