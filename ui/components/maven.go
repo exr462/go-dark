@@ -5,7 +5,7 @@ import (
 	Strings "strings"
 
 	Lipgloss "github.com/charmbracelet/lipgloss"
-	Modal "github.com/exr462/go-build/model"
+	Modal "github.com/exr462/go-dark/model"
 )
 
 func RenderMvnConfigModal(m Modal.UIState) string {

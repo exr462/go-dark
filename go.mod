@@ -1,4 +1,4 @@
-module github.com/exr462/go-build
+module github.com/exr462/go-dark
 
 go 1.27.1
 

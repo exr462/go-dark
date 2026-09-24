@@ -14,10 +14,10 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-build/config"
-	"github.com/exr462/go-build/model"
-	"github.com/exr462/go-build/ui/components"
-	"github.com/exr462/go-build/ui/panels"
+	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/components"
+	"github.com/exr462/go-dark/ui/panels"
 )
 
 var sessionChannels = make(map[int]chan string)

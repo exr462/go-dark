@@ -3,7 +3,7 @@ package model
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/exr462/go-build/config"
+	"github.com/exr462/go-dark/config"
 )
 
 type BuildSession struct {

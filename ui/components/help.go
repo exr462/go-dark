@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-build/model"
+	"github.com/exr462/go-dark/model"
 )
 
 func RenderHelpModal(m model.UIState) string {
