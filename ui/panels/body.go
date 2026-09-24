@@ -19,7 +19,6 @@ func RenderMainBody(m model.UIState) string {
 	var projList strings.Builder
 	projList.WriteString(titleStyle.Render("📁 Configured Projects") + "\n\n")
 	for i, p := range m.Config.Projects {
-		// !!! NEW: EXTRACT ACTIVE TRACKING BACKGROUND SESSION IDS FOR THIS SPECIFIC PROJECT !!!
 		sessionLabel := ""
 		for id, sess := range m.Sessions {
 			if sess.ProjectName == p.Name && sess.IsRunning {
@@ -27,7 +26,6 @@ func RenderMainBody(m model.UIState) string {
 				break
 			}
 		}
-
 		if i == m.SelectedProj {
 			projList.WriteString(fmt.Sprintf("> \x1b[32m%s\x1b[0m [%s]%s\n", p.Name, p.Type, sessionLabel))
 		} else {
@@ -40,17 +38,38 @@ func RenderMainBody(m model.UIState) string {
 	}
 	leftPanel := leftBoxStyle.Width(columnWidth).Height(paneHeight).Render(projList.String())
 
-	// 2. Render Center Column (File List Tree)
+	// 2. FIXED: RENDER THE DYNAMIC TREE HIERARCHY IN THE CENTER COLUMN
 	var treeList strings.Builder
-	treeList.WriteString(titleStyle.Render("🌿 File Workspace Tree") + "\n\n")
-	if len(m.Files) == 0 {
-		treeList.WriteString("  (No files loaded)")
+	treeList.WriteString(titleStyle.Render("🌿 Workspace Directory Tree") + "\n\n")
+
+	if len(m.TreeNodes) == 0 {
+		treeList.WriteString("  \x1b[90m(No workspace directories loaded)\x1b[0m")
 	} else {
-		for i, f := range m.Files {
+		for i, node := range m.TreeNodes {
+			// Calculate indent spacing based on multi-level depth offsets
+			indent := strings.Repeat("  ", node.Depth)
+
+			// Map out branch symbols indicators context cues
+			prefix := "📄 "
+			if node.IsDir {
+				if node.IsExpanded {
+					prefix = "📂 "
+				} else {
+					prefix = "📁 "
+				}
+			}
+
+			lineText := fmt.Sprintf("%s%s%s", indent, prefix, node.Name)
+
 			if i == m.SelectedFile {
-				treeList.WriteString(fmt.Sprintf("> \x1b[36m%s\x1b[0m\n", f))
+				// Highlight highlighted tree lines active selector indexes rows
+				treeList.WriteString(fmt.Sprintf("> \x1b[36;1m%s\x1b[0m\n", lineText))
 			} else {
-				treeList.WriteString(fmt.Sprintf("  %s\n", f))
+				if node.IsDir {
+					treeList.WriteString(fmt.Sprintf("  \x1b[34;1m%s\x1b[0m\n", lineText)) // Folders render blue
+				} else {
+					treeList.WriteString(fmt.Sprintf("  %s\n", lineText))
+				}
 			}
 		}
 	}
@@ -60,7 +79,7 @@ func RenderMainBody(m model.UIState) string {
 	}
 	centerPanel := centerBoxStyle.Width(columnWidth).Height(paneHeight).Render(treeList.String())
 
-	// 3. Render Right Column (File Contents)
+	// 3. Render Right Column (File Contents View)
 	rightBoxStyle := unfocusedBorder
 	rightPanel := rightBoxStyle.Width((m.TerminalW / 2) - 2).Height(paneHeight).Render(
 		titleStyle.Render("🗒 Live File View Context") + "\n\n" + m.FileViewer.View(),

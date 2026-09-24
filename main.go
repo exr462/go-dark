@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -19,7 +20,147 @@ import (
 	"github.com/exr462/go-build/ui/panels"
 )
 
-// Add this global or package-level channel declaration to main.go
+var sessionChannels = make(map[int]chan string)
+
+type appModel struct {
+	state model.UIState
+}
+
+func (m *appModel) Init() tea.Cmd {
+	if m.state.ViewState == model.StateInstaller {
+		return textinput.Blink
+	}
+	return m.updateWorkspaceFiles()
+}
+
+func (m *appModel) buildTreeNodes(currentPath string, depth int) {
+	entries, err := ioutil.ReadDir(currentPath)
+	if err != nil {
+		return
+	}
+
+	for _, e := range entries {
+		// Filter out dotfiles except important framework markers
+		if strings.HasPrefix(e.Name(), ".") && e.Name() != ".gitignore" {
+			continue
+		}
+
+		fullNodePath := filepath.Join(currentPath, e.Name())
+
+		node := model.FileNode{
+			Name:     e.Name(),
+			FullPath: fullNodePath,
+			IsDir:    e.IsDir(),
+			Depth:    depth,
+		}
+		m.state.TreeNodes = append(m.state.TreeNodes, node)
+
+		// If it's a directory and previously set to expanded, recursively append its children inline
+		// For the first setup layout run, directories initialize as collapsed
+	}
+}
+
+// Helper to rebuild tree state on expansion or collapse actions
+func (m *appModel) rebuildActiveTree() {
+	if len(m.state.Config.Projects) == 0 {
+		return
+	}
+	proj := m.state.Config.Projects[m.state.SelectedProj]
+	rootPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+
+	// Capture which directories are expanded before wiping state
+	expandedPaths := make(map[string]bool)
+	for _, n := range m.state.TreeNodes {
+		if n.IsDir && n.IsExpanded {
+			expandedPaths[n.FullPath] = true
+		}
+	}
+
+	var freshTree []model.FileNode
+
+	var walkDir func(string, int)
+	walkDir = func(currentPath string, depth int) {
+		entries, err := ioutil.ReadDir(currentPath)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), ".") && e.Name() != ".gitignore" {
+				continue
+			}
+			fullP := filepath.Join(currentPath, e.Name())
+			isExp := expandedPaths[fullP]
+
+			node := model.FileNode{
+				Name:       e.Name(),
+				FullPath:   fullP,
+				IsDir:      e.IsDir(),
+				IsExpanded: isExp,
+				Depth:      depth,
+			}
+			freshTree = append(freshTree, node)
+
+			// Descend if directory is set to expanded mode status
+			if node.IsDir && isExp {
+				walkDir(fullP, depth+1)
+			}
+		}
+	}
+
+	walkDir(rootPath, 0)
+	m.state.TreeNodes = freshTree
+}
+
+func (m *appModel) updateWorkspaceFiles() tea.Cmd {
+	return func() tea.Msg {
+		if len(m.state.Config.Projects) == 0 {
+			return model.FileLoadMsg("")
+		}
+		if m.state.SelectedProj >= len(m.state.Config.Projects) {
+			m.state.SelectedProj = 0
+		}
+		proj := m.state.Config.Projects[m.state.SelectedProj]
+		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+
+		entries, err := ioutil.ReadDir(fullPath)
+		if err != nil {
+			return model.StatusMsg(fmt.Sprintf("Directory missing at target: %s", fullPath))
+		}
+
+		var projectFiles []string
+		for _, e := range entries {
+			if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+				projectFiles = append(projectFiles, e.Name())
+			}
+		}
+
+		m.state.TreeNodes = []model.FileNode{}
+		m.buildTreeNodes(fullPath, 0)
+
+		m.state.Files = projectFiles
+		return model.FileLoadMsg("sync")
+	}
+}
+
+func (m *appModel) readFileContentCmd() tea.Cmd {
+	return func() tea.Msg {
+		if len(m.state.TreeNodes) == 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
+			return model.StatusMsg("No nodes selected.")
+		}
+		node := m.state.TreeNodes[m.state.SelectedFile]
+		if node.IsDir {
+			return model.StatusMsg(fmt.Sprintf("Directory selected: %s", node.Name))
+		}
+
+		data, err := ioutil.ReadFile(node.FullPath)
+		if err != nil {
+			return model.StatusMsg(fmt.Sprintf("Failed to stream text layout: %v", err))
+		}
+		m.state.FileViewer.SetContent(string(data))
+		return model.StatusMsg(fmt.Sprintf("Inspecting file relative path structure: %s", node.Name))
+	}
+}
+
 func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string) tea.Cmd {
 	m.state.NextSessionID++
 	sID := m.state.NextSessionID
@@ -33,18 +174,16 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 		cmdStr = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(proj.Name))
 	}
 
-	// 1. ALLOCATE THE PERSISTENT SESSION TRACKER WITHIN THE DATA ENGINE
 	session := &model.BuildSession{
 		ID:          sID,
 		ProjectName: proj.Name,
 		Command:     cmdStr,
 		IsRunning:   true,
-		Logs:        []string{fmt.Sprintf("🚀 [Session %d ID] Starting background build context...", sID)},
+		Logs:        []string{fmt.Sprintf("🚀 [Session %d] Initializing background execution...", sID)},
 	}
 	m.state.Sessions[sID] = session
 	m.state.ActiveSessionID = sID
 
-	// Create an unbounded thread-safe data synchronization buffer channel
 	localCh := make(chan string, 500)
 
 	go func() {
@@ -127,15 +266,10 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 		close(localCh)
 	}()
 
-	// 2. KICK OFF THE FIRST UNBLOCKING LOOKUP TRIGGER
 	return listenToSessionChannel(sID, localCh)
 }
 
-// FIXED: Global or package-level map tracker mapping session channel registers safely
-var sessionChannels = make(map[int]chan string)
-
 func listenToSessionChannel(sID int, ch chan string) tea.Cmd {
-	// Register channel globally so the main Update loop can reference it recursively
 	if ch != nil {
 		sessionChannels[sID] = ch
 	}
@@ -153,236 +287,6 @@ func listenToSessionChannel(sID int, ch chan string) tea.Cmd {
 	}
 }
 
-// Add this exact custom background runner below your other methods in main.go
-//
-//goland:noinspection GoUnusedFunction
-func runStreamSub(proj config.Project, targetStep string, base string, jdks []config.JDKProfile, mavens []config.MavenProfile) tea.Cmd {
-	return func() tea.Msg {
-		fullProjPath := config.ResolvePath(base, proj.Path)
-
-		var targetMvnPath string
-		for _, mvn := range mavens {
-			if mvn.Name == proj.MavenName {
-				targetMvnPath = mvn.Path
-				break
-			}
-		}
-
-		mvnBin := "mvn"
-		var cmdArgs []string
-		if proj.Type == "java" {
-			if targetMvnPath != "" {
-				mvnBin = filepath.Join(targetMvnPath, "bin", "mvn")
-			}
-			cmdArgs = []string{"clean", targetStep}
-		} else {
-			mvnBin = "docker"
-			cmdArgs = []string{"build", "-t", strings.ToLower(proj.Name) + ":latest", "."}
-		}
-
-		cmd := exec.Command(mvnBin, cmdArgs...)
-		cmd.Dir = fullProjPath
-
-		var targetJDKPath string
-		for _, jdk := range jdks {
-			if jdk.Name == proj.JDKName {
-				targetJDKPath = jdk.Path
-				break
-			}
-		}
-
-		customEnv := os.Environ()
-		if targetJDKPath != "" {
-			customEnv = append(customEnv, fmt.Sprintf("JAVA_HOME=%s", targetJDKPath))
-		}
-		if targetMvnPath != "" {
-			customEnv = append(customEnv, fmt.Sprintf("MAVEN_HOME=%s", targetMvnPath), fmt.Sprintf("M2_HOME=%s", targetMvnPath))
-		}
-		var pathPrefixes []string
-		if targetJDKPath != "" {
-			pathPrefixes = append(pathPrefixes, filepath.Join(targetJDKPath, "bin"))
-		}
-		if targetMvnPath != "" {
-			pathPrefixes = append(pathPrefixes, filepath.Join(targetMvnPath, "bin"))
-		}
-		if len(pathPrefixes) > 0 {
-			customEnv = append(customEnv, fmt.Sprintf("PATH=%s:%s", strings.Join(pathPrefixes, ":"), os.Getenv("PATH")))
-		}
-		cmd.Env = customEnv
-
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			// Return early with error if the pipe can't be established
-			return BuildFinishedMsg{Logs: []string{fmt.Sprintf("❌ Pipe Error: %v", err)}, Err: err}
-		}
-		cmd.Stderr = cmd.Stdout
-
-		if err := cmd.Start(); err != nil {
-			return BuildFinishedMsg{Logs: []string{fmt.Sprintf("❌ Execution Start Error: %v", err)}, Err: err}
-		}
-
-		// Prepend the exact command path that is being run into the log history
-		var logLines []string
-		logLines = append(logLines, fmt.Sprintf("$ %s %s", mvnBin, strings.Join(cmdArgs, " ")))
-
-		// Intercept and scan standard process logs
-		importBuf := bufio.NewScanner(stdout)
-		for importBuf.Scan() {
-			logLines = append(logLines, importBuf.Text())
-		}
-
-		waitErr := cmd.Wait()
-
-		// !!! FIXED: WE NOW PASS THE PROCESSED LOG LINES BACK TO BUBBLE TEA !!!
-		return BuildFinishedMsg{Logs: logLines, Err: waitErr}
-	}
-}
-
-type BuildFinishedMsg struct {
-	Logs []string
-	Err  error
-}
-
-type appModel struct {
-	state model.UIState
-}
-
-func (m appModel) Init() tea.Cmd {
-	if m.state.ViewState == model.StateInstaller {
-		return textinput.Blink
-	}
-	return m.updateWorkspaceFiles()
-}
-
-func (m *appModel) updateWorkspaceFiles() tea.Cmd {
-	return func() tea.Msg {
-		if len(m.state.Config.Projects) == 0 {
-			return model.FileLoadMsg("")
-		}
-		if m.state.SelectedProj >= len(m.state.Config.Projects) {
-			m.state.SelectedProj = 0
-		}
-		proj := m.state.Config.Projects[m.state.SelectedProj]
-		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
-
-		entries, err := ioutil.ReadDir(fullPath)
-		if err != nil {
-			return model.StatusMsg(fmt.Sprintf("Directory missing at target: %s", fullPath))
-		}
-
-		var projectFiles []string
-		for _, e := range entries {
-			if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-				projectFiles = append(projectFiles, e.Name())
-			}
-		}
-
-		m.state.Files = projectFiles
-		return model.FileLoadMsg("sync")
-	}
-}
-
-func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch m.state.MvnStep {
-	case model.StepSelectMvnAction:
-		switch msg.String() {
-		case "esc":
-			m.state.ViewState = model.StateDashboard
-			return m, nil
-		case "up", "k":
-			if m.state.SelectedMenuIdx > 0 {
-				m.state.SelectedMenuIdx--
-			}
-		case "down", "j":
-			if m.state.SelectedMenuIdx < 1 {
-				m.state.SelectedMenuIdx++
-			}
-		case "enter":
-			if m.state.SelectedMenuIdx == 0 {
-				m.state.MvnStep = model.StepAddNewMvnVersion
-				m.state.FocusedInput = 9
-				m.state.Inputs[9].SetValue("")
-				m.state.Inputs[10].SetValue("")
-				m.state.Inputs[9].Focus()
-			} else {
-				m.state.MvnStep = model.StepAssignMvnToProject
-				m.state.SelectedMvnIdx = 0
-			}
-		}
-
-	case model.StepAddNewMvnVersion:
-		switch msg.String() {
-		case "esc":
-			m.state.MvnStep = model.StepSelectMvnAction
-			return m, nil
-		case "tab", "down":
-			m.state.Inputs[m.state.FocusedInput].Blur()
-			m.state.FocusedInput = 19 - m.state.FocusedInput // Math flip cycles safely between 9 and 10
-			if m.state.FocusedInput < 9 || m.state.FocusedInput > 10 {
-				m.state.FocusedInput = 9
-			}
-			m.state.Inputs[m.state.FocusedInput].Focus()
-		case "enter":
-			mVnName := m.state.Inputs[9].Value()
-			mVnPath := m.state.Inputs[10].Value()
-
-			if mVnName != "" && mVnPath != "" {
-				m.state.Config.Mavens = append(m.state.Config.Mavens, config.MavenProfile{Name: mVnName, Path: mVnPath})
-				_ = config.SaveConfig(m.state.Config)
-				m.state.StatusMsg = fmt.Sprintf("✅ Added Maven Profile: %s", mVnName)
-			}
-			m.state.MvnStep = model.StepSelectMvnAction
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
-		return m, cmd
-
-	case model.StepAssignMvnToProject:
-		switch msg.String() {
-		case "esc":
-			m.state.MvnStep = model.StepSelectMvnAction
-			return m, nil
-		case "up", "k":
-			if m.state.SelectedMvnIdx > 0 {
-				m.state.SelectedMvnIdx--
-			}
-		case "down", "j":
-			if m.state.SelectedMvnIdx < len(m.state.Config.Mavens)-1 {
-				m.state.SelectedMvnIdx++
-			}
-		case "enter":
-			if len(m.state.Config.Mavens) > 0 && len(m.state.Config.Projects) > 0 {
-				chosenMvn := m.state.Config.Mavens[m.state.SelectedMvnIdx]
-				m.state.Config.Projects[m.state.SelectedProj].MavenName = chosenMvn.Name
-				_ = config.SaveConfig(m.state.Config)
-				m.state.StatusMsg = fmt.Sprintf("✅ Workspace assigned to use Maven profile: %s", chosenMvn.Name)
-			}
-			m.state.ViewState = model.StateDashboard
-			return m, m.updateWorkspaceFiles()
-		}
-	}
-	return m, nil
-}
-
-func (m appModel) readFileContentCmd() tea.Cmd {
-	return func() tea.Msg {
-		if len(m.state.Files) == 0 {
-			return model.StatusMsg("No workspace files available.")
-		}
-		proj := m.state.Config.Projects[m.state.SelectedProj]
-		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
-
-		targetFilePath := filepath.Join(fullProjPath, m.state.Files[m.state.SelectedFile])
-		data, err := ioutil.ReadFile(targetFilePath)
-		if err != nil {
-			return model.StatusMsg(fmt.Sprintf("Failed file stream: %v", err))
-		}
-		m.state.FileViewer.SetContent(string(data))
-		return model.StatusMsg(fmt.Sprintf("Inspecting file: %s", m.state.Files[m.state.SelectedFile]))
-	}
-}
-
 func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -391,18 +295,20 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.TerminalW = msg.Width
 		m.state.TerminalH = msg.Height
 		m.state.FileViewer.Width = (msg.Width / 2) - 4
-		m.state.FileViewer.Height = max(msg.Height-8, 5)
+		m.state.FileViewer.Height = msg.Height - 8
+		if m.state.FileViewer.Height < 5 {
+			m.state.FileViewer.Height = 5
+		}
 
 	case model.FileLoadMsg:
-		if len(m.state.Files) > 0 {
-			if m.state.SelectedFile >= len(m.state.Files) {
+		if len(m.state.TreeNodes) > 0 {
+			if m.state.SelectedFile >= len(m.state.TreeNodes) {
 				m.state.SelectedFile = 0
 			}
 			cmds = append(cmds, m.readFileContentCmd())
 		} else {
-			m.state.FileViewer.SetContent("No files found.")
+			m.state.FileViewer.SetContent("Empty project directory root.")
 		}
-
 	case model.ConfigRefreshedMsg:
 		m.state.Config = config.Config(msg)
 		cmds = append(cmds, m.updateWorkspaceFiles())
@@ -413,15 +319,22 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case model.BuildLogLineMsg:
 		if sess, exists := m.state.Sessions[msg.SessionID]; exists {
 			if msg.Line != "" {
-				sess.Logs = append(sess.Logs, msg.Line)
+				// Apply real-time regex color highlighting filters
+				line := msg.Line
+				if regexp.MustCompile(`(?i)\[error\]|fail`).MatchString(line) {
+					line = "\x1b[31;1m" + line + "\x1b[0m"
+				} else if regexp.MustCompile(`(?i)\[warn`).MatchString(line) {
+					line = "\x1b[33;1m" + line + "\x1b[0m"
+				} else if regexp.MustCompile(`(?i)\[info\]|success`).MatchString(line) {
+					line = "\x1b[32m" + line + "\x1b[0m"
+				}
 
-				// Also sync to active view state if inspecting inside the active compilation modal window view
+				sess.Logs = append(sess.Logs, line)
 				if m.state.ViewState == model.StateBuildModal && m.state.ActiveSessionID == msg.SessionID {
 					m.state.BuildLogs = sess.Logs
 				}
 			}
 		}
-
 		return m, func() tea.Msg {
 			activeCh, exists := sessionChannels[msg.SessionID]
 			if !exists {
@@ -449,20 +362,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state.IsBuilding = false
 			}
 		}
-		// Clean up tracked system reference channel mappings cleanly
 		delete(sessionChannels, msg.SessionID)
-		return m, nil
-
-	case BuildFinishedMsg:
-		m.state.IsBuilding = false
-		m.state.BuildLogs = msg.Logs
-
-		m.state.BuildLogs = append(m.state.BuildLogs, "--------------------------------------------------------")
-		if msg.Err != nil {
-			m.state.BuildLogs = append(m.state.BuildLogs, fmt.Sprintf("❌ \x1b[31;1mBUILD PIPELINE FAILED: %v\x1b[0m", msg.Err))
-		} else {
-			m.state.BuildLogs = append(m.state.BuildLogs, "✅ \x1b[32;1mBUILD LIFECYCLE SUCCESSFULLY COMPLETED!\x1b[0m")
-		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -470,7 +370,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Intercept global shortcut keys
 		if (msg.String() == "?" || msg.String() == "h") && m.state.ViewState == model.StateDashboard {
 			m.state.ViewState = model.StateHelpModal
 			return m, nil
@@ -482,49 +381,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state.GitOpsStep = model.StepSelectGitProject
 				m.state.SelectedGitProj = m.state.SelectedProj
 				m.state.SelectedGitCmd = 0
-				return m, nil
-			}
-		}
-
-		// Intercept global manual exit key strokes on the active wizard overlays
-		if msg.String() == "esc" {
-			if m.state.ViewState == model.StateBuildModal {
-				// !!! RULE REQUIREMENT COMPLIANCE: If building modal explicitly closes, DELETE session records safely !!!
-				if m.state.ActiveSessionID != 0 {
-					delete(m.state.Sessions, m.state.ActiveSessionID)
-					m.state.ActiveSessionID = 0
-				}
-				m.state.ViewState = model.StateDashboard
-				return m, nil
-			}
-			if m.state.ViewState == model.StateSessionLogsModal {
-				m.state.ViewState = model.StateDashboard
-				return m, nil
-			}
-		}
-
-		// Capture global shortkey Ctrl+S inspector operations command triggers
-		if msg.String() == "ctrl+s" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateSessionLogsModal
-			m.state.ViewingSessionID = 0 // Clear placeholder target digit indexes values hooks
-			return m, nil
-		}
-
-		// Intercept direct digit index selections keystrokes context entries when inside inspection modals
-		if m.state.ViewState == model.StateSessionLogsModal {
-			if msg.String() >= "1" && msg.String() <= "9" {
-				targetID := int(msg.String()[0] - '0')
-				m.state.ViewingSessionID = targetID
-				return m, nil
-			}
-		}
-
-		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
-			if len(m.state.Config.Projects) > 0 {
-				m.state.ViewState = model.StateBuildModal
-				m.state.SelectedBuildOpt = 0
-				m.state.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
-				m.state.IsBuilding = false
 				return m, nil
 			}
 		}
@@ -545,9 +401,50 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
+			if len(m.state.Config.Projects) > 0 {
+				m.state.ViewState = model.StateBuildModal
+				m.state.SelectedBuildOpt = 0
+				m.state.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
+				m.state.IsBuilding = false
+				return m, nil
+			}
+		}
+
+		if msg.String() == "ctrl+s" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateSessionLogsModal
+			m.state.ViewingSessionID = 0
+			return m, nil
+		}
+
+		if msg.String() == "esc" {
+			if m.state.ViewState == model.StateBuildModal {
+				if m.state.ActiveSessionID != 0 {
+					delete(m.state.Sessions, m.state.ActiveSessionID)
+					m.state.ActiveSessionID = 0
+				}
+				m.state.ViewState = model.StateDashboard
+				return m, nil
+			}
+			if m.state.ViewState == model.StateSessionLogsModal || m.state.ViewState == model.StateHelpModal {
+				m.state.ViewState = model.StateDashboard
+				return m, nil
+			}
+		}
+
+		if m.state.ViewState == model.StateSessionLogsModal {
+			if msg.String() >= "1" && msg.String() <= "9" {
+				// Convert the string safely to a rune first to perform index calculation arithmetic
+				runes := []rune(msg.String())
+				if len(runes) > 0 {
+					targetID := int(runes[0] - '0')
+					m.state.ViewingSessionID = targetID
+					return m, nil
+				}
+			}
+		}
 		switch m.state.ViewState {
 		case model.StateHelpModal:
-			// Any key inside help closes help and returns cleanly to main screen
 			m.state.ViewState = model.StateDashboard
 			return m, nil
 		case model.StateInstaller:
@@ -558,64 +455,137 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateGitOpsModal(msg)
 		case model.StateJDKConfigModal:
 			return m.updateJDKModal(msg)
-		case model.StateBuildModal:
-			return m.updateBuildModal(msg)
-			// INSIDE the main switch m.state.ViewState layout router inside Update():
 		case model.StateMavenConfigModal:
 			return m.updateMvnModal(msg)
-
+		case model.StateBuildModal:
+			return m.updateBuildModal(msg)
 		default:
 			return m.updateDashboardPortal(msg)
 		}
 	}
-
 	var viewCmd tea.Cmd
 	m.state.FileViewer, viewCmd = m.state.FileViewer.Update(msg)
 	cmds = append(cmds, viewCmd)
-
 	return m, tea.Batch(cmds...)
 }
-
 func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.state.IsBuilding {
-		return m, nil // Swallow inputs if background builder threads remain busy
+	var currentSessionID int
+	if len(m.state.Config.Projects) > 0 {
+		targetProj := m.state.Config.Projects[m.state.SelectedProj]
+		for id, sess := range m.state.Sessions {
+			if sess.ProjectName == targetProj.Name && sess.IsRunning {
+				currentSessionID = id
+				break
+			}
+		}
 	}
-
+	if currentSessionID != 0 {
+		return m, nil
+	}
 	switch msg.String() {
 	case "esc":
 		m.state.ViewState = model.StateDashboard
 		return m, nil
-
 	case "left", "h":
 		if m.state.SelectedBuildOpt > 0 {
 			m.state.SelectedBuildOpt--
 		}
-
 	case "right", "l":
 		if m.state.SelectedBuildOpt < len(m.state.BuildOptions)-1 {
 			m.state.SelectedBuildOpt++
 		}
-
 	case "enter":
 		m.state.IsBuilding = true
-		m.state.BuildLogs = []string{"🚀 Initializing pipeline thread context channels... Running backup..."}
-
 		chosenOpt := m.state.BuildOptions[m.state.SelectedBuildOpt]
 		proj := m.state.Config.Projects[m.state.SelectedProj]
-
-		// Run isolation routines right inside the main process loop frame first
 		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 		backupDir := fullProjPath + "_backup_target"
 		_ = os.RemoveAll(backupDir)
 		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
 		_ = exec.Command("git", "clean", "-xdf").Run()
-
-		// Fire off our async background builder routine
 		return m, m.spawnBackgroundSession(proj, chosenOpt)
 	}
 	return m, nil
 }
-
+func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.state.MvnStep {
+	case model.StepSelectMvnAction:
+		switch msg.String() {
+		case "esc":
+			m.state.ViewState = model.StateDashboard
+			return m, nil
+		case "up", "k":
+			if m.state.SelectedMenuIdx > 0 {
+				m.state.SelectedMenuIdx--
+			}
+		case "down", "j":
+			if m.state.SelectedMenuIdx < 1 {
+				m.state.SelectedMenuIdx++
+			}
+		case "enter":
+			if m.state.SelectedMenuIdx == 0 {
+				m.state.MvnStep = model.StepAddNewMvnVersion
+				m.state.FocusedInput = 9
+				m.state.Inputs[9].SetValue("")
+				m.state.Inputs[10].SetValue("")
+				m.state.Inputs[9].Focus()
+			} else {
+				m.state.MvnStep = model.StepAssignMvnToProject
+				m.state.SelectedMvnIdx = 0
+			}
+		}
+	case model.StepAddNewMvnVersion:
+		switch msg.String() {
+		case "esc":
+			m.state.MvnStep = model.StepSelectMvnAction
+			return m, nil
+		case "tab", "down":
+			m.state.Inputs[m.state.FocusedInput].Blur()
+			m.state.FocusedInput = 19 - m.state.FocusedInput
+			if m.state.FocusedInput < 9 || m.state.FocusedInput > 10 {
+				m.state.FocusedInput = 9
+			}
+			m.state.Inputs[m.state.FocusedInput].Focus()
+		case "enter":
+			mVnName := m.state.Inputs[9].Value()
+			mVnPath := m.state.Inputs[10].Value()
+			if mVnName != "" && mVnPath != "" {
+				m.state.Config.Mavens = append(m.state.Config.Mavens, config.MavenProfile{Name: mVnName, Path: mVnPath})
+				_ = config.SaveConfig(m.state.Config)
+				m.state.StatusMsg = fmt.Sprintf("✅ Added Maven Profile: %s", mVnName)
+			}
+			m.state.MvnStep = model.StepSelectMvnAction
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
+		return m, cmd
+	case model.StepAssignMvnToProject:
+		switch msg.String() {
+		case "esc":
+			m.state.MvnStep = model.StepSelectMvnAction
+			return m, nil
+		case "up", "k":
+			if m.state.SelectedMvnIdx > 0 {
+				m.state.SelectedMvnIdx--
+			}
+		case "down", "j":
+			if m.state.SelectedMvnIdx < len(m.state.Config.Mavens)-1 {
+				m.state.SelectedMvnIdx++
+			}
+		case "enter":
+			if len(m.state.Config.Mavens) > 0 && len(m.state.Config.Projects) > 0 {
+				chosenMvn := m.state.Config.Mavens[m.state.SelectedMvnIdx]
+				m.state.Config.Projects[m.state.SelectedProj].MavenName = chosenMvn.Name
+				_ = config.SaveConfig(m.state.Config)
+				m.state.StatusMsg = fmt.Sprintf("✅ Assigned Maven Profile: %s", chosenMvn.Name)
+			}
+			m.state.ViewState = model.StateDashboard
+			return m, m.updateWorkspaceFiles()
+		}
+	}
+	return m, nil
+}
 func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.JDKStep {
 	case model.StepSelectJDKAction:
@@ -643,13 +613,13 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.state.SelectedJDKIdx = 0
 			}
 		}
-
 	case model.StepAddNewJDKVersion:
 		switch msg.String() {
 		case "esc":
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
-		case "tab", "down":
+		case
+			"tab", "down":
 			m.state.Inputs[m.state.FocusedInput].Blur()
 			m.state.FocusedInput = 15 - m.state.FocusedInput
 			if m.state.FocusedInput < 7 || m.state.FocusedInput > 8 {
@@ -659,7 +629,6 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			jName := m.state.Inputs[7].Value()
 			jPath := m.state.Inputs[8].Value()
-
 			if jName != "" && jPath != "" {
 				m.state.Config.JDKs = append(m.state.Config.JDKs, config.JDKProfile{Name: jName, Path: jPath})
 				_ = config.SaveConfig(m.state.Config)
@@ -671,13 +640,13 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 		return m, cmd
-
 	case model.StepAssignJDKToProject:
 		switch msg.String() {
 		case "esc":
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
-		case "up", "k":
+		case
+			"up", "k":
 			if m.state.SelectedJDKIdx > 0 {
 				m.state.SelectedJDKIdx--
 			}
@@ -690,7 +659,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIdx]
 				m.state.Config.Projects[m.state.SelectedProj].JDKName = chosenJDK.Name
 				_ = config.SaveConfig(m.state.Config)
-				m.state.StatusMsg = fmt.Sprintf("✅ Workspace assigned to use environment: %s", chosenJDK.Name)
+				m.state.StatusMsg = fmt.Sprintf("✅ Assigned JDK Environment: %s", chosenJDK.Name)
 			}
 			m.state.ViewState = model.StateDashboard
 			return m, m.updateWorkspaceFiles()
@@ -698,7 +667,6 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-
 func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -741,12 +709,10 @@ func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-
 func (m *appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cmd {
 	return func() tea.Msg {
 		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 		var cmd *exec.Cmd
-
 		switch operation {
 		case "clone":
 			if proj.GitURL == "" {
@@ -764,7 +730,6 @@ func (m *appModel) runGitCommandCmd(proj config.Project, operation string) tea.C
 			cmd = exec.Command("git", "checkout", "main")
 			cmd.Dir = fullPath
 		}
-
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return model.StatusMsg(fmt.Sprintf("❌ Error: %v | Log: %s", err, string(out)))
@@ -772,12 +737,10 @@ func (m *appModel) runGitCommandCmd(proj config.Project, operation string) tea.C
 		return model.StatusMsg(fmt.Sprintf("✅ git %s successfully completed.", operation))
 	}
 }
-
 func (m *appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.state.GitMissing {
 		return m, nil
 	}
-
 	if m.state.InstallerStep == model.StepSetGlobalPrefs {
 		switch msg.String() {
 		case "tab", "down":
@@ -797,7 +760,6 @@ func (m *appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.Config.BasePath = m.state.Inputs[0].Value()
 			m.state.Config.GitUsername = m.state.Inputs[1].Value()
 			m.state.Config.GitEmail = m.state.Inputs[2].Value()
-
 			if m.state.Config.BasePath == "" {
 				return m, nil
 			}
@@ -806,7 +768,6 @@ func (m *appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.Inputs[3].Focus()
 			return m, nil
 		}
-
 		var cmd tea.Cmd
 		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 		return m, cmd
@@ -849,15 +810,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "tab":
 		m.state.ActiveFocus = model.FocusArea((int(m.state.ActiveFocus) + 1) % 3)
-	case "ctrl+n":
-		m.state.ViewState = model.StateAddProjectModal
-		m.state.FocusedInput = 3
-		m.state.Inputs[3].SetValue("")
-		m.state.Inputs[4].SetValue("")
-		m.state.Inputs[5].SetValue("")
-		m.state.Inputs[6].SetValue("")
-		m.state.Inputs[3].Focus()
-		return m, nil
+
 	case "up", "k":
 		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProj > 0 {
 			m.state.SelectedProj--
@@ -866,19 +819,37 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.SelectedFile--
 			cmds = append(cmds, m.readFileContentCmd())
 		}
+
 	case "down", "j":
-		if m.state.
-			ActiveFocus == model.FocusProjects && m.state.
-			SelectedProj < len(m.state.Config.Projects)-1 {
+		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProj < len(m.state.Config.Projects)-1 {
 			m.state.SelectedProj++
 			cmds = append(cmds, m.updateWorkspaceFiles())
-		} else if m.state.ActiveFocus == model.FocusTree && m.state.SelectedFile < len(m.state.Files)-1 {
+		} else if m.state.ActiveFocus == model.FocusTree && m.state.SelectedFile < len(m.state.TreeNodes)-1 {
 			m.state.SelectedFile++
 			cmds = append(cmds, m.readFileContentCmd())
 		}
-	case "enter":
+
+	case "enter", "right", "l":
 		if m.state.ActiveFocus == model.FocusMenu {
 			cmds = append(cmds, m.executeActiveMenuAction())
+		} else if m.state.ActiveFocus == model.FocusTree && len(m.state.TreeNodes) > 0 {
+			idx := m.state.SelectedFile
+			if m.state.TreeNodes[idx].IsDir {
+				// Toggle folder state expansion parameters
+				m.state.TreeNodes[idx].IsExpanded = !m.state.TreeNodes[idx].IsExpanded
+				m.rebuildActiveTree()
+			} else {
+				cmds = append(cmds, m.readFileContentCmd())
+			}
+		}
+
+	case "left", "h":
+		if m.state.ActiveFocus == model.FocusTree && len(m.state.TreeNodes) > 0 {
+			idx := m.state.SelectedFile
+			if m.state.TreeNodes[idx].IsDir && m.state.TreeNodes[idx].IsExpanded {
+				m.state.TreeNodes[idx].IsExpanded = false
+				m.rebuildActiveTree()
+			}
 		}
 	}
 	return m, tea.Batch(cmds...)
@@ -920,7 +891,7 @@ func (m *appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 	return m, cmd
 }
-func (m appModel) executeActiveMenuAction() tea.Cmd {
+func (m *appModel) executeActiveMenuAction() tea.Cmd {
 	if len(m.state.Config.Projects) == 0 {
 		return nil
 	}
@@ -931,65 +902,7 @@ func (m appModel) executeActiveMenuAction() tea.Cmd {
 		_ = os.RemoveAll(backupDir)
 		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
 		_ = exec.Command("git", "clean", "-xdf").Run()
-		if proj.Type == "java" {
-			// Look up bound Maven path configurations
-			var targetMvnPath string
-			for _, mvn := range m.state.Config.Mavens {
-				if mvn.Name == proj.MavenName {
-					targetMvnPath = mvn.Path
-					break
-				}
-			}
-
-			// Determine custom binary execution command route location entry point
-			mvnBin := "mvn"
-			if targetMvnPath != "" {
-				mvnBin = filepath.Join(targetMvnPath, "bin", "mvn")
-			}
-
-			mvnCmd := exec.Command(mvnBin, "clean", "install")
-			mvnCmd.Dir = fullProjPath
-
-			// Resolve the JDK path as we did previously
-			var targetJDKPath string
-			for _, jdk := range m.state.Config.JDKs {
-				if jdk.Name == proj.JDKName {
-					targetJDKPath = jdk.Path
-					break
-				}
-			}
-
-			// Compose environmental variables arrays overlay layers
-			customEnv := os.Environ()
-			if targetJDKPath != "" {
-				customEnv = append(customEnv, fmt.Sprintf("JAVA_HOME=%s", targetJDKPath))
-			}
-			if targetMvnPath != "" {
-				customEnv = append(customEnv,
-					fmt.Sprintf("MAVEN_HOME=%s", targetMvnPath),
-					fmt.Sprintf("M2_HOME=%s", targetMvnPath),
-				)
-			}
-			// Stitch binary path segments on top of PATH priorities lists safely
-			var pathPrefixes []string
-			if targetJDKPath != "" {
-				pathPrefixes = append(pathPrefixes, filepath.Join(targetJDKPath, "bin"))
-			}
-			if targetMvnPath != "" {
-				pathPrefixes = append(pathPrefixes, filepath.Join(targetMvnPath, "bin"))
-			}
-
-			if len(pathPrefixes) > 0 {
-				customEnv = append(customEnv, fmt.Sprintf("PATH=%s:%s", strings.Join(pathPrefixes, ":"), os.Getenv("PATH")))
-			}
-
-			mvnCmd.Env = customEnv
-			out, err := mvnCmd.CombinedOutput()
-			if err != nil {
-				return model.StatusMsg(fmt.Sprintf("❌ MVN Build Failure: %v | Log: %s", err, string(out)))
-			}
-		}
-		return model.StatusMsg(fmt.Sprintf("Isolated workspace. Compiled via: %s", proj.JDKName))
+		return model.StatusMsg("Manual workspace isolation completed.")
 	}
 }
 func (m *appModel) View() string {
@@ -1028,9 +941,9 @@ func (m *appModel) View() string {
 		}
 		var sessionStatusStr = "\x1b[90mNo active background sessions\x1b[0m"
 		if activeCount > 0 {
-			sessionStatusStr = fmt.Sprintf("⚡ \x1b[33;1mBackground Compiles Active: %d Sessions Running\x1b[0m", activeCount)
+			sessionStatusStr = fmt.Sprintf("⚡ \x1b[33;1mBackground Active: %d Running\x1b[0m", activeCount)
 		}
-		footerText := fmt.Sprintf(" Press [?] for Help Sheet | [Ctrl+S] Inspector Panel %s | Bound Environment: %s | Status: %s", sessionStatusStr, boundJDK, m.state.StatusMsg)
+		footerText := fmt.Sprintf(" Press [?] for Help | Bound: %s | %s | Status: %s", boundJDK, sessionStatusStr, m.state.StatusMsg)
 		footer := lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("250")).Width(m.state.TerminalW).Render(footerText)
 		return lipgloss.JoinVertical(lipgloss.Left, topBar, body, footer)
 	}
@@ -1038,7 +951,8 @@ func (m *appModel) View() string {
 func main() {
 	cfg, isFirstRun := config.LoadConfig()
 	_, gitErr := exec.LookPath("git")
-	gitMissing := gitErr != nil
+	gitMissing :=
+		gitErr != nil
 	home, _ := os.UserHomeDir()
 	inputs := make([]textinput.Model, 11)
 	for i := range inputs {
@@ -1063,22 +977,19 @@ func main() {
 			inputs[0].Focus()
 		}
 	}
-	m := appModel{
-		state: model.UIState{
-			Config:        cfg,
-			ViewState:     initialState,
-			InstallerStep: model.StepSetGlobalPrefs,
-			ActiveFocus:   model.FocusProjects,
-			FileViewer:    viewport.New(30, 20),
-			Inputs:        inputs,
-			GitMissing:    gitMissing,
-			Sessions:      make(map[int]*model.BuildSession),
-			GitCommands:   []string{"fetch", "pull", "clone", "checkout (main)"},
-			BuildOptions:  []string{"clean", "test", "compile", "package", "install"},
-			BuildLogs:     []string{"Console ready. Pick a targeted pipeline action to initialize stream logs..."},
-		},
-	}
-	if _, err := tea.NewProgram(&m, tea.WithAltScreen()).Run(); err != nil {
+	m := &appModel{state: model.UIState{
+		Config:        cfg,
+		ViewState:     initialState,
+		InstallerStep: model.StepSetGlobalPrefs,
+		ActiveFocus:   model.FocusProjects,
+		FileViewer:    viewport.New(30, 20),
+		Inputs:        inputs,
+		GitMissing:    gitMissing,
+		GitCommands:   []string{"fetch", "pull", "clone", "checkout (main)"},
+		BuildOptions:  []string{"clean", "test", "compile", "package", "install"},
+		BuildLogs:     []string{"Console ready. Select option step to launch..."},
+		Sessions:      make(map[int]*model.BuildSession)}}
+	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		os.Exit(1)
 	}
 }

@@ -14,6 +14,14 @@ type BuildSession struct {
 	Logs        []string
 }
 
+type FileNode struct {
+	Name       string
+	FullPath   string
+	IsDir      bool
+	IsExpanded bool
+	Depth      int
+}
+
 type FocusArea int
 
 const (
@@ -77,6 +85,7 @@ type UIState struct {
 	ActiveFocus      FocusArea
 	SelectedProj     int
 	SelectedFile     int
+	TreeNodes        []FileNode
 	SelectedGitProj  int
 	SelectedGitCmd   int
 	SelectedJDKIdx   int
