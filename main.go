@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -18,6 +19,230 @@ import (
 	"github.com/exr462/go-build/ui/panels"
 )
 
+// Add this global or package-level channel declaration to main.go
+func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string) tea.Cmd {
+	m.state.NextSessionID++
+	sID := m.state.NextSessionID
+
+	var mvnBin = "mvn"
+	if proj.Type != "java" {
+		mvnBin = "docker"
+	}
+	cmdStr := fmt.Sprintf("%s clean %s", mvnBin, targetStep)
+	if proj.Type != "java" {
+		cmdStr = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(proj.Name))
+	}
+
+	// 1. ALLOCATE THE PERSISTENT SESSION TRACKER WITHIN THE DATA ENGINE
+	session := &model.BuildSession{
+		ID:          sID,
+		ProjectName: proj.Name,
+		Command:     cmdStr,
+		IsRunning:   true,
+		Logs:        []string{fmt.Sprintf("🚀 [Session %d ID] Starting background build context...", sID)},
+	}
+	m.state.Sessions[sID] = session
+	m.state.ActiveSessionID = sID
+
+	// Create an unbounded thread-safe data synchronization buffer channel
+	localCh := make(chan string, 500)
+
+	go func() {
+		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+
+		var targetMvnPath string
+		for _, mvn := range m.state.Config.Mavens {
+			if mvn.Name == proj.MavenName {
+				targetMvnPath = mvn.Path
+				break
+			}
+		}
+
+		binPath := "mvn"
+		var cmdArgs []string
+		if proj.Type == "java" {
+			if targetMvnPath != "" {
+				binPath = filepath.Join(targetMvnPath, "bin", "mvn")
+			}
+			cmdArgs = []string{"clean", targetStep}
+		} else {
+			binPath = "docker"
+			cmdArgs = []string{"build", "-t", strings.ToLower(proj.Name) + ":latest", "."}
+		}
+
+		cmd := exec.Command(binPath, cmdArgs...)
+		cmd.Dir = fullProjPath
+
+		var targetJDKPath string
+		for _, jdk := range m.state.Config.JDKs {
+			if jdk.Name == proj.JDKName {
+				targetJDKPath = jdk.Path
+				break
+			}
+		}
+
+		env := os.Environ()
+		if targetJDKPath != "" {
+			env = append(env, fmt.Sprintf("JAVA_HOME=%s", targetJDKPath))
+		}
+		if targetMvnPath != "" {
+			env = append(env, fmt.Sprintf("MAVEN_HOME=%s", targetMvnPath), fmt.Sprintf("M2_HOME=%s", targetMvnPath))
+		}
+		var prefixes []string
+		if targetJDKPath != "" {
+			prefixes = append(prefixes, filepath.Join(targetJDKPath, "bin"))
+		}
+		if targetMvnPath != "" {
+			prefixes = append(prefixes, filepath.Join(targetMvnPath, "bin"))
+		}
+		if len(prefixes) > 0 {
+			env = append(env, fmt.Sprintf("PATH=%s:%s", strings.Join(prefixes, ":"), os.Getenv("PATH")))
+		}
+		cmd.Env = env
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			localCh <- fmt.Sprintf("❌ Setup Pipe Exception: %v", err)
+			close(localCh)
+			return
+		}
+		cmd.Stderr = cmd.Stdout
+
+		if err := cmd.Start(); err != nil {
+			localCh <- fmt.Sprintf("❌ Start Process Exception: %v", err)
+			close(localCh)
+			return
+		}
+
+		localCh <- fmt.Sprintf("$ %s %s", binPath, strings.Join(cmdArgs, " "))
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			localCh <- scanner.Text()
+		}
+
+		waitErr := cmd.Wait()
+		if waitErr != nil {
+			localCh <- fmt.Sprintf("❌ Exec Terminated with fault code: %v", waitErr)
+		}
+		close(localCh)
+	}()
+
+	// 2. KICK OFF THE FIRST UNBLOCKING LOOKUP TRIGGER
+	return listenToSessionChannel(sID, localCh)
+}
+
+// FIXED: Global or package-level map tracker mapping session channel registers safely
+var sessionChannels = make(map[int]chan string)
+
+func listenToSessionChannel(sID int, ch chan string) tea.Cmd {
+	// Register channel globally so the main Update loop can reference it recursively
+	if ch != nil {
+		sessionChannels[sID] = ch
+	}
+	return func() tea.Msg {
+		activeCh, exists := sessionChannels[sID]
+		if !exists {
+			return model.BuildCompleteMsg{SessionID: sID, Err: fmt.Errorf("channel untracked")}
+		}
+
+		line, ok := <-activeCh
+		if !ok {
+			return model.BuildCompleteMsg{SessionID: sID, Err: nil}
+		}
+		return model.BuildLogLineMsg{SessionID: sID, Line: line}
+	}
+}
+
+// Add this exact custom background runner below your other methods in main.go
+//
+//goland:noinspection GoUnusedFunction
+func runStreamSub(proj config.Project, targetStep string, base string, jdks []config.JDKProfile, mavens []config.MavenProfile) tea.Cmd {
+	return func() tea.Msg {
+		fullProjPath := config.ResolvePath(base, proj.Path)
+
+		var targetMvnPath string
+		for _, mvn := range mavens {
+			if mvn.Name == proj.MavenName {
+				targetMvnPath = mvn.Path
+				break
+			}
+		}
+
+		mvnBin := "mvn"
+		var cmdArgs []string
+		if proj.Type == "java" {
+			if targetMvnPath != "" {
+				mvnBin = filepath.Join(targetMvnPath, "bin", "mvn")
+			}
+			cmdArgs = []string{"clean", targetStep}
+		} else {
+			mvnBin = "docker"
+			cmdArgs = []string{"build", "-t", strings.ToLower(proj.Name) + ":latest", "."}
+		}
+
+		cmd := exec.Command(mvnBin, cmdArgs...)
+		cmd.Dir = fullProjPath
+
+		var targetJDKPath string
+		for _, jdk := range jdks {
+			if jdk.Name == proj.JDKName {
+				targetJDKPath = jdk.Path
+				break
+			}
+		}
+
+		customEnv := os.Environ()
+		if targetJDKPath != "" {
+			customEnv = append(customEnv, fmt.Sprintf("JAVA_HOME=%s", targetJDKPath))
+		}
+		if targetMvnPath != "" {
+			customEnv = append(customEnv, fmt.Sprintf("MAVEN_HOME=%s", targetMvnPath), fmt.Sprintf("M2_HOME=%s", targetMvnPath))
+		}
+		var pathPrefixes []string
+		if targetJDKPath != "" {
+			pathPrefixes = append(pathPrefixes, filepath.Join(targetJDKPath, "bin"))
+		}
+		if targetMvnPath != "" {
+			pathPrefixes = append(pathPrefixes, filepath.Join(targetMvnPath, "bin"))
+		}
+		if len(pathPrefixes) > 0 {
+			customEnv = append(customEnv, fmt.Sprintf("PATH=%s:%s", strings.Join(pathPrefixes, ":"), os.Getenv("PATH")))
+		}
+		cmd.Env = customEnv
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			// Return early with error if the pipe can't be established
+			return BuildFinishedMsg{Logs: []string{fmt.Sprintf("❌ Pipe Error: %v", err)}, Err: err}
+		}
+		cmd.Stderr = cmd.Stdout
+
+		if err := cmd.Start(); err != nil {
+			return BuildFinishedMsg{Logs: []string{fmt.Sprintf("❌ Execution Start Error: %v", err)}, Err: err}
+		}
+
+		// Prepend the exact command path that is being run into the log history
+		var logLines []string
+		logLines = append(logLines, fmt.Sprintf("$ %s %s", mvnBin, strings.Join(cmdArgs, " ")))
+
+		// Intercept and scan standard process logs
+		importBuf := bufio.NewScanner(stdout)
+		for importBuf.Scan() {
+			logLines = append(logLines, importBuf.Text())
+		}
+
+		waitErr := cmd.Wait()
+
+		// !!! FIXED: WE NOW PASS THE PROCESSED LOG LINES BACK TO BUBBLE TEA !!!
+		return BuildFinishedMsg{Logs: logLines, Err: waitErr}
+	}
+}
+
+type BuildFinishedMsg struct {
+	Logs []string
+	Err  error
+}
+
 type appModel struct {
 	state model.UIState
 }
@@ -29,7 +254,7 @@ func (m appModel) Init() tea.Cmd {
 	return m.updateWorkspaceFiles()
 }
 
-func (m appModel) updateWorkspaceFiles() tea.Cmd {
+func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.state.Config.Projects) == 0 {
 			return model.FileLoadMsg("")
@@ -57,7 +282,7 @@ func (m appModel) updateWorkspaceFiles() tea.Cmd {
 	}
 }
 
-func (m appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.MvnStep {
 	case model.StepSelectMvnAction:
 		switch msg.String() {
@@ -158,7 +383,7 @@ func (m appModel) readFileContentCmd() tea.Cmd {
 	}
 }
 
-func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -185,6 +410,61 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case model.StatusMsg:
 		m.state.StatusMsg = string(msg)
 
+	case model.BuildLogLineMsg:
+		if sess, exists := m.state.Sessions[msg.SessionID]; exists {
+			if msg.Line != "" {
+				sess.Logs = append(sess.Logs, msg.Line)
+
+				// Also sync to active view state if inspecting inside the active compilation modal window view
+				if m.state.ViewState == model.StateBuildModal && m.state.ActiveSessionID == msg.SessionID {
+					m.state.BuildLogs = sess.Logs
+				}
+			}
+		}
+
+		return m, func() tea.Msg {
+			activeCh, exists := sessionChannels[msg.SessionID]
+			if !exists {
+				return nil
+			}
+			line, ok := <-activeCh
+			if !ok {
+				return model.BuildCompleteMsg{SessionID: msg.SessionID, Err: nil}
+			}
+			return model.BuildLogLineMsg{SessionID: msg.SessionID, Line: line}
+		}
+
+	case model.BuildCompleteMsg:
+		if sess, exists := m.state.Sessions[msg.SessionID]; exists {
+			sess.IsRunning = false
+			sess.Logs = append(sess.Logs, "--------------------------------------------------------")
+			if msg.Err != nil {
+				sess.Logs = append(sess.Logs, fmt.Sprintf("❌ PROCESS TERMINATED WITH ERROR: %v", msg.Err))
+			} else {
+				sess.Logs = append(sess.Logs, "✅ PROCESS LOOP SUCCESSFULLY TERMINATED IN BACKGROUND.")
+			}
+
+			if m.state.ViewState == model.StateBuildModal && m.state.ActiveSessionID == msg.SessionID {
+				m.state.BuildLogs = sess.Logs
+				m.state.IsBuilding = false
+			}
+		}
+		// Clean up tracked system reference channel mappings cleanly
+		delete(sessionChannels, msg.SessionID)
+		return m, nil
+
+	case BuildFinishedMsg:
+		m.state.IsBuilding = false
+		m.state.BuildLogs = msg.Logs
+
+		m.state.BuildLogs = append(m.state.BuildLogs, "--------------------------------------------------------")
+		if msg.Err != nil {
+			m.state.BuildLogs = append(m.state.BuildLogs, fmt.Sprintf("❌ \x1b[31;1mBUILD PIPELINE FAILED: %v\x1b[0m", msg.Err))
+		} else {
+			m.state.BuildLogs = append(m.state.BuildLogs, "✅ \x1b[32;1mBUILD LIFECYCLE SUCCESSFULLY COMPLETED!\x1b[0m")
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -202,6 +482,49 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state.GitOpsStep = model.StepSelectGitProject
 				m.state.SelectedGitProj = m.state.SelectedProj
 				m.state.SelectedGitCmd = 0
+				return m, nil
+			}
+		}
+
+		// Intercept global manual exit key strokes on the active wizard overlays
+		if msg.String() == "esc" {
+			if m.state.ViewState == model.StateBuildModal {
+				// !!! RULE REQUIREMENT COMPLIANCE: If building modal explicitly closes, DELETE session records safely !!!
+				if m.state.ActiveSessionID != 0 {
+					delete(m.state.Sessions, m.state.ActiveSessionID)
+					m.state.ActiveSessionID = 0
+				}
+				m.state.ViewState = model.StateDashboard
+				return m, nil
+			}
+			if m.state.ViewState == model.StateSessionLogsModal {
+				m.state.ViewState = model.StateDashboard
+				return m, nil
+			}
+		}
+
+		// Capture global shortkey Ctrl+S inspector operations command triggers
+		if msg.String() == "ctrl+s" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateSessionLogsModal
+			m.state.ViewingSessionID = 0 // Clear placeholder target digit indexes values hooks
+			return m, nil
+		}
+
+		// Intercept direct digit index selections keystrokes context entries when inside inspection modals
+		if m.state.ViewState == model.StateSessionLogsModal {
+			if msg.String() >= "1" && msg.String() <= "9" {
+				targetID := int(msg.String()[0] - '0')
+				m.state.ViewingSessionID = targetID
+				return m, nil
+			}
+		}
+
+		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
+			if len(m.state.Config.Projects) > 0 {
+				m.state.ViewState = model.StateBuildModal
+				m.state.SelectedBuildOpt = 0
+				m.state.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
+				m.state.IsBuilding = false
 				return m, nil
 			}
 		}
@@ -235,6 +558,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateGitOpsModal(msg)
 		case model.StateJDKConfigModal:
 			return m.updateJDKModal(msg)
+		case model.StateBuildModal:
+			return m.updateBuildModal(msg)
 			// INSIDE the main switch m.state.ViewState layout router inside Update():
 		case model.StateMavenConfigModal:
 			return m.updateMvnModal(msg)
@@ -251,7 +576,47 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.state.IsBuilding {
+		return m, nil // Swallow inputs if background builder threads remain busy
+	}
+
+	switch msg.String() {
+	case "esc":
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+
+	case "left", "h":
+		if m.state.SelectedBuildOpt > 0 {
+			m.state.SelectedBuildOpt--
+		}
+
+	case "right", "l":
+		if m.state.SelectedBuildOpt < len(m.state.BuildOptions)-1 {
+			m.state.SelectedBuildOpt++
+		}
+
+	case "enter":
+		m.state.IsBuilding = true
+		m.state.BuildLogs = []string{"🚀 Initializing pipeline thread context channels... Running backup..."}
+
+		chosenOpt := m.state.BuildOptions[m.state.SelectedBuildOpt]
+		proj := m.state.Config.Projects[m.state.SelectedProj]
+
+		// Run isolation routines right inside the main process loop frame first
+		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+		backupDir := fullProjPath + "_backup_target"
+		_ = os.RemoveAll(backupDir)
+		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
+		_ = exec.Command("git", "clean", "-xdf").Run()
+
+		// Fire off our async background builder routine
+		return m, m.spawnBackgroundSession(proj, chosenOpt)
+	}
+	return m, nil
+}
+
+func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.JDKStep {
 	case model.StepSelectJDKAction:
 		switch msg.String() {
@@ -334,7 +699,7 @@ func (m appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		if m.state.GitOpsStep == model.StepSelectGitCommand {
@@ -377,7 +742,7 @@ func (m appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cmd {
+func (m *appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cmd {
 	return func() tea.Msg {
 		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 		var cmd *exec.Cmd
@@ -408,7 +773,7 @@ func (m appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cm
 	}
 }
 
-func (m appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.state.GitMissing {
 		return m, nil
 	}
@@ -477,7 +842,7 @@ func (m appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 	return m, cmd
 }
-func (m appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg.String() {
 	case "q":
@@ -518,7 +883,7 @@ func (m appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, tea.Batch(cmds...)
 }
-func (m appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.state.ViewState = model.StateDashboard
@@ -627,7 +992,7 @@ func (m appModel) executeActiveMenuAction() tea.Cmd {
 		return model.StatusMsg(fmt.Sprintf("Isolated workspace. Compiled via: %s", proj.JDKName))
 	}
 }
-func (m appModel) View() string {
+func (m *appModel) View() string {
 	switch m.state.ViewState {
 	case model.StateHelpModal:
 		return components.RenderHelpModal(m.state)
@@ -641,6 +1006,10 @@ func (m appModel) View() string {
 		return components.RenderJDKConfigModal(m.state)
 	case model.StateMavenConfigModal:
 		return components.RenderMvnConfigModal(m.state)
+	case model.StateBuildModal:
+		return components.RenderBuildModal(m.state)
+	case model.StateSessionLogsModal:
+		return components.RenderSessionLogsModal(m.state)
 	default:
 		topBar := panels.RenderTopMenu(m.state)
 		body := panels.RenderMainBody(m.state)
@@ -651,7 +1020,17 @@ func (m appModel) View() string {
 		if boundJDK == "" {
 			boundJDK = "System Default"
 		}
-		footerText := fmt.Sprintf(" Press [?] for Help Sheet | Bound Environment: %s | Status: %s", boundJDK, m.state.StatusMsg)
+		var activeCount int
+		for _, s := range m.state.Sessions {
+			if s.IsRunning {
+				activeCount++
+			}
+		}
+		var sessionStatusStr = "\x1b[90mNo active background sessions\x1b[0m"
+		if activeCount > 0 {
+			sessionStatusStr = fmt.Sprintf("⚡ \x1b[33;1mBackground Compiles Active: %d Sessions Running\x1b[0m", activeCount)
+		}
+		footerText := fmt.Sprintf(" Press [?] for Help Sheet | [Ctrl+S] Inspector Panel %s | Bound Environment: %s | Status: %s", sessionStatusStr, boundJDK, m.state.StatusMsg)
 		footer := lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("250")).Width(m.state.TerminalW).Render(footerText)
 		return lipgloss.JoinVertical(lipgloss.Left, topBar, body, footer)
 	}
@@ -684,8 +1063,22 @@ func main() {
 			inputs[0].Focus()
 		}
 	}
-	m := appModel{state: model.UIState{Config: cfg, ViewState: initialState, InstallerStep: model.StepSetGlobalPrefs, ActiveFocus: model.FocusProjects, FileViewer: viewport.New(30, 20), Inputs: inputs, GitMissing: gitMissing, GitCommands: []string{"fetch", "pull", "clone", "checkout (main)"}}}
-	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
+	m := appModel{
+		state: model.UIState{
+			Config:        cfg,
+			ViewState:     initialState,
+			InstallerStep: model.StepSetGlobalPrefs,
+			ActiveFocus:   model.FocusProjects,
+			FileViewer:    viewport.New(30, 20),
+			Inputs:        inputs,
+			GitMissing:    gitMissing,
+			Sessions:      make(map[int]*model.BuildSession),
+			GitCommands:   []string{"fetch", "pull", "clone", "checkout (main)"},
+			BuildOptions:  []string{"clean", "test", "compile", "package", "install"},
+			BuildLogs:     []string{"Console ready. Pick a targeted pipeline action to initialize stream logs..."},
+		},
+	}
+	if _, err := tea.NewProgram(&m, tea.WithAltScreen()).Run(); err != nil {
 		os.Exit(1)
 	}
 }

@@ -19,10 +19,19 @@ func RenderMainBody(m model.UIState) string {
 	var projList strings.Builder
 	projList.WriteString(titleStyle.Render("📁 Configured Projects") + "\n\n")
 	for i, p := range m.Config.Projects {
+		// !!! NEW: EXTRACT ACTIVE TRACKING BACKGROUND SESSION IDS FOR THIS SPECIFIC PROJECT !!!
+		sessionLabel := ""
+		for id, sess := range m.Sessions {
+			if sess.ProjectName == p.Name && sess.IsRunning {
+				sessionLabel = fmt.Sprintf(" \x1b[33;1m(ID:%d ⏳)\x1b[0m", id)
+				break
+			}
+		}
+
 		if i == m.SelectedProj {
-			projList.WriteString(fmt.Sprintf("> \x1b[32m%s\x1b[0m [%s]\n", p.Name, p.Type))
+			projList.WriteString(fmt.Sprintf("> \x1b[32m%s\x1b[0m [%s]%s\n", p.Name, p.Type, sessionLabel))
 		} else {
-			projList.WriteString(fmt.Sprintf("  %s [%s]\n", p.Name, p.Type))
+			projList.WriteString(fmt.Sprintf("  %s [%s]%s\n", p.Name, p.Type, sessionLabel))
 		}
 	}
 	leftBoxStyle := unfocusedBorder

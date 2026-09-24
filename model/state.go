@@ -6,6 +6,14 @@ import (
 	"github.com/exr462/go-build/config"
 )
 
+type BuildSession struct {
+	ID          int
+	ProjectName string
+	Command     string
+	IsRunning   bool
+	Logs        []string
+}
+
 type FocusArea int
 
 const (
@@ -24,6 +32,8 @@ const (
 	StateJDKConfigModal
 	StateHelpModal
 	StateMavenConfigModal
+	StateBuildModal
+	StateSessionLogsModal
 )
 
 type InstallerStep int
@@ -58,31 +68,49 @@ const (
 
 // UIState holds the shared application global model
 type UIState struct {
-	Config          config.Config
-	ViewState       AppViewState
-	InstallerStep   InstallerStep
-	JDKStep         JDKOpsStep
-	GitOpsStep      GitOpsStep
-	MvnStep         MvnOpsStep
-	ActiveFocus     FocusArea
-	SelectedProj    int
-	SelectedFile    int
-	SelectedGitProj int
-	SelectedGitCmd  int
-	SelectedJDKIdx  int
-	SelectedMvnIdx  int
-	SelectedMenuIdx int
-	GitCommands     []string
-	Files           []string
-	FileViewer      viewport.Model
-	StatusMsg       string
-	TerminalW       int
-	TerminalH       int
-	Inputs          []textinput.Model
-	FocusedInput    int
-	GitMissing      bool
+	Config           config.Config
+	ViewState        AppViewState
+	InstallerStep    InstallerStep
+	JDKStep          JDKOpsStep
+	GitOpsStep       GitOpsStep
+	MvnStep          MvnOpsStep
+	ActiveFocus      FocusArea
+	SelectedProj     int
+	SelectedFile     int
+	SelectedGitProj  int
+	SelectedGitCmd   int
+	SelectedJDKIdx   int
+	SelectedMvnIdx   int
+	SelectedMenuIdx  int
+	GitCommands      []string
+	SelectedBuildOpt int
+	BuildOptions     []string
+	BuildLogs        []string
+	IsBuilding       bool
+	// !!! GLOBAL BACKGROUND SESSION ENGINE STRUCTURES VARIABLES MAPPINGS !!!
+	Sessions         map[int]*BuildSession // Stores historical logs keyed by session index identifier
+	ActiveSessionID  int                   // The session ID currently being viewed/active
+	ViewingSessionID int                   // The session ID currently selected via Ctrl+S inspector modal
+	NextSessionID    int                   // Counter managing increment steps
+
+	Files        []string
+	FileViewer   viewport.Model
+	StatusMsg    string
+	TerminalW    int
+	TerminalH    int
+	Inputs       []textinput.Model
+	FocusedInput int
+	GitMissing   bool
 }
 
 type StatusMsg string
 type FileLoadMsg string
 type ConfigRefreshedMsg config.Config
+type BuildLogLineMsg struct {
+	SessionID int
+	Line      string
+}
+type BuildCompleteMsg struct {
+	SessionID int
+	Err       error
+}
