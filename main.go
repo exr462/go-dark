@@ -110,7 +110,12 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Intercept Git menu hotkey global triggers
+		// Intercept global shortcut keys
+		if (msg.String() == "?" || msg.String() == "h") && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateHelpModal
+			return m, nil
+		}
+
 		if msg.String() == "ctrl+g" && m.state.ViewState == model.StateDashboard {
 			if len(m.state.Config.Projects) > 0 {
 				m.state.ViewState = model.StateGitOpsModal
@@ -121,7 +126,6 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Trigger Java runtime configuration tool layout modal setup variables hooks
 		if msg.String() == "ctrl+j" && m.state.ViewState == model.StateDashboard {
 			m.state.ViewState = model.StateJDKConfigModal
 			m.state.JDKStep = model.StepSelectJDKAction
@@ -131,6 +135,10 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch m.state.ViewState {
+		case model.StateHelpModal:
+			// Any key inside help closes help and returns cleanly to main screen
+			m.state.ViewState = model.StateDashboard
+			return m, nil
 		case model.StateInstaller:
 			return m.updateInstaller(msg)
 		case model.StateAddProjectModal:
@@ -186,7 +194,7 @@ func (m appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "tab", "down":
 			m.state.Inputs[m.state.FocusedInput].Blur()
-			m.state.FocusedInput = 15 - m.state.FocusedInput // safe cycle between 7 and 8
+			m.state.FocusedInput = 15 - m.state.FocusedInput
 			if m.state.FocusedInput < 7 || m.state.FocusedInput > 8 {
 				m.state.FocusedInput = 7
 			}
@@ -198,7 +206,7 @@ func (m appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if jName != "" && jPath != "" {
 				m.state.Config.JDKs = append(m.state.Config.JDKs, config.JDKProfile{Name: jName, Path: jPath})
 				_ = config.SaveConfig(m.state.Config)
-				m.state.StatusMsg = fmt.Sprintf("✅ Added Java Profile Entry: %s", jName)
+				m.state.StatusMsg = fmt.Sprintf("✅ Added Java Profile: %s", jName)
 			}
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
@@ -225,7 +233,7 @@ func (m appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIdx]
 				m.state.Config.Projects[m.state.SelectedProj].JDKName = chosenJDK.Name
 				_ = config.SaveConfig(m.state.Config)
-				m.state.StatusMsg = fmt.Sprintf("✅ Workspace assigned to use context environment: %s", chosenJDK.Name)
+				m.state.StatusMsg = fmt.Sprintf("✅ Workspace assigned to use environment: %s", chosenJDK.Name)
 			}
 			m.state.ViewState = model.StateDashboard
 			return m, m.updateWorkspaceFiles()
@@ -243,7 +251,6 @@ func (m appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.ViewState = model.StateDashboard
 		}
 		return m, nil
-
 	case "up", "k":
 		if m.state.GitOpsStep == model.StepSelectGitProject {
 			if m.state.SelectedGitProj > 0 {
@@ -254,7 +261,6 @@ func (m appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.state.SelectedGitCmd--
 			}
 		}
-
 	case "down", "j":
 		if m.state.GitOpsStep == model.StepSelectGitProject {
 			if m.state.SelectedGitProj < len(m.state.Config.Projects)-1 {
@@ -265,22 +271,17 @@ func (m appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.state.SelectedGitCmd++
 			}
 		}
-
 	case "enter":
 		if m.state.GitOpsStep == model.StepSelectGitProject {
 			m.state.GitOpsStep = model.StepSelectGitCommand
 			return m, nil
 		}
-
 		cmdToRun := m.state.GitCommands[m.state.SelectedGitCmd]
 		proj := m.state.Config.Projects[m.state.SelectedGitProj]
-
 		m.state.ViewState = model.StateDashboard
 		m.state.StatusMsg = fmt.Sprintf("Executing task: git %s on %s...", cmdToRun, proj.Name)
-
 		return m, m.runGitCommandCmd(proj, cmdToRun)
 	}
-
 	return m, nil
 }
 
@@ -292,7 +293,7 @@ func (m appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cm
 		switch operation {
 		case "clone":
 			if proj.GitURL == "" {
-				return model.StatusMsg("❌ Git Operation Aborted: No remote clone URL found.")
+				return model.StatusMsg("❌ Git Operation Aborted: No URL found.")
 			}
 			_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
 			cmd = exec.Command("git", "clone", proj.GitURL, fullPath)
@@ -307,15 +308,11 @@ func (m appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cm
 			cmd.Dir = fullPath
 		}
 
-		if cmd == nil {
-			return model.StatusMsg("Unknown automation action variant mapping.")
-		}
-
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return model.StatusMsg(fmt.Sprintf("❌ Error: %v | Log: %s", err, string(out)))
 		}
-		return model.StatusMsg(fmt.Sprintf("✅ Successful execution: git %s completed.", operation))
+		return model.StatusMsg(fmt.Sprintf("✅ git %s successfully completed.", operation))
 	}
 }
 
@@ -341,20 +338,18 @@ func (m appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "enter":
 			m.state.Config.BasePath = m.state.Inputs[0].Value()
-			m.state.Config.GitConfig = config.GitConfig{
-				GitUsername: m.state.Inputs[1].Value(),
-				GitEmail:    m.state.Inputs[2].Value(),
-			}
+			m.state.Config.GitUsername = m.state.Inputs[1].Value()
+			m.state.Config.GitEmail = m.state.Inputs[2].Value()
 
 			if m.state.Config.BasePath == "" {
 				return m, nil
 			}
-
 			m.state.InstallerStep = model.StepAddFirstProject
 			m.state.FocusedInput = 3
 			m.state.Inputs[3].Focus()
 			return m, nil
 		}
+
 		var cmd tea.Cmd
 		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 		return m, cmd
@@ -384,7 +379,6 @@ func (m appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
-		m.state.StatusMsg = "Setup complete."
 		return m, m.updateWorkspaceFiles()
 	}
 	var cmd tea.Cmd
@@ -416,7 +410,9 @@ func (m appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.readFileContentCmd())
 		}
 	case "down", "j":
-		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProj < len(m.state.Config.Projects)-1 {
+		if m.state.
+			ActiveFocus == model.FocusProjects && m.state.
+			SelectedProj < len(m.state.Config.Projects)-1 {
 			m.state.SelectedProj++
 			cmds = append(cmds, m.updateWorkspaceFiles())
 		} else if m.state.ActiveFocus == model.FocusTree && m.state.SelectedFile < len(m.state.Files)-1 {
@@ -455,7 +451,6 @@ func (m appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		pType := m.state.Inputs[5].Value()
 		gitURL := m.state.Inputs[6].Value()
 		if name == "" || path == "" {
-			m.state.StatusMsg = "❌ Error: Project settings missing fields!"
 			return m, nil
 		}
 		newProj := config.Project{Name: name, Path: path, Type: strings.ToLower(pType), GitURL: gitURL}
@@ -497,11 +492,13 @@ func (m appModel) executeActiveMenuAction() tea.Cmd {
 				return model.StatusMsg(fmt.Sprintf("❌ MVN Build Failure: %v | Log: %s", err, string(out)))
 			}
 		}
-		return model.StatusMsg(fmt.Sprintf("Workspace isolated. MVN compiled using target profile: %s", proj.JDKName))
+		return model.StatusMsg(fmt.Sprintf("Isolated workspace. Compiled via: %s", proj.JDKName))
 	}
 }
 func (m appModel) View() string {
 	switch m.state.ViewState {
+	case model.StateHelpModal:
+		return components.RenderHelpModal(m.state)
 	case model.StateInstaller:
 		return components.RenderInstaller(m.state)
 	case model.StateAddProjectModal:
@@ -520,7 +517,7 @@ func (m appModel) View() string {
 		if boundJDK == "" {
 			boundJDK = "System Default"
 		}
-		footerText := fmt.Sprintf(" [Ctrl+J] Java Pool Config | Active Environment: %s | Logs: %s", boundJDK, m.state.StatusMsg)
+		footerText := fmt.Sprintf(" Press [?] for Help Sheet | Bound Environment: %s | Status: %s", boundJDK, m.state.StatusMsg)
 		footer := lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("250")).Width(m.state.TerminalW).Render(footerText)
 		return lipgloss.JoinVertical(lipgloss.Left, topBar, body, footer)
 	}
@@ -528,17 +525,16 @@ func (m appModel) View() string {
 func main() {
 	cfg, isFirstRun := config.LoadConfig()
 	_, gitErr := exec.LookPath("git")
-	gitMissing :=
-		gitErr != nil
-	home, _ := os.UserHomeDir() // Allocate slice space for all 9 fields
+	gitMissing := gitErr != nil
+	home, _ := os.UserHomeDir()
 	inputs := make([]textinput.Model, 9)
 	for i := range inputs {
 		inputs[i] = textinput.New()
 	}
 	inputs[0].Placeholder = "Global Workspace Base Path"
 	inputs[0].SetValue(filepath.Join(home, "Developer"))
-	inputs[1].Placeholder = "e.g. Daniel Noulet"
-	inputs[2].Placeholder = "e.g. daniel.noulet@belgiantrain.be"
+	inputs[1].Placeholder = "e.g. John Doe"
+	inputs[2].Placeholder = "e.g. john@example.com"
 	inputs[3].Placeholder = "My Application Service"
 	inputs[4].Placeholder = "my-service-folder"
 	inputs[5].Placeholder = "java"

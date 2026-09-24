@@ -25,16 +25,12 @@ type Project struct {
 	JDKName string `json:"jdk_name"`
 }
 
-type GitConfig struct {
-	GitUsername string `json:"git_username"`
-	GitEmail    string `json:"git_email"`
-}
-
 type Config struct {
-	BasePath  string       `json:"base_path"`
-	GitConfig GitConfig    `json:"git_config"`
-	Projects  []Project    `json:"projects"`
-	JDKs      []JDKProfile `json:"jdks"`
+	BasePath    string       `json:"base_path"`
+	GitUsername string       `json:"git_username"`
+	GitEmail    string       `json:"git_email"`
+	Projects    []Project    `json:"projects"`
+	JDKs        []JDKProfile `json:"jdks"`
 }
 
 func GetConfigPath() (string, error) {

@@ -22,6 +22,7 @@ const (
 	StateInstaller
 	StateGitOpsModal
 	StateJDKConfigModal
+	StateHelpModal
 )
 
 type InstallerStep int
