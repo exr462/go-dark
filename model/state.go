@@ -42,7 +42,23 @@ const (
 	StateMavenConfigModal
 	StateBuildModal
 	StateSessionLogsModal
+	StateFuzzyModal
 )
+
+type FuzzyMode int
+
+const (
+	FuzzyModeFiles   FuzzyMode = iota // Finds matching file name titles
+	FuzzyModeContent                  // Scans deeply inside text strings
+)
+
+// FuzzyResult Add a tracking structure to hold fuzzy matching results rows
+type FuzzyResult struct {
+	FileName string
+	FullPath string
+	LineNum  int    // Used if content-searching (0 if file-only search)
+	Snippet  string // Shows the matched text phrase context match
+}
 
 type InstallerStep int
 
@@ -110,6 +126,12 @@ type UIState struct {
 	Inputs       []textinput.Model
 	FocusedInput int
 	GitMissing   bool
+	// !!! GLOBAL FUZZY FINDER RECON ENGINE PARAMETERS VARIABLES MAPPINGS !!!
+	FuzzyMode       FuzzyMode       // Track if searching names vs text blocks
+	FuzzyResults    []FuzzyResult   // Store current matched elements
+	SelectedFuzzy   int             // Selection line index pointer inside results list
+	FuzzyQueryInput textinput.Model // Sub-editor text box specifically for typing queries
+	FuzzyViewer     viewport.Model
 }
 
 type StatusMsg string

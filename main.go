@@ -40,8 +40,21 @@ func (m *appModel) buildTreeNodes(currentPath string, depth int) {
 	}
 
 	for _, e := range entries {
-		// Filter out dotfiles except important framework markers
-		if strings.HasPrefix(e.Name(), ".") && e.Name() != ".gitignore" {
+		name := e.Name()
+		// 1. FILTER: Ignore hidden system dotfiles
+		if strings.HasPrefix(name, ".") && name != ".gitignore" {
+			continue
+		}
+
+		// 2. FILTER: Block standard compiled asset artifact output folders completely
+		// This keeps target/ compilation assets from blowing up tree depths!
+		if e.IsDir() && (name == "target" || name == "build" || name == "node_modules" || name == "bin") {
+			continue
+		}
+
+		ext := strings.ToLower(filepath.Ext(name))
+		// 3. FILTER: Block binary archives and compiled bytecode elements from entering list arrays
+		if ext == ".jar" || ext == ".war" || ext == ".zip" || ext == ".class" || ext == ".exe" || ext == ".png" || ext == ".jpg" {
 			continue
 		}
 
@@ -85,7 +98,21 @@ func (m *appModel) rebuildActiveTree() {
 			return
 		}
 		for _, e := range entries {
-			if strings.HasPrefix(e.Name(), ".") && e.Name() != ".gitignore" {
+			name := e.Name()
+			// 1. FILTER: Ignore hidden system dotfiles
+			if strings.HasPrefix(name, ".") && name != ".gitignore" {
+				continue
+			}
+
+			// 2. FILTER: Block standard compiled asset artifact output folders completely
+			// This keeps target/ compilation assets from blowing up tree depths!
+			if e.IsDir() && (name == "target" || name == "build" || name == "node_modules" || name == "bin") {
+				continue
+			}
+
+			ext := strings.ToLower(filepath.Ext(name))
+			// 3. FILTER: Block binary archives and compiled bytecode elements from entering list arrays
+			if ext == ".jar" || ext == ".war" || ext == ".zip" || ext == ".class" || ext == ".exe" || ext == ".png" || ext == ".jpg" {
 				continue
 			}
 			fullP := filepath.Join(currentPath, e.Name())
@@ -109,6 +136,232 @@ func (m *appModel) rebuildActiveTree() {
 
 	walkDir(rootPath, 0)
 	m.state.TreeNodes = freshTree
+}
+
+func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+
+	case "ctrl+t": // Toggle search mode between Titles and Code Content text strings
+		if m.state.FuzzyMode == model.FuzzyModeFiles {
+			m.state.FuzzyMode = model.FuzzyModeContent
+		} else {
+			m.state.FuzzyMode = model.FuzzyModeFiles
+		}
+		m.state.SelectedFuzzy = 0
+		m.runFuzzySearchEngine()
+		return m, nil
+
+	case "up", "k":
+		if m.state.SelectedFuzzy > 0 {
+			m.state.SelectedFuzzy--
+			m.syncFuzzyPreviewPane()
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.state.SelectedFuzzy < len(m.state.FuzzyResults)-1 {
+			m.state.SelectedFuzzy++
+			m.syncFuzzyPreviewPane()
+		}
+		return m, nil
+
+	case "enter":
+		if len(m.state.FuzzyResults) > 0 && m.state.SelectedFuzzy < len(m.state.FuzzyResults) {
+			target := m.state.FuzzyResults[m.state.SelectedFuzzy]
+			m.state.ViewState = model.StateDashboard
+
+			// Find the index in our main TreeNodes slice matching the target path
+			for idx, node := range m.state.TreeNodes {
+				if node.FullPath == target.FullPath {
+					m.state.SelectedFile = idx
+					m.state.ActiveFocus = model.FocusTree
+					break
+				}
+			}
+			return m, m.readFileContentCmd()
+		}
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+	}
+
+	// Route alphanumeric character keystrokes into the editor query buffer
+
+	var cmd tea.Cmd
+	oldVal := m.state.FuzzyQueryInput.Value()
+
+	// FIXED: Explicitly cast your KeyMsg back up into a general tea.Msg
+	// This ensures the underlying textinput state loop processes character bytes correctly!
+	var genericMsg tea.Msg = msg
+	m.state.FuzzyQueryInput, cmd = m.state.FuzzyQueryInput.Update(genericMsg)
+
+	// If query changed, fire the real-time lookup index scoring recalculation matches
+	if m.state.FuzzyQueryInput.Value() != oldVal {
+		m.state.SelectedFuzzy = 0
+		m.runFuzzySearchEngine()
+
+		// Secure fix: Instantly rebuild and load text content straight into the right pane
+		m.syncFuzzyPreviewPane()
+	}
+
+	// Create an overarching batch list to route internal model events cleanly
+	var cmdList []tea.Cmd
+	if cmd != nil {
+		cmdList = append(cmdList, cmd)
+	}
+
+	return m, tea.Batch(cmdList...)
+}
+
+// Add this method to main.go right under your updateFuzzyModal methods:
+func (m *appModel) syncFuzzyPreviewPane() {
+	if len(m.state.FuzzyResults) == 0 || m.state.SelectedFuzzy >= len(m.state.FuzzyResults) {
+		m.state.FuzzyViewer.SetContent("No file selected for preview context.")
+		return
+	}
+
+	res := m.state.FuzzyResults[m.state.SelectedFuzzy]
+
+	// !!! FIX 1: EXTENSION WHTELIST GUARD FOR THE FUZZY PREVIEW PANE !!!
+	ext := strings.ToLower(filepath.Ext(res.FileName))
+	isTextFile := ext == ".go" || ext == ".kt" || ext == ".java" || ext == ".xml" || ext == ".json" ||
+		ext == ".properties" || ext == ".yml" || ext == ".yaml" || ext == ".jsx" || ext == ".tsx" || ext == ".ts" || ext == ".txt" ||
+		ext == ".md" || ext == ".sh" || ext == ".sql" || res.FileName == "Dockerfile" || res.FileName == "pom.xml"
+
+	if !isTextFile {
+		// Intercept and print a safe notice instead of reading raw binary data
+		notice := fmt.Sprintf("\n  📦 [BINARY ARTIFACT] Previews Blocked\n\n  File: %s\n\n  Fuzzy preview is disabled for compiled binary artifacts to protect terminal layout encoding.", res.FileName)
+		m.state.FuzzyViewer.SetContent(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Italic(true).Render(notice))
+		return
+	}
+
+	// Verified safe text file. Load normally
+	data, err := ioutil.ReadFile(res.FullPath)
+	if err != nil {
+		m.state.FuzzyViewer.SetContent(fmt.Sprintf("❌ Error opening preview track: %v", err))
+		return
+	}
+
+	m.state.FuzzyViewer.SetContent(string(data))
+
+	if m.state.FuzzyMode == model.FuzzyModeContent && res.LineNum > 0 {
+		m.state.FuzzyViewer.GotoTop()
+		for i := 0; i < res.LineNum-3 && i < m.state.FuzzyViewer.Height; i++ {
+			m.state.FuzzyViewer.LineDown(1)
+		}
+	} else {
+		m.state.FuzzyViewer.GotoTop()
+	}
+}
+
+func (m *appModel) runFuzzySearchEngine() {
+	query := strings.ToLower(strings.TrimSpace(m.state.FuzzyQueryInput.Value()))
+	m.state.FuzzyResults = []model.FuzzyResult{}
+	if query == "" {
+		return
+	}
+
+	proj := m.state.Config.Projects[m.state.SelectedProj]
+	rootPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+
+	if m.state.FuzzyMode == model.FuzzyModeFiles {
+		// Mode 1: File Names Finder
+		var traverse func(string)
+		traverse = func(p string) {
+			files, err := ioutil.ReadDir(p)
+			if err != nil {
+				return
+			}
+			for _, f := range files {
+				name := f.Name()
+
+				// !!! FIX 2: IGNORE BUILD DIRECTORIES IN SEARCH TRAVERSAL !!!
+				if f.IsDir() && (name == "target" || name == "build" || name == "node_modules" || name == "bin" || name == ".git") {
+					continue
+				}
+				if strings.HasPrefix(name, ".") && name != ".gitignore" {
+					continue
+				}
+
+				fullP := filepath.Join(p, name)
+				ext := strings.ToLower(filepath.Ext(name))
+
+				// !!! FIX 3: IGNORE COMPRESSED ARCHIVES & SYSTEM IMAGES !!!
+				if ext == ".jar" || ext == ".war" || ext == ".zip" || ext == ".class" || ext == ".exe" || ext == ".png" || ext == ".jpg" {
+					continue
+				}
+
+				if strings.Contains(strings.ToLower(name), query) {
+					m.state.FuzzyResults = append(m.state.FuzzyResults, model.FuzzyResult{
+						FileName: name,
+						FullPath: fullP,
+					})
+				}
+				if f.IsDir() {
+					traverse(fullP)
+				}
+			}
+		}
+		traverse(rootPath)
+	} else {
+		// Mode 2: Deep Content Text Scanning
+		var deepScan func(string)
+		deepScan = func(p string) {
+			files, err := ioutil.ReadDir(p)
+			if err != nil {
+				return
+			}
+			for _, f := range files {
+				name := f.Name()
+
+				// !!! FIX 4: IGNORE BUILD DIRECTORIES IN DEEP CONTENT SCANNING !!!
+				if f.IsDir() && (name == "target" || name == "build" || name == "node_modules" || name == "bin" || name == ".git") {
+					continue
+				}
+				if strings.HasPrefix(name, ".") && name != ".gitignore" {
+					continue
+				}
+
+				fullP := filepath.Join(p, name)
+
+				if f.IsDir() {
+					deepScan(fullP)
+				} else {
+					ext := strings.ToLower(filepath.Ext(name))
+					// Strict whitelist of human-readable text code files
+					if ext == ".xml" || ext == ".go" || ext == ".json" || ext == ".java" || ext == ".txt" || ext == ".md" || ext == ".properties" || ext == ".yml" || ext == ".yaml" || name == "Dockerfile" {
+						file, err := os.Open(fullP)
+						if err != nil {
+							continue
+						}
+
+						scanner := bufio.NewScanner(file)
+						lineCount := 0
+						for scanner.Scan() {
+							lineCount++
+							txt := scanner.Text()
+							if strings.Contains(strings.ToLower(txt), query) {
+								m.state.FuzzyResults = append(m.state.FuzzyResults, model.FuzzyResult{
+									FileName: name,
+									FullPath: fullP,
+									LineNum:  lineCount,
+									Snippet:  strings.TrimSpace(txt),
+								})
+								if len(m.state.FuzzyResults) > 150 {
+									file.Close()
+									return
+								}
+							}
+						}
+						file.Close()
+					}
+				}
+			}
+		}
+		deepScan(rootPath)
+	}
 }
 
 func (m *appModel) updateWorkspaceFiles() tea.Cmd {
@@ -145,17 +398,33 @@ func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 func (m *appModel) readFileContentCmd() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.state.TreeNodes) == 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
-			return model.StatusMsg("No nodes selected.")
+			return model.StatusMsg("No nodes currently highlighted inside workspace hierarchy.")
 		}
+
 		node := m.state.TreeNodes[m.state.SelectedFile]
 		if node.IsDir {
 			return model.StatusMsg(fmt.Sprintf("Directory selected: %s", node.Name))
 		}
 
+		// EXTENSION POLICING: Explicitly maintain an allowed whitelist of editable developer source extensions
+		ext := strings.ToLower(filepath.Ext(node.Name))
+		isTextFile := ext == ".go" || ext == ".java" || ext == ".xml" || ext == ".json" ||
+			ext == ".properties" || ext == ".yml" || ext == ".yaml" || ext == ".txt" ||
+			ext == ".md" || ext == ".sh" || ext == ".sql" || node.Name == "Dockerfile" || node.Name == "pom.xml"
+
+		if !isTextFile {
+			// FIXED: Block reading. Render a clean text notification box instead of raw binary bytes noise
+			notice := fmt.Sprintf("\n  📦 [BINARY ARTIFACT] Previews Blocked\n\n  File: %s\n  Type: Compiled Binary Asset Context\n\n  RepoDeck blocks loading binary formats to prevent terminal encoding distortion.", node.Name)
+			m.state.FileViewer.SetContent(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Italic(true).Render(notice))
+			return model.StatusMsg(fmt.Sprintf("⚠️ Blocked unreadable binary asset format: %s", node.Name))
+		}
+
+		// Safe route: File is verified plain-text. Stream contents normally
 		data, err := ioutil.ReadFile(node.FullPath)
 		if err != nil {
-			return model.StatusMsg(fmt.Sprintf("Failed to stream text layout: %v", err))
+			return model.StatusMsg(fmt.Sprintf("Failed to stream layout text: %v", err))
 		}
+
 		m.state.FileViewer.SetContent(string(data))
 		return model.StatusMsg(fmt.Sprintf("Inspecting file relative path structure: %s", node.Name))
 	}
@@ -295,10 +564,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.TerminalW = msg.Width
 		m.state.TerminalH = msg.Height
 		m.state.FileViewer.Width = (msg.Width / 2) - 4
-		m.state.FileViewer.Height = msg.Height - 8
-		if m.state.FileViewer.Height < 5 {
-			m.state.FileViewer.Height = 5
-		}
+		m.state.FileViewer.Height = max(msg.Height-8, 5)
+		m.state.FuzzyViewer.Width = (msg.Width / 2) - 4
+		m.state.FuzzyViewer.Height = max(msg.Height-12, 5)
 
 	case model.FileLoadMsg:
 		if len(m.state.TreeNodes) > 0 {
@@ -309,6 +577,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.state.FileViewer.SetContent("Empty project directory root.")
 		}
+
 	case model.ConfigRefreshedMsg:
 		m.state.Config = config.Config(msg)
 		cmds = append(cmds, m.updateWorkspaceFiles())
@@ -401,6 +670,18 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "ctrl+f" && m.state.ViewState == model.StateDashboard {
+			if len(m.state.Config.Projects) > 0 {
+				m.state.ViewState = model.StateFuzzyModal
+				m.state.FuzzyMode = model.FuzzyModeFiles
+				m.state.FuzzyQueryInput.SetValue("")
+				m.state.FuzzyResults = []model.FuzzyResult{}
+				m.state.SelectedFuzzy = 0
+				m.state.FuzzyQueryInput.Focus()
+				return m, textinput.Blink
+			}
+		}
+
 		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
 			if len(m.state.Config.Projects) > 0 {
 				m.state.ViewState = model.StateBuildModal
@@ -434,7 +715,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.state.ViewState == model.StateSessionLogsModal {
 			if msg.String() >= "1" && msg.String() <= "9" {
-				// Convert the string safely to a rune first to perform index calculation arithmetic
 				runes := []rune(msg.String())
 				if len(runes) > 0 {
 					targetID := int(runes[0] - '0')
@@ -443,6 +723,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+
 		switch m.state.ViewState {
 		case model.StateHelpModal:
 			m.state.ViewState = model.StateDashboard
@@ -459,15 +740,30 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMvnModal(msg)
 		case model.StateBuildModal:
 			return m.updateBuildModal(msg)
+		case model.StateFuzzyModal:
+			return m.updateFuzzyModal(msg)
 		default:
 			return m.updateDashboardPortal(msg)
 		}
 	}
-	var viewCmd tea.Cmd
-	m.state.FileViewer, viewCmd = m.state.FileViewer.Update(msg)
-	cmds = append(cmds, viewCmd)
+
+	// FIXED GLOBAL VIEWPORT DISPATCH ROUTERS
+	// This ensures only the active, visible viewport receives scroll events
+	if m.state.ViewState == model.StateDashboard {
+		var viewCmd tea.Cmd
+		m.state.FileViewer, viewCmd = m.state.FileViewer.Update(msg)
+		cmds = append(cmds, viewCmd)
+	}
+
+	if m.state.ViewState == model.StateFuzzyModal {
+		var fuzzyViewCmd tea.Cmd
+		m.state.FuzzyViewer, fuzzyViewCmd = m.state.FuzzyViewer.Update(msg)
+		cmds = append(cmds, fuzzyViewCmd)
+	}
+
 	return m, tea.Batch(cmds...)
 }
+
 func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var currentSessionID int
 	if len(m.state.Config.Projects) > 0 {
@@ -923,6 +1219,8 @@ func (m *appModel) View() string {
 		return components.RenderBuildModal(m.state)
 	case model.StateSessionLogsModal:
 		return components.RenderSessionLogsModal(m.state)
+	case model.StateFuzzyModal:
+		return components.RenderFuzzyModal(m.state)
 	default:
 		topBar := panels.RenderTopMenu(m.state)
 		body := panels.RenderMainBody(m.state)
@@ -943,7 +1241,7 @@ func (m *appModel) View() string {
 		if activeCount > 0 {
 			sessionStatusStr = fmt.Sprintf("⚡ \x1b[33;1mBackground Active: %d Running\x1b[0m", activeCount)
 		}
-		footerText := fmt.Sprintf(" Press [?] for Help | Bound: %s | %s | Status: %s", boundJDK, sessionStatusStr, m.state.StatusMsg)
+		footerText := fmt.Sprintf(" Press [?] for Help | [Ctrl+F] Fuzzy Find | Bound: %s | %s | Status: %s", boundJDK, sessionStatusStr, m.state.StatusMsg)
 		footer := lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("250")).Width(m.state.TerminalW).Render(footerText)
 		return lipgloss.JoinVertical(lipgloss.Left, topBar, body, footer)
 	}
@@ -977,18 +1275,25 @@ func main() {
 			inputs[0].Focus()
 		}
 	}
-	m := &appModel{state: model.UIState{
-		Config:        cfg,
-		ViewState:     initialState,
-		InstallerStep: model.StepSetGlobalPrefs,
-		ActiveFocus:   model.FocusProjects,
-		FileViewer:    viewport.New(30, 20),
-		Inputs:        inputs,
-		GitMissing:    gitMissing,
-		GitCommands:   []string{"fetch", "pull", "clone", "checkout (main)"},
-		BuildOptions:  []string{"clean", "test", "compile", "package", "install"},
-		BuildLogs:     []string{"Console ready. Select option step to launch..."},
-		Sessions:      make(map[int]*model.BuildSession)}}
+	m := &appModel{
+		state: model.UIState{
+			Config:          cfg,
+			ViewState:       initialState,
+			InstallerStep:   model.StepSetGlobalPrefs,
+			ActiveFocus:     model.FocusProjects,
+			FileViewer:      viewport.New(30, 20),
+			Inputs:          inputs,
+			GitMissing:      gitMissing,
+			GitCommands:     []string{"fetch", "pull", "clone", "checkout (main)"},
+			BuildOptions:    []string{"clean", "test", "compile", "package", "install"},
+			BuildLogs:       []string{"Console ready. Select option step to launch..."},
+			Sessions:        make(map[int]*model.BuildSession),
+			FuzzyQueryInput: textinput.New(),
+			FuzzyViewer:     viewport.New(30, 20),
+		},
+	}
+	m.state.FuzzyQueryInput.Placeholder = "Type lookup phrase attributes (e.g. controller)..."
+	m.state.FuzzyQueryInput.CharLimit = 50
 	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		os.Exit(1)
 	}
