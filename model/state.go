@@ -23,6 +23,7 @@ const (
 	StateGitOpsModal
 	StateJDKConfigModal
 	StateHelpModal
+	StateMavenConfigModal
 )
 
 type InstallerStep int
@@ -47,6 +48,14 @@ const (
 	StepAssignJDKToProject
 )
 
+type MvnOpsStep int
+
+const (
+	StepSelectMvnAction MvnOpsStep = iota
+	StepAddNewMvnVersion
+	StepAssignMvnToProject
+)
+
 // UIState holds the shared application global model
 type UIState struct {
 	Config          config.Config
@@ -54,12 +63,14 @@ type UIState struct {
 	InstallerStep   InstallerStep
 	JDKStep         JDKOpsStep
 	GitOpsStep      GitOpsStep
+	MvnStep         MvnOpsStep
 	ActiveFocus     FocusArea
 	SelectedProj    int
 	SelectedFile    int
 	SelectedGitProj int
 	SelectedGitCmd  int
 	SelectedJDKIdx  int
+	SelectedMvnIdx  int
 	SelectedMenuIdx int
 	GitCommands     []string
 	Files           []string

@@ -57,6 +57,89 @@ func (m appModel) updateWorkspaceFiles() tea.Cmd {
 	}
 }
 
+func (m appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.state.MvnStep {
+	case model.StepSelectMvnAction:
+		switch msg.String() {
+		case "esc":
+			m.state.ViewState = model.StateDashboard
+			return m, nil
+		case "up", "k":
+			if m.state.SelectedMenuIdx > 0 {
+				m.state.SelectedMenuIdx--
+			}
+		case "down", "j":
+			if m.state.SelectedMenuIdx < 1 {
+				m.state.SelectedMenuIdx++
+			}
+		case "enter":
+			if m.state.SelectedMenuIdx == 0 {
+				m.state.MvnStep = model.StepAddNewMvnVersion
+				m.state.FocusedInput = 9
+				m.state.Inputs[9].SetValue("")
+				m.state.Inputs[10].SetValue("")
+				m.state.Inputs[9].Focus()
+			} else {
+				m.state.MvnStep = model.StepAssignMvnToProject
+				m.state.SelectedMvnIdx = 0
+			}
+		}
+
+	case model.StepAddNewMvnVersion:
+		switch msg.String() {
+		case "esc":
+			m.state.MvnStep = model.StepSelectMvnAction
+			return m, nil
+		case "tab", "down":
+			m.state.Inputs[m.state.FocusedInput].Blur()
+			m.state.FocusedInput = 19 - m.state.FocusedInput // Math flip cycles safely between 9 and 10
+			if m.state.FocusedInput < 9 || m.state.FocusedInput > 10 {
+				m.state.FocusedInput = 9
+			}
+			m.state.Inputs[m.state.FocusedInput].Focus()
+		case "enter":
+			mVnName := m.state.Inputs[9].Value()
+			mVnPath := m.state.Inputs[10].Value()
+
+			if mVnName != "" && mVnPath != "" {
+				m.state.Config.Mavens = append(m.state.Config.Mavens, config.MavenProfile{Name: mVnName, Path: mVnPath})
+				_ = config.SaveConfig(m.state.Config)
+				m.state.StatusMsg = fmt.Sprintf("✅ Added Maven Profile: %s", mVnName)
+			}
+			m.state.MvnStep = model.StepSelectMvnAction
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
+		return m, cmd
+
+	case model.StepAssignMvnToProject:
+		switch msg.String() {
+		case "esc":
+			m.state.MvnStep = model.StepSelectMvnAction
+			return m, nil
+		case "up", "k":
+			if m.state.SelectedMvnIdx > 0 {
+				m.state.SelectedMvnIdx--
+			}
+		case "down", "j":
+			if m.state.SelectedMvnIdx < len(m.state.Config.Mavens)-1 {
+				m.state.SelectedMvnIdx++
+			}
+		case "enter":
+			if len(m.state.Config.Mavens) > 0 && len(m.state.Config.Projects) > 0 {
+				chosenMvn := m.state.Config.Mavens[m.state.SelectedMvnIdx]
+				m.state.Config.Projects[m.state.SelectedProj].MavenName = chosenMvn.Name
+				_ = config.SaveConfig(m.state.Config)
+				m.state.StatusMsg = fmt.Sprintf("✅ Workspace assigned to use Maven profile: %s", chosenMvn.Name)
+			}
+			m.state.ViewState = model.StateDashboard
+			return m, m.updateWorkspaceFiles()
+		}
+	}
+	return m, nil
+}
+
 func (m appModel) readFileContentCmd() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.state.Files) == 0 {
@@ -83,10 +166,7 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.TerminalW = msg.Width
 		m.state.TerminalH = msg.Height
 		m.state.FileViewer.Width = (msg.Width / 2) - 4
-		m.state.FileViewer.Height = msg.Height - 8
-		if m.state.FileViewer.Height < 5 {
-			m.state.FileViewer.Height = 5
-		}
+		m.state.FileViewer.Height = max(msg.Height-8, 5)
 
 	case model.FileLoadMsg:
 		if len(m.state.Files) > 0 {
@@ -134,6 +214,14 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "ctrl+u" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateMavenConfigModal
+			m.state.MvnStep = model.StepSelectMvnAction
+			m.state.SelectedMenuIdx = 0
+			m.state.SelectedMvnIdx = 0
+			return m, nil
+		}
+
 		switch m.state.ViewState {
 		case model.StateHelpModal:
 			// Any key inside help closes help and returns cleanly to main screen
@@ -147,6 +235,10 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateGitOpsModal(msg)
 		case model.StateJDKConfigModal:
 			return m.updateJDKModal(msg)
+			// INSIDE the main switch m.state.ViewState layout router inside Update():
+		case model.StateMavenConfigModal:
+			return m.updateMvnModal(msg)
+
 		default:
 			return m.updateDashboardPortal(msg)
 		}
@@ -475,8 +567,25 @@ func (m appModel) executeActiveMenuAction() tea.Cmd {
 		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
 		_ = exec.Command("git", "clean", "-xdf").Run()
 		if proj.Type == "java" {
-			mvnCmd := exec.Command("mvn", "clean", "install")
+			// Look up bound Maven path configurations
+			var targetMvnPath string
+			for _, mvn := range m.state.Config.Mavens {
+				if mvn.Name == proj.MavenName {
+					targetMvnPath = mvn.Path
+					break
+				}
+			}
+
+			// Determine custom binary execution command route location entry point
+			mvnBin := "mvn"
+			if targetMvnPath != "" {
+				mvnBin = filepath.Join(targetMvnPath, "bin", "mvn")
+			}
+
+			mvnCmd := exec.Command(mvnBin, "clean", "install")
 			mvnCmd.Dir = fullProjPath
+
+			// Resolve the JDK path as we did previously
 			var targetJDKPath string
 			for _, jdk := range m.state.Config.JDKs {
 				if jdk.Name == proj.JDKName {
@@ -484,9 +593,32 @@ func (m appModel) executeActiveMenuAction() tea.Cmd {
 					break
 				}
 			}
+
+			// Compose environmental variables arrays overlay layers
+			customEnv := os.Environ()
 			if targetJDKPath != "" {
-				mvnCmd.Env = append(os.Environ(), fmt.Sprintf("JAVA_HOME=%s", targetJDKPath), fmt.Sprintf("PATH=%s/bin:%s", targetJDKPath, os.Getenv("PATH")))
+				customEnv = append(customEnv, fmt.Sprintf("JAVA_HOME=%s", targetJDKPath))
 			}
+			if targetMvnPath != "" {
+				customEnv = append(customEnv,
+					fmt.Sprintf("MAVEN_HOME=%s", targetMvnPath),
+					fmt.Sprintf("M2_HOME=%s", targetMvnPath),
+				)
+			}
+			// Stitch binary path segments on top of PATH priorities lists safely
+			var pathPrefixes []string
+			if targetJDKPath != "" {
+				pathPrefixes = append(pathPrefixes, filepath.Join(targetJDKPath, "bin"))
+			}
+			if targetMvnPath != "" {
+				pathPrefixes = append(pathPrefixes, filepath.Join(targetMvnPath, "bin"))
+			}
+
+			if len(pathPrefixes) > 0 {
+				customEnv = append(customEnv, fmt.Sprintf("PATH=%s:%s", strings.Join(pathPrefixes, ":"), os.Getenv("PATH")))
+			}
+
+			mvnCmd.Env = customEnv
 			out, err := mvnCmd.CombinedOutput()
 			if err != nil {
 				return model.StatusMsg(fmt.Sprintf("❌ MVN Build Failure: %v | Log: %s", err, string(out)))
@@ -507,6 +639,8 @@ func (m appModel) View() string {
 		return components.RenderGitOpsModal(m.state)
 	case model.StateJDKConfigModal:
 		return components.RenderJDKConfigModal(m.state)
+	case model.StateMavenConfigModal:
+		return components.RenderMvnConfigModal(m.state)
 	default:
 		topBar := panels.RenderTopMenu(m.state)
 		body := panels.RenderMainBody(m.state)
@@ -527,7 +661,7 @@ func main() {
 	_, gitErr := exec.LookPath("git")
 	gitMissing := gitErr != nil
 	home, _ := os.UserHomeDir()
-	inputs := make([]textinput.Model, 9)
+	inputs := make([]textinput.Model, 11)
 	for i := range inputs {
 		inputs[i] = textinput.New()
 	}
@@ -541,6 +675,8 @@ func main() {
 	inputs[6].Placeholder = "git@github.com:user/repo.git"
 	inputs[7].Placeholder = "Profile Name (e.g. Java-17)"
 	inputs[8].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
+	inputs[9].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
+	inputs[10].Placeholder = "MAVEN_HOME directory path"
 	initialState := model.StateDashboard
 	if isFirstRun || gitMissing {
 		initialState = model.StateInstaller

@@ -18,19 +18,26 @@ type JDKProfile struct {
 }
 
 type Project struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	Type    string `json:"type"`
-	GitURL  string `json:"git_url"`
-	JDKName string `json:"jdk_name"`
+	Name      string `json:"name"`
+	Path      string `json:"path"`
+	Type      string `json:"type"`
+	GitURL    string `json:"git_url"`
+	JDKName   string `json:"jdk_name"`
+	MavenName string `json:"maven_name"`
+}
+
+type MavenProfile struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
 }
 
 type Config struct {
-	BasePath    string       `json:"base_path"`
-	GitUsername string       `json:"git_username"`
-	GitEmail    string       `json:"git_email"`
-	Projects    []Project    `json:"projects"`
-	JDKs        []JDKProfile `json:"jdks"`
+	BasePath    string         `json:"base_path"`
+	GitUsername string         `json:"git_username"`
+	GitEmail    string         `json:"git_email"`
+	Projects    []Project      `json:"projects"`
+	JDKs        []JDKProfile   `json:"jdks"`
+	Mavens      []MavenProfile `json:"mavens"`
 }
 
 func GetConfigPath() (string, error) {
