@@ -475,7 +475,7 @@ func (m *appModel) readFileContentCmd() tea.Cmd {
 
 		if !isTextFile {
 			// FIXED: Block reading. Render a clean text notification box instead of raw binary bytes noise
-			notice := fmt.Sprintf("\n  📦 [BINARY ARTIFACT] Previews Blocked\n\n  File: %s\n  Type: Compiled Binary Asset Context\n\n  RepoDeck blocks loading binary formats to prevent terminal encoding distortion.", node.Name)
+			notice := fmt.Sprintf("\n  📦 [BINARY ARTIFACT] Previews Blocked\n\n  File: %s\n  Type: Compiled Binary Asset Context\n\n  Go-Dark blocks loading binary formats to prevent terminal encoding distortion.", node.Name)
 			m.state.FileViewer.SetContent(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Italic(true).Render(notice))
 			return model.StatusMsg(fmt.Sprintf("⚠️ Blocked unreadable binary asset format: %s", node.Name))
 		}

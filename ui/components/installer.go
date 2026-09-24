@@ -17,14 +17,14 @@ func RenderInstaller(m model.UIState) string {
 	// Intercept execution and block onboarding if runtime is missing git
 	if m.GitMissing {
 		boxContent = fmt.Sprintf(
-			"%s\n\n%s\n\n'git' command binary executable could not be detected in your current system $PATH environment.\n\nPlease install git via your systems package manager and try running RepoDeck again.\n\n\x1b[90mPress [Ctrl+C] to quit application\x1b[0m",
+			"%s\n\n%s\n\n'git' command binary executable could not be detected in your current system $PATH environment.\n\nPlease install git via your systems package manager and try running Go-Dark again.\n\n\x1b[90mPress [Ctrl+C] to quit application\x1b[0m",
 			titleStyle.Render("🛑 Dependency Error"),
 			errorStyle.Render("Missing System Dependency: Git Required!"),
 		)
 	} else if m.InstallerStep == model.StepSetGlobalPrefs {
 		boxContent = fmt.Sprintf(
 			"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n\x1b[90m%s\x1b[0m",
-			titleStyle.Render("🚀 RepoDeck Installer (Step 1 of 2)"),
+			titleStyle.Render("🚀 Go-Dark Installer (Step 1 of 2)"),
 			labelStyle.Render("1. Global Workspace Base Path:"),
 			m.Inputs[0].View(),
 			labelStyle.Render("2. Global Git Username (For your code commits):"),
@@ -36,7 +36,7 @@ func RenderInstaller(m model.UIState) string {
 	} else {
 		boxContent = fmt.Sprintf(
 			"%s\n\nWould you like to register your first project repository? (Optional)\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n\x1b[90m%s\x1b[0m",
-			titleStyle.Render("🚀 RepoDeck Installer (Step 2 of 2)"),
+			titleStyle.Render("🚀 Go-Dark Installer (Step 2 of 2)"),
 			labelStyle.Render("Project Display Name:"),
 			m.Inputs[3].View(),
 			labelStyle.Render("Relative Folder Name (Appended to Base Path):"),

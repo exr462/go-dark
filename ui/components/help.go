@@ -15,7 +15,7 @@ func RenderHelpModal(m model.UIState) string {
 	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Width(14)
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 
-	body.WriteString(titleStyle.Render("📖 RepoDeck Command & Shortcuts Cheat Sheet") + "\n\n")
+	body.WriteString(titleStyle.Render("📖 Go-Dark Command & Shortcuts Cheat Sheet") + "\n\n")
 
 	// Helper wrapper function to draw unified lines
 	row := func(key, desc string) string {

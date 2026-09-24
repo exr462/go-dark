@@ -1,5 +1,5 @@
-### 🚀 PROJECT CONTEXT: RepoDeck Admin Dashboard Cockpit
-We are building a highly decoupled Go TUI application called **RepoDeck** using `://github.com` and `lipgloss`. The project manages local workspaces relative to a global `base_path` configured at `$HOME/.config/repodeck/config.json`.
+### 🚀 PROJECT CONTEXT: Go-Dark Admin Dashboard Cockpit
+We are building a highly decoupled Go TUI application called **Go-Dark** using `://github.com` and `lipgloss`. The project manages local workspaces relative to a global `base_path` configured at `$HOME/.config/go-dark/config.json`.
 
 #### 📂 Strict Architecture Package Import Paths:
 import (

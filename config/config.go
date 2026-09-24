@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ApplicationName = "repodeck"
+	ApplicationName = "godark"
 )
 
 type JDKProfile struct {
