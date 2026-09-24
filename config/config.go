@@ -34,7 +34,7 @@ type Config struct {
 	BasePath  string       `json:"base_path"`
 	GitConfig GitConfig    `json:"git_config"`
 	Projects  []Project    `json:"projects"`
-	JDKS      []JDKProfile `json:"jdks"`
+	JDKs      []JDKProfile `json:"jdks"`
 }
 
 func GetConfigPath() (string, error) {

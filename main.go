@@ -121,6 +121,15 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		// Trigger Java runtime configuration tool layout modal setup variables hooks
+		if msg.String() == "ctrl+j" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateJDKConfigModal
+			m.state.JDKStep = model.StepSelectJDKAction
+			m.state.SelectedMenuIdx = 0
+			m.state.SelectedJDKIdx = 0
+			return m, nil
+		}
+
 		switch m.state.ViewState {
 		case model.StateInstaller:
 			return m.updateInstaller(msg)
@@ -128,6 +137,8 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateModalForm(msg)
 		case model.StateGitOpsModal:
 			return m.updateGitOpsModal(msg)
+		case model.StateJDKConfigModal:
+			return m.updateJDKModal(msg)
 		default:
 			return m.updateDashboardPortal(msg)
 		}
@@ -138,6 +149,89 @@ func (m appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, viewCmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch m.state.JDKStep {
+	case model.StepSelectJDKAction:
+		switch msg.String() {
+		case "esc":
+			m.state.ViewState = model.StateDashboard
+			return m, nil
+		case "up", "k":
+			if m.state.SelectedMenuIdx > 0 {
+				m.state.SelectedMenuIdx--
+			}
+		case "down", "j":
+			if m.state.SelectedMenuIdx < 1 {
+				m.state.SelectedMenuIdx++
+			}
+		case "enter":
+			if m.state.SelectedMenuIdx == 0 {
+				m.state.JDKStep = model.StepAddNewJDKVersion
+				m.state.FocusedInput = 7
+				m.state.Inputs[7].SetValue("")
+				m.state.Inputs[8].SetValue("")
+				m.state.Inputs[7].Focus()
+			} else {
+				m.state.JDKStep = model.StepAssignJDKToProject
+				m.state.SelectedJDKIdx = 0
+			}
+		}
+
+	case model.StepAddNewJDKVersion:
+		switch msg.String() {
+		case "esc":
+			m.state.JDKStep = model.StepSelectJDKAction
+			return m, nil
+		case "tab", "down":
+			m.state.Inputs[m.state.FocusedInput].Blur()
+			m.state.FocusedInput = 15 - m.state.FocusedInput // safe cycle between 7 and 8
+			if m.state.FocusedInput < 7 || m.state.FocusedInput > 8 {
+				m.state.FocusedInput = 7
+			}
+			m.state.Inputs[m.state.FocusedInput].Focus()
+		case "enter":
+			jName := m.state.Inputs[7].Value()
+			jPath := m.state.Inputs[8].Value()
+
+			if jName != "" && jPath != "" {
+				m.state.Config.JDKs = append(m.state.Config.JDKs, config.JDKProfile{Name: jName, Path: jPath})
+				_ = config.SaveConfig(m.state.Config)
+				m.state.StatusMsg = fmt.Sprintf("✅ Added Java Profile Entry: %s", jName)
+			}
+			m.state.JDKStep = model.StepSelectJDKAction
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
+		return m, cmd
+
+	case model.StepAssignJDKToProject:
+		switch msg.String() {
+		case "esc":
+			m.state.JDKStep = model.StepSelectJDKAction
+			return m, nil
+		case "up", "k":
+			if m.state.SelectedJDKIdx > 0 {
+				m.state.SelectedJDKIdx--
+			}
+		case "down", "j":
+			if m.state.SelectedJDKIdx < len(m.state.Config.JDKs)-1 {
+				m.state.SelectedJDKIdx++
+			}
+		case "enter":
+			if len(m.state.Config.JDKs) > 0 && len(m.state.Config.Projects) > 0 {
+				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIdx]
+				m.state.Config.Projects[m.state.SelectedProj].JDKName = chosenJDK.Name
+				_ = config.SaveConfig(m.state.Config)
+				m.state.StatusMsg = fmt.Sprintf("✅ Workspace assigned to use context environment: %s", chosenJDK.Name)
+			}
+			m.state.ViewState = model.StateDashboard
+			return m, m.updateWorkspaceFiles()
+		}
+	}
+	return m, nil
 }
 
 func (m appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -261,12 +355,10 @@ func (m appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.Inputs[3].Focus()
 			return m, nil
 		}
-
 		var cmd tea.Cmd
 		m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 		return m, cmd
 	}
-
 	switch msg.String() {
 	case "tab", "down":
 		m.state.Inputs[m.state.FocusedInput].Blur()
@@ -287,27 +379,18 @@ func (m appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		path := m.state.Inputs[4].Value()
 		pType := m.state.Inputs[5].Value()
 		gitURL := m.state.Inputs[6].Value()
-
 		if name != "" && path != "" {
-			m.state.Config.Projects = append(m.state.Config.Projects, config.Project{
-				Name:   name,
-				Path:   path,
-				Type:   strings.ToLower(pType),
-				GitURL: gitURL,
-			})
+			m.state.Config.Projects = append(m.state.Config.Projects, config.Project{Name: name, Path: path, Type: strings.ToLower(pType), GitURL: gitURL})
 		}
-
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
 		m.state.StatusMsg = "Setup complete."
 		return m, m.updateWorkspaceFiles()
 	}
-
 	var cmd tea.Cmd
 	m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 	return m, cmd
 }
-
 func (m appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg.String() {
@@ -347,7 +430,6 @@ func (m appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, tea.Batch(cmds...)
 }
-
 func (m appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -380,9 +462,7 @@ func (m appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.Config.Projects = append(m.state.Config.Projects, newProj)
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
-		return m, func() tea.Msg {
-			return model.ConfigRefreshedMsg(m.state.Config)
-		}
+		return m, func() tea.Msg { return model.ConfigRefreshedMsg(m.state.Config) }
 	}
 	var cmd tea.Cmd
 	m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
@@ -399,7 +479,25 @@ func (m appModel) executeActiveMenuAction() tea.Cmd {
 		_ = os.RemoveAll(backupDir)
 		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
 		_ = exec.Command("git", "clean", "-xdf").Run()
-		return model.StatusMsg("Workspace isolation operation completed.")
+		if proj.Type == "java" {
+			mvnCmd := exec.Command("mvn", "clean", "install")
+			mvnCmd.Dir = fullProjPath
+			var targetJDKPath string
+			for _, jdk := range m.state.Config.JDKs {
+				if jdk.Name == proj.JDKName {
+					targetJDKPath = jdk.Path
+					break
+				}
+			}
+			if targetJDKPath != "" {
+				mvnCmd.Env = append(os.Environ(), fmt.Sprintf("JAVA_HOME=%s", targetJDKPath), fmt.Sprintf("PATH=%s/bin:%s", targetJDKPath, os.Getenv("PATH")))
+			}
+			out, err := mvnCmd.CombinedOutput()
+			if err != nil {
+				return model.StatusMsg(fmt.Sprintf("❌ MVN Build Failure: %v | Log: %s", err, string(out)))
+			}
+		}
+		return model.StatusMsg(fmt.Sprintf("Workspace isolated. MVN compiled using target profile: %s", proj.JDKName))
 	}
 }
 func (m appModel) View() string {
@@ -410,10 +508,19 @@ func (m appModel) View() string {
 		return components.RenderModal(m.state)
 	case model.StateGitOpsModal:
 		return components.RenderGitOpsModal(m.state)
+	case model.StateJDKConfigModal:
+		return components.RenderJDKConfigModal(m.state)
 	default:
 		topBar := panels.RenderTopMenu(m.state)
 		body := panels.RenderMainBody(m.state)
-		footerText := fmt.Sprintf(" [Ctrl+G] Git Control | BasePath: %s | User: %s | Logs: %s", m.state.Config.BasePath, m.state.Config.GitConfig.GitUsername, m.state.StatusMsg)
+		var boundJDK string
+		if len(m.state.Config.Projects) > 0 && m.state.SelectedProj < len(m.state.Config.Projects) {
+			boundJDK = m.state.Config.Projects[m.state.SelectedProj].JDKName
+		}
+		if boundJDK == "" {
+			boundJDK = "System Default"
+		}
+		footerText := fmt.Sprintf(" [Ctrl+J] Java Pool Config | Active Environment: %s | Logs: %s", boundJDK, m.state.StatusMsg)
 		footer := lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("250")).Width(m.state.TerminalW).Render(footerText)
 		return lipgloss.JoinVertical(lipgloss.Left, topBar, body, footer)
 	}
@@ -421,24 +528,23 @@ func (m appModel) View() string {
 func main() {
 	cfg, isFirstRun := config.LoadConfig()
 	_, gitErr := exec.LookPath("git")
-	gitMissing := gitErr != nil
-	home, _ := os.UserHomeDir()
-	inputs := make([]textinput.Model, 7)
-	inputs[0] = textinput.New()
+	gitMissing :=
+		gitErr != nil
+	home, _ := os.UserHomeDir() // Allocate slice space for all 9 fields
+	inputs := make([]textinput.Model, 9)
+	for i := range inputs {
+		inputs[i] = textinput.New()
+	}
 	inputs[0].Placeholder = "Global Workspace Base Path"
 	inputs[0].SetValue(filepath.Join(home, "Developer"))
-	inputs[1] = textinput.New()
-	inputs[1].Placeholder = "e.g. John Doe"
-	inputs[2] = textinput.New()
-	inputs[2].Placeholder = "e.g. john@example.com"
-	inputs[3] = textinput.New()
+	inputs[1].Placeholder = "e.g. Daniel Noulet"
+	inputs[2].Placeholder = "e.g. daniel.noulet@belgiantrain.be"
 	inputs[3].Placeholder = "My Application Service"
-	inputs[4] = textinput.New()
 	inputs[4].Placeholder = "my-service-folder"
-	inputs[5] = textinput.New()
 	inputs[5].Placeholder = "java"
-	inputs[6] = textinput.New()
 	inputs[6].Placeholder = "git@github.com:user/repo.git"
+	inputs[7].Placeholder = "Profile Name (e.g. Java-17)"
+	inputs[8].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
 	initialState := model.StateDashboard
 	if isFirstRun || gitMissing {
 		initialState = model.StateInstaller
