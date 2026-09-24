@@ -31,7 +31,7 @@ func RenderInstaller(m model.UIState) string {
 			m.Inputs[1].View(),
 			labelStyle.Render("3. Global Git Email Address:"),
 			m.Inputs[2].View(),
-			"[Tab] Navigate Fields | [Enter] Continue to Project Setup | [Ctrl+C] Quit",
+			"[Tab] Navigate Fields | [Enter] Continue to Project Setup | [Esc] Quit",
 		)
 	} else {
 		boxContent = fmt.Sprintf(
@@ -45,7 +45,7 @@ func RenderInstaller(m model.UIState) string {
 			m.Inputs[5].View(),
 			labelStyle.Render("Git Repository SSH/HTTPS Clone URL:"),
 			m.Inputs[6].View(),
-			"[Tab] Navigate Fields | [Enter] Complete Setup & Launch Portal | [Ctrl+C] Quit",
+			"[Tab] Navigate Fields | [Enter] Complete Setup & Launch Portal | [Esc] Quit",
 		)
 	}
 

@@ -138,6 +138,67 @@ func (m *appModel) rebuildActiveTree() {
 	m.state.TreeNodes = freshTree
 }
 
+func (m *appModel) updateConfigDeckModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+
+	case "up", "k":
+		if m.state.SelectedConfigOption > 0 {
+			m.state.SelectedConfigOption--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.state.SelectedConfigOption < 3 { // Total of 4 structural options categories (0 to 3)
+			m.state.SelectedConfigOption++
+		}
+		return m, nil
+
+	case "enter":
+		// !!! REUSE PRE-EXISTING WIZARD MODAL STATE TRIGGERS CONTEXT CHANNELS !!!
+		switch m.state.SelectedConfigOption {
+		case 0:
+			// Option 1: Reuse the global configuration setup fields from your Installer sequence
+			m.state.ViewState = model.StateInstaller
+			m.state.InstallerStep = model.StepSetGlobalPrefs
+			m.state.FocusedInput = 0
+			m.state.Inputs[0].SetValue(m.state.Config.BasePath)
+			m.state.Inputs[1].SetValue(m.state.Config.GitUsername)
+			m.state.Inputs[2].SetValue(m.state.Config.GitEmail)
+			m.state.Inputs[0].Focus()
+			return m, textinput.Blink
+
+		case 1:
+			// Option 2: Reuse your Java JDK Environment Setup Manager screen (Ctrl+J)
+			m.state.ViewState = model.StateJDKConfigModal
+			m.state.JDKStep = model.StepSelectJDKAction
+			m.state.SelectedMenuIdx = 0
+			return m, nil
+
+		case 2:
+			// Option 3: Reuse your Apache Maven Build Setup Manager screen (Ctrl+U)
+			m.state.ViewState = model.StateMavenConfigModal
+			m.state.MvnStep = model.StepSelectMvnAction
+			m.state.SelectedMenuIdx = 0
+			return m, nil
+
+		case 3:
+			// Option 4: Reuse your 'Add New Workspace Project' data form overlay modal (Ctrl+N)
+			m.state.ViewState = model.StateAddProjectModal
+			m.state.FocusedInput = 3
+			m.state.Inputs[3].SetValue("")
+			m.state.Inputs[4].SetValue("")
+			m.state.Inputs[5].SetValue("")
+			m.state.Inputs[6].SetValue("")
+			m.state.Inputs[3].Focus()
+			return m, textinput.Blink
+		}
+	}
+	return m, nil
+}
+
 func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
@@ -662,6 +723,12 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		if msg.String() == "ctrl+y" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateConfigDeckModal
+			m.state.SelectedConfigOption = 0
+			return m, nil
+		}
+
 		if msg.String() == "ctrl+u" && m.state.ViewState == model.StateDashboard {
 			m.state.ViewState = model.StateMavenConfigModal
 			m.state.MvnStep = model.StepSelectMvnAction
@@ -742,6 +809,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateBuildModal(msg)
 		case model.StateFuzzyModal:
 			return m.updateFuzzyModal(msg)
+		case model.StateConfigDeckModal:
+			return m.updateConfigDeckModal(msg)
 		default:
 			return m.updateDashboardPortal(msg)
 		}
@@ -808,7 +877,7 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case model.StepSelectMvnAction:
 		switch msg.String() {
 		case "esc":
-			m.state.ViewState = model.StateDashboard
+			m.state.ViewState = model.StateConfigDeckModal
 			return m, nil
 		case "up", "k":
 			if m.state.SelectedMenuIdx > 0 {
@@ -1052,6 +1121,9 @@ func (m *appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.state.Inputs[m.state.FocusedInput].Focus()
 			return m, nil
+		case "esc":
+			m.state.ViewState = model.StateConfigDeckModal
+			return m, nil
 		case "enter":
 			m.state.Config.BasePath = m.state.Inputs[0].Value()
 			m.state.Config.GitUsername = m.state.Inputs[1].Value()
@@ -1153,7 +1225,11 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.state.ViewState = model.StateDashboard
+		if m.state.SelectedConfigOption == 3 {
+			m.state.ViewState = model.StateConfigDeckModal
+		} else {
+			m.state.ViewState = model.StateDashboard
+		}
 		return m, nil
 	case "tab", "down":
 		m.state.Inputs[m.state.FocusedInput].Blur()
@@ -1221,6 +1297,8 @@ func (m *appModel) View() string {
 		return components.RenderSessionLogsModal(m.state)
 	case model.StateFuzzyModal:
 		return components.RenderFuzzyModal(m.state)
+	case model.StateConfigDeckModal:
+		return components.RenderConfigDeckModal(m.state)
 	default:
 		topBar := panels.RenderTopMenu(m.state)
 		body := panels.RenderMainBody(m.state)

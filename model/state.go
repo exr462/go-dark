@@ -30,6 +30,15 @@ const (
 	FocusMenu
 )
 
+type ConfigCategory int
+
+const (
+	CfgCatGeneral  GitOpsStep = iota // BasePath & Git Credentials
+	CfgCatJDKs                       // Registered Java Environments Pool
+	CfgCatMavens                     // Registered Maven Engines Pool
+	CfgCatProjects                   // Registered Workspaces List
+)
+
 type AppViewState int
 
 const (
@@ -43,6 +52,7 @@ const (
 	StateBuildModal
 	StateSessionLogsModal
 	StateFuzzyModal
+	StateConfigDeckModal
 )
 
 type FuzzyMode int
@@ -127,11 +137,12 @@ type UIState struct {
 	FocusedInput int
 	GitMissing   bool
 	// !!! GLOBAL FUZZY FINDER RECON ENGINE PARAMETERS VARIABLES MAPPINGS !!!
-	FuzzyMode       FuzzyMode       // Track if searching names vs text blocks
-	FuzzyResults    []FuzzyResult   // Store current matched elements
-	SelectedFuzzy   int             // Selection line index pointer inside results list
-	FuzzyQueryInput textinput.Model // Sub-editor text box specifically for typing queries
-	FuzzyViewer     viewport.Model
+	FuzzyMode            FuzzyMode       // Track if searching names vs text blocks
+	FuzzyResults         []FuzzyResult   // Store current matched elements
+	SelectedFuzzy        int             // Selection line index pointer inside results list
+	FuzzyQueryInput      textinput.Model // Sub-editor text box specifically for typing queries
+	FuzzyViewer          viewport.Model
+	SelectedConfigOption int
 }
 
 type StatusMsg string
