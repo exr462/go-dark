@@ -12,11 +12,6 @@ const (
 	ApplicationName = "godark"
 )
 
-type JDKProfile struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-}
-
 type Project struct {
 	Name      string `json:"name"`
 	Path      string `json:"path"`
@@ -26,18 +21,18 @@ type Project struct {
 	MavenName string `json:"maven_name"`
 }
 
-type MavenProfile struct {
+type Profile struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 }
 
 type Config struct {
-	BasePath    string         `json:"base_path"`
-	GitUsername string         `json:"git_username"`
-	GitEmail    string         `json:"git_email"`
-	Projects    []Project      `json:"projects"`
-	JDKs        []JDKProfile   `json:"jdks"`
-	Mavens      []MavenProfile `json:"mavens"`
+	BasePath    string    `json:"base_path"`
+	GitUsername string    `json:"git_username"`
+	GitEmail    string    `json:"git_email"`
+	Projects    []Project `json:"projects"`
+	JDKs        []Profile `json:"jdks"`
+	Mavens      []Profile `json:"mavens"`
 }
 
 func GetConfigPath() (string, error) {

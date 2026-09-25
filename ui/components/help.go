@@ -9,33 +9,20 @@ import (
 
 func RenderHelpModal(m model.UIState) string {
 	var body strings.Builder
-
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Bold(true)
-	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Width(14)
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	authorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#dcdcdd")).Align(lipgloss.Center).Height(10)
-
-	body.WriteString(titleStyle.Render("📖 Go-Dark Command & Shortcuts Cheat Sheet") + "\n\n")
-
-	// Helper wrapper function to draw unified lines
-	row := func(key, desc string) string {
-		return keyStyle.Render(" "+key) + descStyle.Render(desc) + "\n"
-	}
-
+	body.WriteString(TitleStyle.Render("📖 Go-Dark Command & Shortcuts Cheat Sheet") + "\n\n")
 	body.WriteString(sectionStyle.Render("🌐 GLOBAL PANE CONTROLS") + "\n")
 	body.WriteString(row("Tab", "Cycle active panel focus (Projects ➜ Tree ➜ Menu)"))
 	body.WriteString(row("↑ / ↓ / j / k", "Navigate items in the currently focused panel"))
 	body.WriteString(row("Enter", "Confirm selected element or execute focused action"))
 	body.WriteString(row("?", "Toggle this Help utility layout on/off"))
-	body.WriteString(row("q / Ctrl+C", "Quit application immediately"))
+	body.WriteString(row("q", "Quit application immediately"))
 	body.WriteString("\n")
 
 	body.WriteString(sectionStyle.Render("🎛️ MODAL INTERFACE TOGGLES (From Dashboard)" + "\n"))
-	body.WriteString(row("Ctrl+N", "Open 'Add New Project' configuration modal form"))
+	body.WriteString(row("Ctrl+P", "Open 'Add New Project' configuration modal form"))
 	body.WriteString(row("Ctrl+G", "Open 'Git Hub Operations Center' control module"))
 	body.WriteString(row("Ctrl+J", "Open 'Java Environment SDK Manager' (JDK) module"))
-	body.WriteString(row("Ctrl+U", "Open 'Maven Manager' (MVN) module"))
+	body.WriteString(row("Ctrl+M", "Open 'Maven Manager' (MVN) module"))
 	body.WriteString(row("Ctrl+D", "Open 'Docker Manager' (DOCKER) module"))
 	body.WriteString(row("Ctrl+B", "Open 'Build' (JDK) module"))
 	body.WriteString(row("Ctrl+F", "Open 'Fuzzy finder"))
@@ -49,19 +36,14 @@ func RenderHelpModal(m model.UIState) string {
 	body.WriteString(row("Esc", "Safely exit active wizard without saving records") + "\n\n")
 
 	body.WriteString(authorStyle.Render("🤖 Author: Daniel Noulet © 2026"))
-	helpBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(ModalBorderColor).
-		Background(ModalBackground).
-		Padding(1, 2, 1, 2).
-		Width(m.TerminalW - 4).
-		Render(body.String())
 
 	return lipgloss.Place(
-		m.TerminalW, m.TerminalH,
+		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		helpBox,
-		lipgloss.WithWhitespaceChars("░"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+		ModalBox.
+			Width(m.WindowWidth-4).
+			Render(body.String()),
+		whiteSpace,
+		lipgloss.WithWhitespaceForeground(DarkerGrey),
 	)
 }

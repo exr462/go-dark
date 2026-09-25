@@ -11,50 +11,58 @@ import (
 func RenderGitOpsModal(m model.UIState) string {
 	var modalBody strings.Builder
 
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("45")).Bold(true)
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)
-	inactiveStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
+	modalBody.WriteString(TitleStyle.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
 
-	modalBody.WriteString(titleStyle.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
-
-	if m.GitOpsStep == model.StepSelectGitProject {
+	switch m.GitOperationStep {
+	case model.StepSelectGitProject:
 		modalBody.WriteString("👉 Step 1: Select Target Project Repository:\n\n")
 		for i, p := range m.Config.Projects {
-			if i == m.SelectedGitProj {
+			if i == m.SelectedGitProject {
 				modalBody.WriteString(selectedStyle.Render(fmt.Sprintf("> %s (%s)", p.Name, p.GitURL)) + "\n")
 			} else {
 				modalBody.WriteString(inactiveStyle.Render(fmt.Sprintf("  %s", p.Name)) + "\n")
 			}
 		}
 		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate | [Enter] Select Command | [Esc] Exit\x1b[0m")
-	} else {
-		targetProj := m.Config.Projects[m.SelectedGitProj]
+
+	case model.StepSelectGitCommand:
+		targetProj := m.Config.Projects[m.SelectedGitProject]
 		modalBody.WriteString(fmt.Sprintf("📦 Project Workspace: %s\n", targetProj.Name))
 		modalBody.WriteString("👉 Step 2: Choose Git Operation to Execute:\n\n")
 
 		for i, cmd := range m.GitCommands {
-			if i == m.SelectedGitCmd {
+			if i == m.SelectedGitCommand {
 				modalBody.WriteString(selectedStyle.Render(fmt.Sprintf("> git %s", cmd)) + "\n")
 			} else {
 				modalBody.WriteString(inactiveStyle.Render(fmt.Sprintf("  git %s", cmd)) + "\n")
 			}
 		}
-		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate | [Enter] Execute | [Esc] Back to Projects\x1b[0m")
+		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate | [Enter] Select | [Esc] Back to Projects\x1b[0m")
+
+	case model.StepSelectGitBranch: // 👈 New branch rendering layout
+		targetProj := m.Config.Projects[m.SelectedGitProject]
+		modalBody.WriteString(fmt.Sprintf("📦 Project Workspace: %s\n", targetProj.Name))
+		modalBody.WriteString("👉 Step 3: Select Branch to Checkout:\n\n")
+
+		if len(m.AvailableBranches) == 0 {
+			modalBody.WriteString("  \x1b[91mNo branches found or loading...\x1b[0m\n")
+		} else {
+			for i, branch := range m.AvailableBranches {
+				if i == m.SelectedGitBranch {
+					modalBody.WriteString(selectedStyle.Render(fmt.Sprintf("> %s", branch)) + "\n")
+				} else {
+					modalBody.WriteString(inactiveStyle.Render(fmt.Sprintf("  %s", branch)) + "\n")
+				}
+			}
+		}
+		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate | [Enter] Checkout Branch | [Esc] Back to Commands\x1b[0m")
 	}
 
-	modalBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(ModalBorderColor).
-		Background(ModalBackground).
-		Padding(1, 2, 1, 2).
-		Width(m.TerminalW - 4).
-		Render(modalBody.String())
-
 	return lipgloss.Place(
-		m.TerminalW, m.TerminalH,
+		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		modalBox,
-		lipgloss.WithWhitespaceChars("░"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color("236")),
+		ModalBox.Width(m.WindowWidth-4).Render(modalBody.String()),
+		whiteSpace,
+		lipgloss.WithWhitespaceForeground(DarkerGrey),
 	)
 }

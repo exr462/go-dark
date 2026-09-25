@@ -6,18 +6,15 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/components"
 )
 
 func RenderMainBody(m model.UIState) string {
-	focusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("205"))
-	unfocusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Bold(true)
-	columnWidth := (m.TerminalW / 4) - 2
-	paneHeight := m.TerminalH - 7
-
+	columnWidth := (m.WindowWidth / 4) - 2
+	paneHeight := m.WindowHeight - 7
 	// 1. Render Left Column (Projects)
 	var projList strings.Builder
-	projList.WriteString(titleStyle.Render("📁 Configured Projects") + "\n\n")
+	projList.WriteString(components.TitleStyle.Render("📁 Configured Projects") + "\n\n")
 	for i, p := range m.Config.Projects {
 		sessionLabel := ""
 		for id, sess := range m.Sessions {
@@ -26,21 +23,21 @@ func RenderMainBody(m model.UIState) string {
 				break
 			}
 		}
-		if i == m.SelectedProj {
+		if i == m.SelectedProject {
 			projList.WriteString(fmt.Sprintf("> \x1b[32m%s\x1b[0m [%s]%s\n", p.Name, p.Type, sessionLabel))
 		} else {
 			projList.WriteString(fmt.Sprintf("  %s [%s]%s\n", p.Name, p.Type, sessionLabel))
 		}
 	}
-	leftBoxStyle := unfocusedBorder
+	leftBoxStyle := components.UnfocusedBorder
 	if m.ActiveFocus == model.FocusProjects && m.ViewState == model.StateDashboard {
-		leftBoxStyle = focusedBorder
+		leftBoxStyle = components.FocusedBorder
 	}
 	leftPanel := leftBoxStyle.Width(columnWidth).Height(paneHeight).Render(projList.String())
 
 	// 2. FIXED: RENDER THE DYNAMIC TREE HIERARCHY IN THE CENTER COLUMN
 	var treeList strings.Builder
-	treeList.WriteString(titleStyle.Render("🌿 Workspace Directory Tree (ctrl+E to edit the file") + "\n\n")
+	treeList.WriteString(components.TitleStyle.Render("🌿 Workspace Directory Tree (ctrl+E to edit the file") + "\n\n")
 
 	if len(m.TreeNodes) == 0 {
 		treeList.WriteString("  \x1b[90m(No workspace directories loaded)\x1b[0m")
@@ -73,16 +70,16 @@ func RenderMainBody(m model.UIState) string {
 			}
 		}
 	}
-	centerBoxStyle := unfocusedBorder
+	centerBoxStyle := components.UnfocusedBorder
 	if m.ActiveFocus == model.FocusTree && m.ViewState == model.StateDashboard {
-		centerBoxStyle = focusedBorder
+		centerBoxStyle = components.FocusedBorder
 	}
 	centerPanel := centerBoxStyle.Width(columnWidth).Height(paneHeight).Render(treeList.String())
 
 	// 3. Render Right Column (File Contents View)
-	rightBoxStyle := unfocusedBorder
-	rightPanel := rightBoxStyle.Width((m.TerminalW / 2) - 2).Height(paneHeight).Render(
-		titleStyle.Render("🗒 Live File View Context") + "\n\n" + m.FileViewer.View(),
+	rightBoxStyle := components.UnfocusedBorder
+	rightPanel := rightBoxStyle.Width((m.WindowWidth / 2) - 2).Height(paneHeight).Render(
+		components.TitleStyle.Render("🗒 Live File View Context") + "\n\n" + m.FileViewer.View(),
 	)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, centerPanel, rightPanel)

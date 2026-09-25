@@ -11,13 +11,7 @@ import (
 func RenderSessionLogsModal(m model.UIState) string {
 	var body strings.Builder
 
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("45")).Bold(true)
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)
-	inactiveStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	logWindowStyle := lipgloss.NewStyle().Background(lipgloss.Color("233")).Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
-
-	body.WriteString(titleStyle.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
-
+	body.WriteString(TitleStyle.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
 	body.WriteString("📋 Active Background Tracking Registry Sessions List:\n")
 	if len(m.Sessions) == 0 {
 		body.WriteString("  \x1b[90m(No background tracking compiler sessions active on history stacks)\x1b[0m\n")
@@ -50,8 +44,8 @@ func RenderSessionLogsModal(m model.UIState) string {
 		} else {
 			body.WriteString(fmt.Sprintf("誠 Session Logs Output Trail targeting ID [%d]: \x1b[35;1m%s\x1b[0m\n", m.ViewingSessionID, m.Sessions[m.ViewingSessionID].Command))
 
-			logHeight := max(m.TerminalH-16, 5)
-			logWidth := max(m.TerminalW-8, 20)
+			logHeight := max(m.WindowHeight-16, 5)
+			logWidth := max(m.WindowWidth-8, 20)
 
 			var lines []string
 			startIdx := 0
@@ -76,13 +70,5 @@ func RenderSessionLogsModal(m model.UIState) string {
 
 	body.WriteString("\x1b[90m[Esc] Close Inspector View Panel and return safely to dashboard structures portal\x1b[0m")
 
-	modalBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(ModalBorderColor).
-		Background(ModalBackground).
-		Padding(1, 2, 1, 2).
-		Width(m.TerminalW - 4).
-		Render(body.String())
-
-	return lipgloss.Place(m.TerminalW, m.TerminalH, lipgloss.Center, lipgloss.Center, modalBox)
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.Width(m.WindowWidth-4).Render(body.String()))
 }

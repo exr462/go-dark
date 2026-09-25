@@ -6,18 +6,17 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/components"
 )
 
 func RenderTopMenu(m model.UIState) string {
-	unfocusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
-	focusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("205"))
 
 	// Left Side Content: Action Links
 	var leftBarStrings []string
 	topBarStrings := append(leftBarStrings, "\x1b[41m[Enter] Backup & Clean\x1b[0m")
 
-	if len(m.Config.Projects) > 0 && m.SelectedProj < len(m.Config.Projects) {
-		proj := m.Config.Projects[m.SelectedProj]
+	if len(m.Config.Projects) > 0 && m.SelectedProject < len(m.Config.Projects) {
+		proj := m.Config.Projects[m.SelectedProject]
 		if proj.Type == "java" {
 			topBarStrings = append(topBarStrings, "\x1b[44mExecute: mvn install\x1b[0m")
 		}
@@ -26,7 +25,7 @@ func RenderTopMenu(m model.UIState) string {
 
 	var activeSessionTracker string
 	for id, sess := range m.Sessions {
-		if sess.ProjectName == m.Config.Projects[m.SelectedProj].Name && sess.IsRunning {
+		if sess.ProjectName == m.Config.Projects[m.SelectedProject].Name && sess.IsRunning {
 			activeSessionTracker = fmt.Sprintf("  ⚡ [\x1b[33;1mSession %d\x1b[0m: COMPILING]", id)
 			break
 		}
@@ -53,17 +52,15 @@ func RenderTopMenu(m model.UIState) string {
 	// Math calculation to compute dynamic spacing based on terminal dimensions width bounds
 	leftWidth := lipgloss.Width(leftContent)
 	rightWidth := lipgloss.Width(rightContent)
-	spaceLen := m.TerminalW - leftWidth - rightWidth - 6 // Factor margins and padding
-	if spaceLen < 2 {
-		spaceLen = 2
-	}
+	// Factor margins and padding
+	spaceLen := max(m.WindowWidth-leftWidth-rightWidth-6, 2)
 
 	unifiedTopBarText := leftContent + strings.Repeat(" ", spaceLen) + rightContent
 
-	topMenuStyle := unfocusedBorder
+	topMenuStyle := components.UnfocusedBorder
 	if m.ActiveFocus == model.FocusMenu && m.ViewState == model.StateDashboard {
-		topMenuStyle = focusedBorder
+		topMenuStyle = components.FocusedBorder
 	}
 
-	return topMenuStyle.Width(m.TerminalW - 2).Render(unifiedTopBarText)
+	return topMenuStyle.Width(m.WindowWidth - 2).Render(unifiedTopBarText)
 }

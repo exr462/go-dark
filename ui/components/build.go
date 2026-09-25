@@ -10,13 +10,8 @@ import (
 
 func RenderBuildModal(m model.UIState) string {
 	var body strings.Builder
-
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208")).Bold(true)
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("46")).Padding(0, 1).Bold(true)
-	inactiveStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Background(lipgloss.Color("237")).Padding(0, 1)
-	logWindowStyle := lipgloss.NewStyle().Background(lipgloss.Color("233")).Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
-
-	targetProj := m.Config.Projects[m.SelectedProj]
+	targetProj := m.Config.Projects[m.SelectedProject]
+	buildLogWindowStyle := lipgloss.NewStyle().Background(lipgloss.Color("233")).Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
 
 	// !!! NEW: DETERMINE IF THIS SPECIFIC PROJECT HAS A RUNNING RECOGNIZED SESSION ID !!!
 	var currentSessionID int
@@ -33,7 +28,7 @@ func RenderBuildModal(m model.UIState) string {
 	if targetProj.Type != "java" {
 		mvnBin = "docker"
 	}
-	var activeCmdString = fmt.Sprintf("%s %s", mvnBin, m.BuildOptions[m.SelectedBuildOpt])
+	var activeCmdString = fmt.Sprintf("%s %s", mvnBin, m.BuildOptions[m.SelectedBuildOption])
 	if targetProj.Type != "java" {
 		activeCmdString = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(targetProj.Name))
 	}
@@ -44,7 +39,7 @@ func RenderBuildModal(m model.UIState) string {
 	if currentSessionID != 0 {
 		sessionTitleStr = fmt.Sprintf("Active Session #%d", currentSessionID)
 	}
-	body.WriteString(titleStyle.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
+	body.WriteString(TitleStyle.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
 	body.WriteString(fmt.Sprintf("☕ Env: %s  |  🛠️ Engine: %s\n\n", targetProj.JDKName, targetProj.MavenName))
 
 	// 1. OPTIONS SELECTION MENU BLOCK (Evaluate true background activity instead of transient state variables)
@@ -52,7 +47,7 @@ func RenderBuildModal(m model.UIState) string {
 		body.WriteString("👉 Select Target Lifecycle Step to Fire:\n\n")
 		var optsRow []string
 		for i, opt := range m.BuildOptions {
-			if i == m.SelectedBuildOpt {
+			if i == m.SelectedBuildOption {
 				optsRow = append(optsRow, selectedStyle.Render(strings.ToUpper(opt)))
 			} else {
 				optsRow = append(optsRow, inactiveStyle.Render(opt))
@@ -76,8 +71,8 @@ func RenderBuildModal(m model.UIState) string {
 	}
 	logLen := len(activeLogsSource)
 
-	logHeight := max(m.TerminalH-18, 5)
-	logWidth := max(m.TerminalW-8, 20)
+	logHeight := max(m.WindowHeight-18, 5)
+	logWidth := max(m.WindowWidth-8, 20)
 
 	var historyLines []string
 	startIdx := 0
@@ -96,23 +91,12 @@ func RenderBuildModal(m model.UIState) string {
 	for len(historyLines) < logHeight {
 		historyLines = append(historyLines, strings.Repeat(" ", logWidth))
 	}
-
-	consoleBox := logWindowStyle.
+	consoleBox := buildLogWindowStyle.
 		Width(logWidth).
 		Height(logHeight).
 		MaxWidth(logWidth).
 		MaxHeight(logHeight).
 		Render(strings.Join(historyLines, "\n"))
-
 	body.WriteString(consoleBox)
-
-	modalBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(ModalBorderColor).
-		Background(ModalBackground).
-		Padding(1, 2, 1, 2).
-		Width(m.TerminalW - 4).
-		Render(body.String())
-
-	return lipgloss.Place(m.TerminalW, m.TerminalH, lipgloss.Center, lipgloss.Center, modalBox)
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.Width(m.WindowWidth-4).Render(body.String()))
 }

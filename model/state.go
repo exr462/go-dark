@@ -33,19 +33,19 @@ const (
 type ConfigCategory int
 
 const (
-	CfgCatGeneral  GitOpsStep = iota // BasePath & Git Credentials
-	CfgCatJDKs                       // Registered Java Environments Pool
-	CfgCatMavens                     // Registered Maven Engines Pool
-	CfgCatProjects                   // Registered Workspaces List
+	CfgCatGeneral  GitOperationStep = iota // BasePath & Git Credentials
+	CfgCatJDKs                             // Registered Java Environments Pool
+	CfgCatMavens                           // Registered Maven Engines Pool
+	CfgCatProjects                         // Registered Workspaces List
 )
 
-type AppViewState int
+type ApplicationViewState int
 
 const (
-	StateDashboard AppViewState = iota
+	StateDashboard ApplicationViewState = iota
 	StateAddProjectModal
 	StateInstaller
-	StateGitOpsModal
+	StateGitOperationsModal
 	StateJDKConfigModal
 	StateHelpModal
 	StateMavenConfigModal
@@ -93,59 +93,79 @@ const (
 	StepAddFirstProject
 )
 
-type GitOpsStep int
+type GitOperationStep int
 
 const (
-	StepSelectGitProject GitOpsStep = iota
+	StepSelectGitProject GitOperationStep = iota
 	StepSelectGitCommand
+	StepSelectGitBranch
 )
 
-type JDKOpsStep int
+type JDKOperationStep int
 
 const (
-	StepSelectJDKAction JDKOpsStep = iota
+	StepSelectJDKAction JDKOperationStep = iota
 	StepAddNewJDKVersion
 	StepAssignJDKToProject
 )
 
-type MvnOpsStep int
+type MavenOperationStep int
 
 const (
-	StepSelectMvnAction MvnOpsStep = iota
+	StepSelectMvnAction MavenOperationStep = iota
 	StepAddNewMvnVersion
 	StepAssignMvnToProject
 )
 
 // UIState holds the shared application global model
 type UIState struct {
-	Config           config.Config
-	ViewState        AppViewState
-	InstallerStep    InstallerStep
-	JDKStep          JDKOpsStep
-	GitOpsStep       GitOpsStep
-	MvnStep          MvnOpsStep
-	ActiveFocus      FocusArea
-	SelectedProj     int
-	SelectedFile     int
-	TreeNodes        []FileNode
-	SelectedGitProj  int
-	SelectedGitCmd   int
-	SelectedJDKIdx   int
-	SelectedMvnIdx   int
-	SelectedMenuIdx  int
-	GitCommands      []string
-	SelectedBuildOpt int
-	BuildOptions     []string
-	BuildLogs        []string
-	IsBuilding       bool
-	Files            []string
-	FileViewer       viewport.Model
-	StatusMsg        string
-	TerminalW        int
-	TerminalH        int
-	Inputs           []textinput.Model
-	FocusedInput     int
-	GitMissing       bool
+	// !!! GLOBAL VARIABLES MAPPINGS !!!
+	Config       config.Config
+	ViewState    ApplicationViewState
+	WindowWidth  int
+	WindowHeight int
+
+	// !!! GLOBAL INSTALLER VARIABLES MAPPINGS !!!
+	InstallerStep InstallerStep
+
+	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
+	ActiveFocus       FocusArea
+	SelectedMenuIndex int
+	FocusedInput      int
+	StatusMsg         string
+	Inputs            []textinput.Model
+
+	// !!! GLOBAL FILE SYSTEM VARIABLES MAPPINGS !!!
+	SelectedFile int
+	TreeNodes    []FileNode
+	Files        []string
+	FileViewer   viewport.Model
+
+	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
+	GitCommands         []string
+	GitOperationStep    GitOperationStep
+	SelectedGitProject  int
+	SelectedGitCommand  int
+	SelectedBuildOption int
+	AvailableBranches   []string
+	GitMissing          bool
+	SelectedGitBranch   int
+
+	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
+	BuildOptions []string
+	BuildLogs    []string
+	IsBuilding   bool
+
+	// !!! GLOBAL PROJECT VARIABLES MAPPINGS !!!
+	SelectedProject int
+
+	// !!! GLOBAL JDK ENGINE PARAMETERS VARIABLES MAPPINGS !!!
+	JDKStep          JDKOperationStep // Jdk Step
+	SelectedJDKIndex int
+
+	// !!! GLOBAL MAVEN ENGINE PARAMETERS VARIABLES MAPPINGS !!!
+	MavenStep          MavenOperationStep // The Maven Operation Step
+	SelectedMavenIndex int
 
 	// !!! GLOBAL BACKGROUND SESSION ENGINE STRUCTURES VARIABLES MAPPINGS !!!
 	Sessions         map[int]*BuildSession // Stores historical logs keyed by session index identifier

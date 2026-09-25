@@ -22,8 +22,68 @@ import (
 
 var sessionChannels = make(map[int]chan string)
 
+type GitBranchesLoadedMsg []string
+
+type GitBranchesErrorMsg error
+type GitCheckoutCompleteMsg struct {
+	Output string
+	Err    error
+}
 type appModel struct {
 	state model.UIState
+}
+
+func (m *appModel) loadGitBranchesCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Safeguard against missing configuration boundaries
+		if len(m.state.Config.Projects) == 0 {
+			return GitBranchesErrorMsg(fmt.Errorf("no configured projects found"))
+		}
+
+		// ⚠️ IMPORTANT FIX: Ensure this reads SelectedGitProject used by the modal!
+		idx := m.state.SelectedGitProject
+		if idx < 0 || idx >= len(m.state.Config.Projects) {
+			return GitBranchesErrorMsg(fmt.Errorf("selected git project index %d out of bounds", idx))
+		}
+
+		proj := m.state.Config.Projects[idx]
+		dir := proj.Path
+		if dir == "" {
+			dir = "."
+		}
+
+		// Combined plumbing flag to retrieve both local heads and remote origin entities
+		cmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)", "refs/heads/", "refs/remotes/origin/")
+		cmd.Dir = dir
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return GitBranchesErrorMsg(fmt.Errorf("directory '%s' error: %s (%v)", dir, strings.TrimSpace(string(output)), err))
+		}
+
+		var branches []string
+		seen := make(map[string]bool)
+
+		lines := strings.SplitSeq(strings.ReplaceAll(string(output), "\r\n", "\n"), "\n")
+		for line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || trimmed == "HEAD" || strings.HasSuffix(trimmed, "/HEAD") {
+				continue
+			}
+
+			cleaned := strings.TrimPrefix(trimmed, "origin/")
+			if !seen[cleaned] {
+				seen[cleaned] = true
+				branches = append(branches, cleaned)
+			}
+		}
+
+		if len(branches) == 0 {
+			return GitBranchesErrorMsg(fmt.Errorf("path '%s' is valid but returned 0 branches", dir))
+		}
+
+		return GitBranchesLoadedMsg(branches)
+	}
 }
 
 func (m *appModel) Init() tea.Cmd {
@@ -79,7 +139,7 @@ func (m *appModel) rebuildActiveTree() {
 	if len(m.state.Config.Projects) == 0 {
 		return
 	}
-	proj := m.state.Config.Projects[m.state.SelectedProj]
+	proj := m.state.Config.Projects[m.state.SelectedProject]
 	rootPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 
 	// Capture which directories are expanded before wiping state
@@ -175,14 +235,14 @@ func (m *appModel) updateConfigDeckModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Option 2: Reuse your Java JDK Environment Setup Manager screen (Ctrl+J)
 			m.state.ViewState = model.StateJDKConfigModal
 			m.state.JDKStep = model.StepSelectJDKAction
-			m.state.SelectedMenuIdx = 0
+			m.state.SelectedMenuIndex = 0
 			return m, nil
 
 		case 2:
 			// Option 3: Reuse your Apache Maven Build Setup Manager screen (Ctrl+U)
 			m.state.ViewState = model.StateMavenConfigModal
-			m.state.MvnStep = model.StepSelectMvnAction
-			m.state.SelectedMenuIdx = 0
+			m.state.MavenStep = model.StepSelectMvnAction
+			m.state.SelectedMenuIndex = 0
 			return m, nil
 
 		case 3:
@@ -325,7 +385,7 @@ func (m *appModel) runFuzzySearchEngine() {
 		return
 	}
 
-	proj := m.state.Config.Projects[m.state.SelectedProj]
+	proj := m.state.Config.Projects[m.state.SelectedProject]
 	rootPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 
 	if m.state.FuzzyMode == model.FuzzyModeFiles {
@@ -431,10 +491,10 @@ func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 		if len(m.state.Config.Projects) == 0 {
 			return model.FileLoadMsg("")
 		}
-		if m.state.SelectedProj >= len(m.state.Config.Projects) {
-			m.state.SelectedProj = 0
+		if m.state.SelectedProject >= len(m.state.Config.Projects) {
+			m.state.SelectedProject = 0
 		}
-		proj := m.state.Config.Projects[m.state.SelectedProj]
+		proj := m.state.Config.Projects[m.state.SelectedProject]
 		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 
 		entries, err := ioutil.ReadDir(fullPath)
@@ -622,6 +682,26 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case GitBranchesLoadedMsg:
+		m.state.AvailableBranches = msg
+		m.state.SelectedGitBranch = 0
+		return m, nil
+
+	case GitBranchesErrorMsg:
+		m.state.AvailableBranches = []string{} // Keep it empty
+		m.state.StatusMsg = fmt.Sprintf("❌ Git Error: %v", msg)
+		return m, nil
+
+	case GitCheckoutCompleteMsg:
+		if msg.Err != nil {
+			m.state.StatusMsg = fmt.Sprintf("❌ Checkout Failed: %v", msg.Err)
+		} else {
+			m.state.StatusMsg = fmt.Sprintf("✅ Checked out successfully: %s", strings.TrimSpace(msg.Output))
+		}
+		// Reset state back to base dashboard layout
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+
 	case model.DockerTelemetryMsg:
 		m.state.DockerTelemetry = model.DockerStats(msg)
 		// RECURSIVE POLLING SAFETY HOOK: Continue background sweeps silently
@@ -631,8 +711,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.DockerContainers = []model.DockerContainer(msg)
 
 	case tea.WindowSizeMsg:
-		m.state.TerminalW = msg.Width
-		m.state.TerminalH = msg.Height
+		m.state.WindowWidth = msg.Width
+		m.state.WindowHeight = msg.Height
 		m.state.FileViewer.Width = (msg.Width / 2) - 4
 		m.state.FileViewer.Height = max(msg.Height-8, 5)
 		m.state.FuzzyViewer.Width = (msg.Width / 2) - 4
@@ -716,10 +796,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if msg.String() == "ctrl+g" && m.state.ViewState == model.StateDashboard {
 			if len(m.state.Config.Projects) > 0 {
-				m.state.ViewState = model.StateGitOpsModal
-				m.state.GitOpsStep = model.StepSelectGitProject
-				m.state.SelectedGitProj = m.state.SelectedProj
-				m.state.SelectedGitCmd = 0
+				m.state.ViewState = model.StateGitOperationsModal
+				m.state.GitOperationStep = model.StepSelectGitProject
+				m.state.SelectedGitProject = m.state.SelectedProject
+				m.state.SelectedGitCommand = 0
 				return m, nil
 			}
 		}
@@ -732,8 +812,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+j" && m.state.ViewState == model.StateDashboard {
 			m.state.ViewState = model.StateJDKConfigModal
 			m.state.JDKStep = model.StepSelectJDKAction
-			m.state.SelectedMenuIdx = 0
-			m.state.SelectedJDKIdx = 0
+			m.state.SelectedMenuIndex = 0
+			m.state.SelectedJDKIndex = 0
 			return m, nil
 		}
 
@@ -745,9 +825,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if msg.String() == "ctrl+u" && m.state.ViewState == model.StateDashboard {
 			m.state.ViewState = model.StateMavenConfigModal
-			m.state.MvnStep = model.StepSelectMvnAction
-			m.state.SelectedMenuIdx = 0
-			m.state.SelectedMvnIdx = 0
+			m.state.MavenStep = model.StepSelectMvnAction
+			m.state.SelectedMenuIndex = 0
+			m.state.SelectedMavenIndex = 0
 			return m, nil
 		}
 
@@ -776,7 +856,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
 			if len(m.state.Config.Projects) > 0 {
 				m.state.ViewState = model.StateBuildModal
-				m.state.SelectedBuildOpt = 0
+				m.state.SelectedBuildOption = 0
 				m.state.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
 				m.state.IsBuilding = false
 				return m, nil
@@ -824,7 +904,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateInstaller(msg)
 		case model.StateAddProjectModal:
 			return m.updateModalForm(msg)
-		case model.StateGitOpsModal:
+		case model.StateGitOperationsModal:
 			return m.updateGitOpsModal(msg)
 		case model.StateJDKConfigModal:
 			return m.updateJDKModal(msg)
@@ -883,6 +963,25 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *appModel) executeGitCheckoutCmd(branch string) tea.Cmd {
+	return func() tea.Msg {
+		proj := m.state.Config.Projects[m.state.SelectedGitProject]
+		dir := proj.Path
+		if dir == "" {
+			dir = "."
+		}
+
+		cmd := exec.Command("git", "checkout", branch)
+		cmd.Dir = dir
+
+		output, err := cmd.CombinedOutput()
+		return GitCheckoutCompleteMsg{
+			Output: string(output),
+			Err:    err,
+		}
+	}
+}
+
 // Add this ticker cmd function to pull stats continuously in the background
 func (m *appModel) pollDockerTelemetryCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -927,8 +1026,8 @@ func (m *appModel) fetchDockerContainersCmd() tea.Cmd {
 		}
 
 		var list []model.DockerContainer
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(strings.TrimSpace(string(out)), "\n")
+		for line := range lines {
 			if line == "" {
 				continue
 			}
@@ -961,7 +1060,7 @@ func (m *appModel) runDockerActionCmd(containerID, action string) tea.Cmd {
 func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var currentSessionID int
 	if len(m.state.Config.Projects) > 0 {
-		targetProj := m.state.Config.Projects[m.state.SelectedProj]
+		targetProj := m.state.Config.Projects[m.state.SelectedProject]
 		for id, sess := range m.state.Sessions {
 			if sess.ProjectName == targetProj.Name && sess.IsRunning {
 				currentSessionID = id
@@ -977,17 +1076,17 @@ func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 	case "left", "h":
-		if m.state.SelectedBuildOpt > 0 {
-			m.state.SelectedBuildOpt--
+		if m.state.SelectedBuildOption > 0 {
+			m.state.SelectedBuildOption--
 		}
 	case "right", "l":
-		if m.state.SelectedBuildOpt < len(m.state.BuildOptions)-1 {
-			m.state.SelectedBuildOpt++
+		if m.state.SelectedBuildOption < len(m.state.BuildOptions)-1 {
+			m.state.SelectedBuildOption++
 		}
 	case "enter":
 		m.state.IsBuilding = true
-		chosenOpt := m.state.BuildOptions[m.state.SelectedBuildOpt]
-		proj := m.state.Config.Projects[m.state.SelectedProj]
+		chosenOpt := m.state.BuildOptions[m.state.SelectedBuildOption]
+		proj := m.state.Config.Projects[m.state.SelectedProject]
 		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 		backupDir := fullProjPath + "_backup_target"
 		_ = os.RemoveAll(backupDir)
@@ -999,36 +1098,36 @@ func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch m.state.MvnStep {
+	switch m.state.MavenStep {
 	case model.StepSelectMvnAction:
 		switch msg.String() {
 		case "esc":
 			m.state.ViewState = model.StateConfigDeckModal
 			return m, nil
 		case "up", "k":
-			if m.state.SelectedMenuIdx > 0 {
-				m.state.SelectedMenuIdx--
+			if m.state.SelectedMenuIndex > 0 {
+				m.state.SelectedMenuIndex--
 			}
 		case "down", "j":
-			if m.state.SelectedMenuIdx < 1 {
-				m.state.SelectedMenuIdx++
+			if m.state.SelectedMenuIndex < 1 {
+				m.state.SelectedMenuIndex++
 			}
 		case "enter":
-			if m.state.SelectedMenuIdx == 0 {
-				m.state.MvnStep = model.StepAddNewMvnVersion
+			if m.state.SelectedMenuIndex == 0 {
+				m.state.MavenStep = model.StepAddNewMvnVersion
 				m.state.FocusedInput = 9
 				m.state.Inputs[9].SetValue("")
 				m.state.Inputs[10].SetValue("")
 				m.state.Inputs[9].Focus()
 			} else {
-				m.state.MvnStep = model.StepAssignMvnToProject
-				m.state.SelectedMvnIdx = 0
+				m.state.MavenStep = model.StepAssignMvnToProject
+				m.state.SelectedMavenIndex = 0
 			}
 		}
 	case model.StepAddNewMvnVersion:
 		switch msg.String() {
 		case "esc":
-			m.state.MvnStep = model.StepSelectMvnAction
+			m.state.MavenStep = model.StepSelectMvnAction
 			return m, nil
 		case "tab", "down":
 			m.state.Inputs[m.state.FocusedInput].Blur()
@@ -1041,11 +1140,11 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			mVnName := m.state.Inputs[9].Value()
 			mVnPath := m.state.Inputs[10].Value()
 			if mVnName != "" && mVnPath != "" {
-				m.state.Config.Mavens = append(m.state.Config.Mavens, config.MavenProfile{Name: mVnName, Path: mVnPath})
+				m.state.Config.Mavens = append(m.state.Config.Mavens, config.Profile{Name: mVnName, Path: mVnPath})
 				_ = config.SaveConfig(m.state.Config)
 				m.state.StatusMsg = fmt.Sprintf("✅ Added Maven Profile: %s", mVnName)
 			}
-			m.state.MvnStep = model.StepSelectMvnAction
+			m.state.MavenStep = model.StepSelectMvnAction
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -1054,20 +1153,20 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case model.StepAssignMvnToProject:
 		switch msg.String() {
 		case "esc":
-			m.state.MvnStep = model.StepSelectMvnAction
+			m.state.MavenStep = model.StepSelectMvnAction
 			return m, nil
 		case "up", "k":
-			if m.state.SelectedMvnIdx > 0 {
-				m.state.SelectedMvnIdx--
+			if m.state.SelectedMavenIndex > 0 {
+				m.state.SelectedMavenIndex--
 			}
 		case "down", "j":
-			if m.state.SelectedMvnIdx < len(m.state.Config.Mavens)-1 {
-				m.state.SelectedMvnIdx++
+			if m.state.SelectedMavenIndex < len(m.state.Config.Mavens)-1 {
+				m.state.SelectedMavenIndex++
 			}
 		case "enter":
 			if len(m.state.Config.Mavens) > 0 && len(m.state.Config.Projects) > 0 {
-				chosenMvn := m.state.Config.Mavens[m.state.SelectedMvnIdx]
-				m.state.Config.Projects[m.state.SelectedProj].MavenName = chosenMvn.Name
+				chosenMvn := m.state.Config.Mavens[m.state.SelectedMavenIndex]
+				m.state.Config.Projects[m.state.SelectedProject].MavenName = chosenMvn.Name
 				_ = config.SaveConfig(m.state.Config)
 				m.state.StatusMsg = fmt.Sprintf("✅ Assigned Maven Profile: %s", chosenMvn.Name)
 			}
@@ -1085,15 +1184,15 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.ViewState = model.StateDashboard
 			return m, nil
 		case "up", "k":
-			if m.state.SelectedMenuIdx > 0 {
-				m.state.SelectedMenuIdx--
+			if m.state.SelectedMenuIndex > 0 {
+				m.state.SelectedMenuIndex--
 			}
 		case "down", "j":
-			if m.state.SelectedMenuIdx < 1 {
-				m.state.SelectedMenuIdx++
+			if m.state.SelectedMenuIndex < 1 {
+				m.state.SelectedMenuIndex++
 			}
 		case "enter":
-			if m.state.SelectedMenuIdx == 0 {
+			if m.state.SelectedMenuIndex == 0 {
 				m.state.JDKStep = model.StepAddNewJDKVersion
 				m.state.FocusedInput = 7
 				m.state.Inputs[7].SetValue("")
@@ -1101,7 +1200,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.state.Inputs[7].Focus()
 			} else {
 				m.state.JDKStep = model.StepAssignJDKToProject
-				m.state.SelectedJDKIdx = 0
+				m.state.SelectedJDKIndex = 0
 			}
 		}
 	case model.StepAddNewJDKVersion:
@@ -1121,7 +1220,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			jName := m.state.Inputs[7].Value()
 			jPath := m.state.Inputs[8].Value()
 			if jName != "" && jPath != "" {
-				m.state.Config.JDKs = append(m.state.Config.JDKs, config.JDKProfile{Name: jName, Path: jPath})
+				m.state.Config.JDKs = append(m.state.Config.JDKs, config.Profile{Name: jName, Path: jPath})
 				_ = config.SaveConfig(m.state.Config)
 				m.state.StatusMsg = fmt.Sprintf("✅ Added Java Profile: %s", jName)
 			}
@@ -1138,17 +1237,17 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case
 			"up", "k":
-			if m.state.SelectedJDKIdx > 0 {
-				m.state.SelectedJDKIdx--
+			if m.state.SelectedJDKIndex > 0 {
+				m.state.SelectedJDKIndex--
 			}
 		case "down", "j":
-			if m.state.SelectedJDKIdx < len(m.state.Config.JDKs)-1 {
-				m.state.SelectedJDKIdx++
+			if m.state.SelectedJDKIndex < len(m.state.Config.JDKs)-1 {
+				m.state.SelectedJDKIndex++
 			}
 		case "enter":
 			if len(m.state.Config.JDKs) > 0 && len(m.state.Config.Projects) > 0 {
-				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIdx]
-				m.state.Config.Projects[m.state.SelectedProj].JDKName = chosenJDK.Name
+				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIndex]
+				m.state.Config.Projects[m.state.SelectedProject].JDKName = chosenJDK.Name
 				_ = config.SaveConfig(m.state.Config)
 				m.state.StatusMsg = fmt.Sprintf("✅ Assigned JDK Environment: %s", chosenJDK.Name)
 			}
@@ -1158,49 +1257,94 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+
+func (m *appModel) updateGitOpsModal(msg tea.Msg) (tea.Model, tea.Cmd) {
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+
+	switch keyMsg.String() {
 	case "esc":
-		if m.state.GitOpsStep == model.StepSelectGitCommand {
-			m.state.GitOpsStep = model.StepSelectGitProject
+		// Multi-tier structural menu backtrace mapping
+		if m.state.GitOperationStep == model.StepSelectGitBranch {
+			m.state.GitOperationStep = model.StepSelectGitCommand
+		} else if m.state.GitOperationStep == model.StepSelectGitCommand {
+			m.state.GitOperationStep = model.StepSelectGitProject
 		} else {
 			m.state.ViewState = model.StateDashboard
 		}
 		return m, nil
+
 	case "up", "k":
-		if m.state.GitOpsStep == model.StepSelectGitProject {
-			if m.state.SelectedGitProj > 0 {
-				m.state.SelectedGitProj--
+		switch m.state.GitOperationStep {
+		case model.StepSelectGitProject:
+			if m.state.SelectedGitProject > 0 {
+				m.state.SelectedGitProject--
 			}
-		} else {
-			if m.state.SelectedGitCmd > 0 {
-				m.state.SelectedGitCmd--
+		case model.StepSelectGitCommand:
+			if m.state.SelectedGitCommand > 0 {
+				m.state.SelectedGitCommand--
+			}
+		case model.StepSelectGitBranch:
+			if m.state.SelectedGitBranch > 0 {
+				m.state.SelectedGitBranch--
 			}
 		}
+		return m, nil
+
 	case "down", "j":
-		if m.state.GitOpsStep == model.StepSelectGitProject {
-			if m.state.SelectedGitProj < len(m.state.Config.Projects)-1 {
-				m.state.SelectedGitProj++
+		switch m.state.GitOperationStep {
+		case model.StepSelectGitProject:
+			if m.state.SelectedGitProject < len(m.state.Config.Projects)-1 {
+				m.state.SelectedGitProject++
 			}
-		} else {
-			if m.state.SelectedGitCmd < len(m.state.GitCommands)-1 {
-				m.state.SelectedGitCmd++
+		case model.StepSelectGitCommand:
+			if m.state.SelectedGitCommand < len(m.state.GitCommands)-1 {
+				m.state.SelectedGitCommand++
+			}
+		case model.StepSelectGitBranch:
+			if m.state.SelectedGitBranch < len(m.state.AvailableBranches)-1 {
+				m.state.SelectedGitBranch++
 			}
 		}
+		return m, nil
+
 	case "enter":
-		if m.state.GitOpsStep == model.StepSelectGitProject {
-			m.state.GitOpsStep = model.StepSelectGitCommand
-			return m, nil
+		switch m.state.GitOperationStep {
+		case model.StepSelectGitProject:
+			m.state.GitOperationStep = model.StepSelectGitCommand
+			return m, m.loadGitBranchesCmd()
+
+		case model.StepSelectGitCommand:
+			chosenCmd := m.state.GitCommands[m.state.SelectedGitCommand]
+
+			if strings.HasPrefix(chosenCmd, "checkout") {
+				m.state.GitOperationStep = model.StepSelectGitBranch
+				m.state.AvailableBranches = []string{}
+
+				// ⚠️ CRITICAL FIX: You MUST return the command here so the runtime triggers it!
+				return m, m.loadGitBranchesCmd()
+			}
+
+			m.state.ViewState = model.StateDashboard
+			m.state.StatusMsg = fmt.Sprintf("🚀 Executing git %s...", chosenCmd)
+			return m, m.loadGitBranchesCmd()
+
+		case model.StepSelectGitBranch:
+			if len(m.state.AvailableBranches) > 0 {
+				targetBranch := m.state.AvailableBranches[m.state.SelectedGitBranch]
+				m.state.StatusMsg = fmt.Sprintf("🔄 Checking out %s...", targetBranch)
+				return m, m.executeGitCheckoutCmd(targetBranch)
+			}
 		}
-		cmdToRun := m.state.GitCommands[m.state.SelectedGitCmd]
-		proj := m.state.Config.Projects[m.state.SelectedGitProj]
-		m.state.ViewState = model.StateDashboard
-		m.state.StatusMsg = fmt.Sprintf("Executing task: git %s on %s...", cmdToRun, proj.Name)
-		return m, m.runGitCommandCmd(proj, cmdToRun)
+
+		return m, m.loadGitBranchesCmd()
 	}
 	return m, nil
 }
-func (m *appModel) runGitCommandCmd(proj config.Project, operation string) tea.Cmd {
+
+func (m *appModel) runGitCommand(proj config.Project, operation string) tea.Cmd {
 	return func() tea.Msg {
 		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 		var cmd *exec.Cmd
@@ -1337,8 +1481,8 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.ActiveFocus = model.FocusArea((int(m.state.ActiveFocus) + 1) % 3)
 
 	case "up", "k":
-		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProj > 0 {
-			m.state.SelectedProj--
+		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProject > 0 {
+			m.state.SelectedProject--
 			cmds = append(cmds, m.updateWorkspaceFiles())
 		} else if m.state.ActiveFocus == model.FocusTree && m.state.SelectedFile > 0 {
 			m.state.SelectedFile--
@@ -1346,8 +1490,8 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProj < len(m.state.Config.Projects)-1 {
-			m.state.SelectedProj++
+		if m.state.ActiveFocus == model.FocusProjects && m.state.SelectedProject < len(m.state.Config.Projects)-1 {
+			m.state.SelectedProject++
 			cmds = append(cmds, m.updateWorkspaceFiles())
 		} else if m.state.ActiveFocus == model.FocusTree && m.state.SelectedFile < len(m.state.TreeNodes)-1 {
 			m.state.SelectedFile++
@@ -1447,7 +1591,7 @@ func (m *appModel) executeActiveMenuAction() tea.Cmd {
 	if len(m.state.Config.Projects) == 0 {
 		return nil
 	}
-	proj := m.state.Config.Projects[m.state.SelectedProj]
+	proj := m.state.Config.Projects[m.state.SelectedProject]
 	fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 	return func() tea.Msg {
 		backupDir := fullProjPath + "_backup_target"
@@ -1457,6 +1601,7 @@ func (m *appModel) executeActiveMenuAction() tea.Cmd {
 		return model.StatusMsg("Manual workspace isolation completed.")
 	}
 }
+
 func (m *appModel) View() string {
 	switch m.state.ViewState {
 	case model.StateHelpModal:
@@ -1465,7 +1610,7 @@ func (m *appModel) View() string {
 		return components.RenderInstaller(m.state)
 	case model.StateAddProjectModal:
 		return components.RenderModal(m.state)
-	case model.StateGitOpsModal:
+	case model.StateGitOperationsModal:
 		return components.RenderGitOpsModal(m.state)
 	case model.StateJDKConfigModal:
 		return components.RenderJDKConfigModal(m.state)
@@ -1482,28 +1627,7 @@ func (m *appModel) View() string {
 	case model.StateDockerModal:
 		return components.RenderDockerModal(m.state)
 	default:
-		topBar := panels.RenderTopMenu(m.state)
-		body := panels.RenderMainBody(m.state)
-		var boundJDK string
-		if len(m.state.Config.Projects) > 0 && m.state.SelectedProj < len(m.state.Config.Projects) {
-			boundJDK = m.state.Config.Projects[m.state.SelectedProj].JDKName
-		}
-		if boundJDK == "" {
-			boundJDK = "System Default"
-		}
-		var activeCount int
-		for _, s := range m.state.Sessions {
-			if s.IsRunning {
-				activeCount++
-			}
-		}
-		var sessionStatusStr = "\x1b[90mNo active background sessions\x1b[0m"
-		if activeCount > 0 {
-			sessionStatusStr = fmt.Sprintf("⚡ \x1b[33;1mBackground Active: %d Running\x1b[0m", activeCount)
-		}
-		footerText := fmt.Sprintf(" Press [?] for Help | [Ctrl+F] Fuzzy Find | Bound: %s | %s | Status: %s", boundJDK, sessionStatusStr, m.state.StatusMsg)
-		footer := lipgloss.NewStyle().Background(lipgloss.Color("236")).Foreground(lipgloss.Color("250")).Width(m.state.TerminalW).Render(footerText)
-		return lipgloss.JoinVertical(lipgloss.Left, topBar, body, footer)
+		return lipgloss.JoinVertical(lipgloss.Left, panels.RenderTopMenu(m.state), panels.RenderMainBody(m.state), panels.CreateFooter(m.state))
 	}
 }
 func main() {

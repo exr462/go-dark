@@ -10,21 +10,9 @@ import (
 
 func RenderFuzzyModal(m *model.UIState) string {
 	var body strings.Builder
-
-	// Style tokens
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("99")).Bold(true)
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("99")).Bold(true)
-	inactiveStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	modeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Bold(true)
-	panelTitleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
-
 	// FIXED: Layout containers with strict alignment boundaries
-	borderPaneStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(1, 2)
 
-	body.WriteString(titleStyle.Render("🔍 Workspace Fuzzy Lookup Engine (Ctrl+F)") + "\n\n")
+	body.WriteString(TitleStyle.Render("🔍 Workspace Fuzzy Lookup Engine (Ctrl+F)") + "\n\n")
 
 	modeLabel := "📁 [FILES SEARCH MODE]"
 	if m.FuzzyMode == model.FuzzyModeContent {
@@ -36,12 +24,12 @@ func RenderFuzzyModal(m *model.UIState) string {
 	body.WriteString("💬 Type Filter Query:  " + m.FuzzyQueryInput.View() + "\n")
 
 	// Keep separator length safely within the terminal bounds
-	sepWidth := max(m.TerminalW-8, 20)
+	sepWidth := max(m.WindowWidth-8, 20)
 	body.WriteString(strings.Repeat("─", sepWidth) + "\n\n")
 
 	// FIXED: Math bounding variables to prevent pane overflows or distortion loops
-	containerWidth := max((m.TerminalW-10)/2, 20)
-	listHeight := max(m.TerminalH-16, 5)
+	containerWidth := max((m.WindowWidth-10)/2, 20)
+	listHeight := max(m.WindowHeight-16, 5)
 
 	// Update live viewport sub-component parameters to match new geometry shifts
 	m.FuzzyViewer.Width = containerWidth - 4
@@ -106,14 +94,7 @@ func RenderFuzzyModal(m *model.UIState) string {
 
 	body.WriteString("\x1b[90m[↑/↓] Navigate Options | [Enter] Open Selection and Expand to Workspace | [Esc] Dashboard\x1b[0m")
 
-	// Outer main container frame
-	modalBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(ModalBorderColor).
-		Background(ModalBackground).
-		Padding(1, 2, 1, 2).
-		Width(m.TerminalW - 4).
-		Render(body.String())
-
-	return lipgloss.Place(m.TerminalW, m.TerminalH, lipgloss.Center, lipgloss.Center, modalBox)
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.
+		Width(m.WindowWidth-4).
+		Render(body.String()))
 }

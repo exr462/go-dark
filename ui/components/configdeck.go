@@ -12,15 +12,9 @@ func RenderConfigDeckModal(m model.UIState) string {
 	var body strings.Builder
 
 	// Styling tokens
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("45")).Bold(true)
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("214")).Bold(true)
-	inactiveStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-	metaStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Italic(true)
-
-	body.WriteString(titleStyle.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
+	body.WriteString(TitleStyle.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
 	body.WriteString("Review, expand, or adjust your system parameters across all modules below.\n")
-	body.WriteString(strings.Repeat("─", max(m.TerminalW-8, 20)) + "\n\n")
+	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 
 	// 1. DYNAMICALLY DISPLAY CURRENT ACTIVE CONFIG RECORD VALUES
 	body.WriteString(sectionStyle.Render("📊 ACTIVE GLOBAL CONFIGURATION SETTINGS SUMMARY:") + "\n")
@@ -51,16 +45,10 @@ func RenderConfigDeckModal(m model.UIState) string {
 		}
 	}
 
-	body.WriteString("\n" + strings.Repeat("─", max(m.TerminalW-8, 20)) + "\n")
+	body.WriteString("\n" + strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n")
 	body.WriteString(metaStyle.Render(" [↑/↓/j/k] Navigate Options  |  [Enter] Open Target Management Modal  |  [Esc] Close Deck") + "\n")
 
-	modalBox := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(ModalBorderColor).
-		Background(ModalBackground).
-		Padding(1, 2, 1, 2).
-		Width(m.TerminalW - 4).
-		Render(body.String())
-
-	return lipgloss.Place(m.TerminalW, m.TerminalH, lipgloss.Center, lipgloss.Center, modalBox)
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.
+		Width(m.WindowWidth-4).
+		Render(body.String()))
 }
