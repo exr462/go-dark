@@ -34,16 +34,16 @@ jobs:
           echo "Building binaries for release identifier: $BRANCH_NAME"
           
           # 3. Build for Linux (64-bit)
-          ENV GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-linux-amd64 .
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-linux-amd64 .
           
           # 4. Build for Windows (64-bit)
-          ENV GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-windows-amd64.exe .
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-windows-amd64.exe .
           
           # 5. Build for macOS (Apple Silicon M1/M2/M3/M4)
-          ENV GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/godark-darwin-arm64 .
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/godark-darwin-arm64 .
           
           # 6. Build for macOS (Intel)
-          ENV GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-darwin-amd64 .
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-darwin-amd64 .
 
       - name: Generate GitHub Release
         uses: softprops/action-gh-release@v2
