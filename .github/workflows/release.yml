@@ -1,0 +1,62 @@
+name: Build and Release Binaries on Release Branch
+
+on:
+  push:
+    branches:
+      - 'release/*' # Triggers the workflow only when a branch like release/v1.0.0 is created/pushed
+
+permissions:
+  contents: write # Grants the workflow permission to create a release and upload assets
+
+jobs:
+  build-and-release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22' # Set this to your required Go version
+          cache: true        # Speeds up subsequent workflow runs by caching Go modules
+
+      - name: Compile Cross-Platform Binaries
+        run: |
+          # 1. Clean build directory
+          mkdir -p dist
+          
+          # 2. Extract the branch name to use as a human-readable identifier (e.g., v1.0.0)
+          # This strips the 'refs/heads/release/' prefix
+          BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's|refs/heads/release/||')
+          echo "Building binaries for release identifier: $BRANCH_NAME"
+          
+          # 3. Build for Linux (64-bit)
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-linux-amd64 .
+          
+          # 4. Build for Windows (64-bit)
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-windows-amd64.exe .
+          
+          # 5. Build for macOS (Apple Silicon M1/M2/M3/M4)
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/godark-darwin-arm64 .
+          
+          # 6. Build for macOS (Intel)
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/godark-darwin-amd64 .
+
+      - name: Generate GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Uses the branch suffix (like v1.0.0) as the release tag name automatically
+          tag_name: ${{ env.BRANCH_NAME || github.ref_name }}
+          name: Release ${{ env.BRANCH_NAME || github.ref_name }}
+          draft: true # Creates it as a draft so you can review/edit before publicizing
+          prerelease: false
+          files: |
+            dist/godark-linux-amd64
+            dist/godark-windows-amd64.exe
+            dist/godark-darwin-arm64
+            dist/godark-darwin-amd64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
