@@ -53,7 +53,23 @@ const (
 	StateSessionLogsModal
 	StateFuzzyModal
 	StateConfigDeckModal
+	StateDockerModal
 )
+
+type DockerStats struct {
+	CPU      string // e.g. "12.4%"
+	Memory   string // e.g. "1.45GB / 16GB"
+	Running  int    // Number of active running containers
+	Services int    // Number of total configured containers
+}
+
+type DockerContainer struct {
+	ID     string
+	Names  string
+	Image  string
+	Status string
+	Ports  string
+}
 
 type FuzzyMode int
 
@@ -122,20 +138,21 @@ type UIState struct {
 	BuildOptions     []string
 	BuildLogs        []string
 	IsBuilding       bool
+	Files            []string
+	FileViewer       viewport.Model
+	StatusMsg        string
+	TerminalW        int
+	TerminalH        int
+	Inputs           []textinput.Model
+	FocusedInput     int
+	GitMissing       bool
+
 	// !!! GLOBAL BACKGROUND SESSION ENGINE STRUCTURES VARIABLES MAPPINGS !!!
 	Sessions         map[int]*BuildSession // Stores historical logs keyed by session index identifier
 	ActiveSessionID  int                   // The session ID currently being viewed/active
 	ViewingSessionID int                   // The session ID currently selected via Ctrl+S inspector modal
 	NextSessionID    int                   // Counter managing increment steps
 
-	Files        []string
-	FileViewer   viewport.Model
-	StatusMsg    string
-	TerminalW    int
-	TerminalH    int
-	Inputs       []textinput.Model
-	FocusedInput int
-	GitMissing   bool
 	// !!! GLOBAL FUZZY FINDER RECON ENGINE PARAMETERS VARIABLES MAPPINGS !!!
 	FuzzyMode            FuzzyMode       // Track if searching names vs text blocks
 	FuzzyResults         []FuzzyResult   // Store current matched elements
@@ -143,6 +160,11 @@ type UIState struct {
 	FuzzyQueryInput      textinput.Model // Sub-editor text box specifically for typing queries
 	FuzzyViewer          viewport.Model
 	SelectedConfigOption int
+
+	// !!! GLOBAL DOCKER MANAGEMENT STATE MAPPINGS !!!
+	DockerTelemetry   DockerStats       // Stores data displayed in top-right header
+	DockerContainers  []DockerContainer // Parsed rows for the Ctrl+D interaction table
+	SelectedDockerRow int               // Highlighted container index in the modal view
 }
 
 type StatusMsg string
@@ -156,3 +178,6 @@ type BuildCompleteMsg struct {
 	SessionID int
 	Err       error
 }
+
+type DockerTelemetryMsg DockerStats
+type DockerContainersMsg []DockerContainer

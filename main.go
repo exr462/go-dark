@@ -30,7 +30,8 @@ func (m *appModel) Init() tea.Cmd {
 	if m.state.ViewState == model.StateInstaller {
 		return textinput.Blink
 	}
-	return m.updateWorkspaceFiles()
+	// Batch initial workspace discovery alongside the background docker ticker poll
+	return tea.Batch(m.updateWorkspaceFiles(), m.pollDockerTelemetryCmd())
 }
 
 func (m *appModel) buildTreeNodes(currentPath string, depth int) {
@@ -621,6 +622,14 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case model.DockerTelemetryMsg:
+		m.state.DockerTelemetry = model.DockerStats(msg)
+		// RECURSIVE POLLING SAFETY HOOK: Continue background sweeps silently
+		return m, m.pollDockerTelemetryCmd()
+
+	case model.DockerContainersMsg:
+		m.state.DockerContainers = []model.DockerContainer(msg)
+
 	case tea.WindowSizeMsg:
 		m.state.TerminalW = msg.Width
 		m.state.TerminalH = msg.Height
@@ -714,6 +723,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+		if msg.String() == "ctrl+d" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateDockerModal
+			m.state.SelectedDockerRow = 0
+			return m, m.fetchDockerContainersCmd() // Instantly populate rows table layout
+		}
 
 		if msg.String() == "ctrl+j" && m.state.ViewState == model.StateDashboard {
 			m.state.ViewState = model.StateJDKConfigModal
@@ -754,6 +768,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if msg.String() == "ctrl+n" && m.state.ViewState == model.StateDashboard {
+			m.state.ViewState = model.StateAddProjectModal
+			return m, nil
+		}
+
 		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
 			if len(m.state.Config.Projects) > 0 {
 				m.state.ViewState = model.StateBuildModal
@@ -771,6 +790,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if msg.String() == "esc" {
+			m.state.ViewState = model.StateDashboard
 			if m.state.ViewState == model.StateBuildModal {
 				if m.state.ActiveSessionID != 0 {
 					delete(m.state.Sessions, m.state.ActiveSessionID)
@@ -816,6 +836,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateFuzzyModal(msg)
 		case model.StateConfigDeckModal:
 			return m.updateConfigDeckModal(msg)
+		case model.StateDockerModal:
+			return m.updateDockerModal(msg)
 		default:
 			return m.updateDashboardPortal(msg)
 		}
@@ -859,6 +881,81 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+// Add this ticker cmd function to pull stats continuously in the background
+func (m *appModel) pollDockerTelemetryCmd() tea.Cmd {
+	return func() tea.Msg {
+		// 1. Fetch count of total and running containers context models parameters
+		cmdRun := exec.Command("docker", "ps", "-q")
+		outRun, _ := cmdRun.Output()
+		runningCount := len(strings.Split(strings.TrimSpace(string(outRun)), "\n"))
+		if string(outRun) == "" {
+			runningCount = 0
+		}
+
+		// 2. Fetch live global usage stats strings streams safely
+		// Using unblocking formats passing limits arguments flags
+		statsCmd := exec.Command("docker", "stats", "--no-stream", "--format", "{{.CPUPerc}},{{.MemUsage}}")
+		outStats, err := statsCmd.Output()
+
+		cpuStr := "0.0%"
+		memStr := "0B / 0B"
+		if err == nil && string(outStats) != "" {
+			lines := strings.Split(strings.TrimSpace(string(outStats)), "\n")
+			if len(lines) > 0 && strings.Contains(lines[0], ",") {
+				parts := strings.Split(lines[0], ",")
+				cpuStr = parts[0]
+				memStr = parts[1]
+			}
+		}
+
+		return model.DockerTelemetryMsg{
+			CPU:     cpuStr,
+			Memory:  memStr,
+			Running: runningCount,
+		}
+	}
+}
+
+func (m *appModel) fetchDockerContainersCmd() tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("docker", "ps", "-a", "--format", "{{.ID}},{{.Names}},{{.Image}},{{.Status}},{{.Ports}}")
+		out, err := cmd.Output()
+		if err != nil {
+			return model.DockerContainersMsg{}
+		}
+
+		var list []model.DockerContainer
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		for _, line := range lines {
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, ",")
+			if len(parts) >= 4 {
+				ports := ""
+				if len(parts) == 5 {
+					ports = parts[4]
+				}
+				list = append(list, model.DockerContainer{
+					ID:     parts[0],
+					Names:  parts[1],
+					Image:  parts[2],
+					Status: parts[3],
+					Ports:  ports,
+				})
+			}
+		}
+		return model.DockerContainersMsg(list)
+	}
+}
+
+func (m *appModel) runDockerActionCmd(containerID, action string) tea.Cmd {
+	return func() tea.Msg {
+		_ = exec.Command("docker", action, containerID).Run()
+		return model.StatusMsg(fmt.Sprintf("✅ Successfully executed: docker %s %s", action, containerID))
+	}
 }
 
 func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -1131,6 +1228,37 @@ func (m *appModel) runGitCommandCmd(proj config.Project, operation string) tea.C
 		return model.StatusMsg(fmt.Sprintf("✅ git %s successfully completed.", operation))
 	}
 }
+
+func (m *appModel) updateDockerModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.state.SelectedDockerRow > 0 {
+			m.state.SelectedDockerRow--
+		}
+	case "down", "j":
+		if m.state.SelectedDockerRow < len(m.state.DockerContainers)-1 {
+			m.state.SelectedDockerRow++
+		}
+
+	case "s", "t", "r": // [s]tart, s[t]op, [r]estart container commands keys triggers
+		if len(m.state.DockerContainers) == 0 || m.state.SelectedDockerRow >= len(m.state.DockerContainers) {
+			return m, nil
+		}
+		target := m.state.DockerContainers[m.state.SelectedDockerRow]
+		action := "start"
+		if msg.String() == "t" {
+			action = "stop"
+		}
+		if msg.String() == "r" {
+			action = "restart"
+		}
+
+		// Fire action and trigger table re-query refresh sequence batch inline safely
+		return m, tea.Batch(m.runDockerActionCmd(target.ID, action), m.fetchDockerContainersCmd())
+	}
+	return m, nil
+}
+
 func (m *appModel) updateInstaller(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.state.GitMissing {
 		return m, nil
@@ -1351,6 +1479,8 @@ func (m *appModel) View() string {
 		return components.RenderFuzzyModal(&m.state)
 	case model.StateConfigDeckModal:
 		return components.RenderConfigDeckModal(m.state)
+	case model.StateDockerModal:
+		return components.RenderDockerModal(m.state)
 	default:
 		topBar := panels.RenderTopMenu(m.state)
 		body := panels.RenderMainBody(m.state)

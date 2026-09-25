@@ -12,18 +12,18 @@ func RenderTopMenu(m model.UIState) string {
 	unfocusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
 	focusedBorder := lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("205"))
 
-	var topBarStrings []string
-	topBarStrings = append(topBarStrings, "\x1b[41m[Enter] Backup & Clean Repo\x1b[0m")
+	// Left Side Content: Action Links
+	var leftBarStrings []string
+	topBarStrings := append(leftBarStrings, "\x1b[41m[Enter] Backup & Clean\x1b[0m")
 
 	if len(m.Config.Projects) > 0 && m.SelectedProj < len(m.Config.Projects) {
 		proj := m.Config.Projects[m.SelectedProj]
 		if proj.Type == "java" {
-			topBarStrings = append(topBarStrings, "\x1b[44mExecute: mvn clean install\x1b[0m")
+			topBarStrings = append(topBarStrings, "\x1b[44mExecute: mvn install\x1b[0m")
 		}
 	}
-	topBarStrings = append(topBarStrings, "\x1b[42mExecute: docker build .\x1b[0m")
+	topBarStrings = append(topBarStrings, "\x1b[42mExecute: docker build\x1b[0m")
 
-	// !!! NEW: DYNAMICALLY ADVERTISE RUNNING BACKGROUND SESSION ID IN THE HEADER MENU !!!
 	var activeSessionTracker string
 	for id, sess := range m.Sessions {
 		if sess.ProjectName == m.Config.Projects[m.SelectedProj].Name && sess.IsRunning {
@@ -31,11 +31,39 @@ func RenderTopMenu(m model.UIState) string {
 			break
 		}
 	}
+	leftContent := "Operations Menu: " + strings.Join(topBarStrings, " | ") + activeSessionTracker
+
+	// !!! FIXED: COMPOSING THE TOP-RIGHT DOCKER REAL-TIME TELEMETRY PANEL HEADER !!!
+	cpuVal := m.DockerTelemetry.CPU
+	if cpuVal == "" {
+		cpuVal = "0.0%"
+	}
+	memVal := m.DockerTelemetry.Memory
+	if memVal == "" {
+		memVal = "0B / 0B"
+	}
+
+	rightContent := fmt.Sprintf(
+		"🐳 \x1b[36;1mDocker\x1b[0m ➜ Active: \x1b[32m%d\x1b[0m | CPU: \x1b[33m%s\x1b[0m | Mem: \x1b[35m%s\x1b[0m",
+		m.DockerTelemetry.Running,
+		cpuVal,
+		memVal,
+	)
+
+	// Math calculation to compute dynamic spacing based on terminal dimensions width bounds
+	leftWidth := lipgloss.Width(leftContent)
+	rightWidth := lipgloss.Width(rightContent)
+	spaceLen := m.TerminalW - leftWidth - rightWidth - 6 // Factor margins and padding
+	if spaceLen < 2 {
+		spaceLen = 2
+	}
+
+	unifiedTopBarText := leftContent + strings.Repeat(" ", spaceLen) + rightContent
 
 	topMenuStyle := unfocusedBorder
 	if m.ActiveFocus == model.FocusMenu && m.ViewState == model.StateDashboard {
 		topMenuStyle = focusedBorder
 	}
 
-	return topMenuStyle.Width(m.TerminalW - 2).Render("Portal Operations Menu: " + strings.Join(topBarStrings, "  |  ") + activeSessionTracker)
+	return topMenuStyle.Width(m.TerminalW - 2).Render(unifiedTopBarText)
 }

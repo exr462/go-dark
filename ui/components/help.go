@@ -36,6 +36,7 @@ func RenderHelpModal(m model.UIState) string {
 	body.WriteString(row("Ctrl+G", "Open 'Git Hub Operations Center' control module"))
 	body.WriteString(row("Ctrl+J", "Open 'Java Environment SDK Manager' (JDK) module"))
 	body.WriteString(row("Ctrl+U", "Open 'Maven Manager' (MVN) module"))
+	body.WriteString(row("Ctrl+D", "Open 'Docker Manager' (DOCKER) module"))
 	body.WriteString(row("Ctrl+B", "Open 'Build' (JDK) module"))
 	body.WriteString(row("Ctrl+F", "Open 'Fuzzy finder"))
 	body.WriteString(row("Ctrl+E", "Opens a terminal and nvim to edit the file"))
