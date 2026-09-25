@@ -7,7 +7,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderModal(m model.UIState) string {
+func RenderModal(m *model.UIState) string {
 	modalContent := fmt.Sprintf(
 		"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n\x1b[90m%s\x1b[0m",
 		boldStyle.Foreground(Pink).Render("✨ Add New Project Configuration"),

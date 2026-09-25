@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderConfigDeckModal(m model.UIState) string {
+func RenderConfigDeckModal(m *model.UIState) string {
 	var body strings.Builder
 
 	// Styling tokens

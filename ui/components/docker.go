@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderDockerModal(m model.UIState) string {
+func RenderDockerModal(m *model.UIState) string {
 	var body strings.Builder
 	body.WriteString(TitleStyle.Render("🐳 Docker Infrastructure Control Center (Ctrl+D)") + "\n")
 	body.WriteString("Monitor and orchestrate local microservice containers across your daemon runtime layers.\n")

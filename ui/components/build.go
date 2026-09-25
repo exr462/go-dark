@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderBuildModal(m model.UIState) string {
+func RenderBuildModal(m *model.UIState) string {
 	var body strings.Builder
 	targetProj := m.Config.Projects[m.SelectedProject]
 	buildLogWindowStyle := lipgloss.NewStyle().Background(lipgloss.Color("233")).Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
@@ -28,10 +28,18 @@ func RenderBuildModal(m model.UIState) string {
 	if targetProj.Type != "java" {
 		mvnBin = "docker"
 	}
-	var activeCmdString = fmt.Sprintf("%s %s", mvnBin, m.BuildOptions[m.SelectedBuildOption])
+	var selectedBuildOption = m.BuildOptions[m.SelectedBuildOption]
+	switch selectedBuildOption {
+	case "without tests":
+		selectedBuildOption = "install -DskipTests"
+	case "full":
+		selectedBuildOption = "install"
+	}
+	var activeCmdString = fmt.Sprintf("%s %s", mvnBin, selectedBuildOption)
 	if targetProj.Type != "java" {
 		activeCmdString = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(targetProj.Name))
 	}
+
 	body.WriteString(fmt.Sprintf("🚀 Target Executable Execution: \x1b[35;1m%s\x1b[0m\n\n", activeCmdString))
 
 	// DISPLAY ASSIGNED BOUND SESSION ID IN THE COCKPIT TITLE

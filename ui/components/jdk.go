@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderJDKConfigModal(m model.UIState) string {
+func RenderJDKConfigModal(m *model.UIState) string {
 	var modalBody strings.Builder
 
 	modalBody.WriteString(TitleStyle.Render("☕ Java Environment Manager (Ctrl+J)") + "\n\n")

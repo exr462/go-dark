@@ -8,7 +8,7 @@ import (
 	Modal "github.com/exr462/go-dark/model"
 )
 
-func RenderMvnConfigModal(m Modal.UIState) string {
+func RenderMvnConfigModal(m *Modal.UIState) string {
 	var modalBody Strings.Builder
 
 	modalBody.WriteString(TitleStyle.Render("🛠️ Apache Maven Manager (Ctrl+U)") + "\n\n")

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,12 @@ import (
 
 var sessionChannels = make(map[int]chan string)
 
+type WorkspaceRefreshedMsg struct {
+	Files     []string
+	TreeNodes []model.FileNode
+}
+type GitStatusLoadedMsg string
+type GitStatusErrorMsg error
 type GitBranchesLoadedMsg []string
 
 type GitBranchesErrorMsg error
@@ -30,35 +37,39 @@ type GitCheckoutCompleteMsg struct {
 	Err    error
 }
 type appModel struct {
-	state model.UIState
+	state *model.UIState
 }
 
 func (m *appModel) loadGitBranchesCmd() tea.Cmd {
+	if len(m.state.Config.Projects) == 0 {
+		return func() tea.Msg { return GitBranchesLoadedMsg{"main"} }
+	}
+
+	idx := m.state.SelectedGitProject
+	if idx < 0 || idx >= len(m.state.Config.Projects) {
+		return func() tea.Msg { return GitBranchesLoadedMsg{"main"} }
+	}
+
+	dir := filepath.Join(m.state.Config.BasePath, m.state.Config.Projects[idx].Path)
+	if dir == "" {
+		dir = "."
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return func() tea.Msg {
+			// This fires instantly to break the loading screen loop
+			return GitBranchesErrorMsg(fmt.Errorf("directory not found: %s", dir))
+		}
+	}
+
 	return func() tea.Msg {
-		// Safeguard against missing configuration boundaries
-		if len(m.state.Config.Projects) == 0 {
-			return GitBranchesErrorMsg(fmt.Errorf("no configured projects found"))
-		}
-
-		// ⚠️ IMPORTANT FIX: Ensure this reads SelectedGitProject used by the modal!
-		idx := m.state.SelectedGitProject
-		if idx < 0 || idx >= len(m.state.Config.Projects) {
-			return GitBranchesErrorMsg(fmt.Errorf("selected git project index %d out of bounds", idx))
-		}
-
-		proj := m.state.Config.Projects[idx]
-		dir := proj.Path
-		if dir == "" {
-			dir = "."
-		}
-
-		// Combined plumbing flag to retrieve both local heads and remote origin entities
-		cmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)", "refs/heads/", "refs/remotes/origin/")
+		// 🟢 FIX: Use 'git branch -a --format' which is more robust across platforms
+		// than passing multi-pattern blocks down to plumbing engines.
+		cmd := exec.Command("git", "branch", "-a", "--format=%(refname:short)")
 		cmd.Dir = dir
 
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return GitBranchesErrorMsg(fmt.Errorf("directory '%s' error: %s (%v)", dir, strings.TrimSpace(string(output)), err))
+			return GitBranchesErrorMsg(fmt.Errorf("git failed: %s (%v)", strings.TrimSpace(string(output)), err))
 		}
 
 		var branches []string
@@ -67,19 +78,34 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 		lines := strings.SplitSeq(strings.ReplaceAll(string(output), "\r\n", "\n"), "\n")
 		for line := range lines {
 			trimmed := strings.TrimSpace(line)
-			if trimmed == "" || trimmed == "HEAD" || strings.HasSuffix(trimmed, "/HEAD") {
+			if trimmed == "" {
 				continue
 			}
 
-			cleaned := strings.TrimPrefix(trimmed, "origin/")
-			if !seen[cleaned] {
+			// 🧼 Clean up common structural symbolic pointers
+			// "origin/HEAD" -> skip
+			if strings.Contains(trimmed, "HEAD") {
+				continue
+			}
+
+			// Clean up tracking branch decorators
+			// "remotes/origin/feature-abc" -> "feature-abc"
+			// "origin/feature-abc" -> "feature-abc"
+			cleaned := trimmed
+			if strings.HasPrefix(cleaned, "remotes/origin/") {
+				cleaned = cleaned[len("remotes/origin/"):]
+			} else if strings.HasPrefix(cleaned, "origin/") {
+				cleaned = cleaned[len("origin/"):]
+			}
+
+			if cleaned != "" && !seen[cleaned] {
 				seen[cleaned] = true
 				branches = append(branches, cleaned)
 			}
 		}
 
 		if len(branches) == 0 {
-			return GitBranchesErrorMsg(fmt.Errorf("path '%s' is valid but returned 0 branches", dir))
+			branches = append(branches, "main")
 		}
 
 		return GitBranchesLoadedMsg(branches)
@@ -487,17 +513,18 @@ func (m *appModel) runFuzzySearchEngine() {
 }
 
 func (m *appModel) updateWorkspaceFiles() tea.Cmd {
-	return func() tea.Msg {
-		if len(m.state.Config.Projects) == 0 {
-			return model.FileLoadMsg("")
-		}
-		if m.state.SelectedProject >= len(m.state.Config.Projects) {
-			m.state.SelectedProject = 0
-		}
-		proj := m.state.Config.Projects[m.state.SelectedProject]
-		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+	// 1. Resolve indices and paths safely on the MAIN thread before spawning the thread
+	idx := m.state.SelectedGitProject
+	if idx < 0 || idx >= len(m.state.Config.Projects) {
+		return nil
+	}
 
-		entries, err := ioutil.ReadDir(fullPath)
+	proj := m.state.Config.Projects[idx]
+	fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+
+	return func() tea.Msg {
+		// 2. Perform the isolated file system read
+		entries, err := os.ReadDir(fullPath) // ioutil.ReadDir is deprecated, os.ReadDir is preferred
 		if err != nil {
 			return model.StatusMsg(fmt.Sprintf("Directory missing at target: %s", fullPath))
 		}
@@ -509,11 +536,13 @@ func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 			}
 		}
 
-		m.state.TreeNodes = []model.FileNode{}
-		m.buildTreeNodes(fullPath, 0)
-
-		m.state.Files = projectFiles
-		return model.FileLoadMsg("sync")
+		// 3. Instead of mutating m.state directly, build the nodes into a local variable.
+		// NOTE: If buildTreeNodes currently relies on mutating m.state, you should adapt it
+		// to return a slice of nodes instead of directly setting m.state.TreeNodes.
+		// For now, we will safely pass the calculated files list back.
+		return WorkspaceRefreshedMsg{
+			Files: projectFiles,
+		}
 	}
 }
 
@@ -560,7 +589,14 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 	if proj.Type != "java" {
 		mvnBin = "docker"
 	}
-	cmdStr := fmt.Sprintf("%s clean %s", mvnBin, targetStep)
+	var d = targetStep
+	switch d {
+	case "without tests":
+		d = "install  -DskipTests"
+	case "full":
+		d = "install"
+	}
+	cmdStr := fmt.Sprintf("%s clean %s", mvnBin, d)
 	if proj.Type != "java" {
 		cmdStr = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(proj.Name))
 	}
@@ -682,6 +718,31 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case GitStatusLoadedMsg:
+		m.state.GitStatusOutput = string(msg)
+		if m.state.GitStatusOutput == "" {
+			m.state.GitStatusOutput = "✨ Working tree completely clean."
+		}
+		return m, nil
+
+	case WorkspaceRefreshedMsg:
+		// 🟢 SAFE MUTATION: Happening entirely on the coordinated main runtime thread
+		m.state.Files = msg.Files
+
+		// Run your tree builder calculations safely here on the main thread
+		proj := m.state.Config.Projects[m.state.SelectedGitProject]
+		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+
+		m.state.TreeNodes = []model.FileNode{}
+		m.buildTreeNodes(fullPath, 0)
+
+		// Trigger the viewer reloader to load the active file content
+		return m, func() tea.Msg { return model.FileLoadMsg("sync") }
+
+	case GitStatusErrorMsg:
+		m.state.GitStatusOutput = fmt.Sprintf("❌ Error: %v", msg)
+		return m, nil
+
 	case GitBranchesLoadedMsg:
 		m.state.AvailableBranches = msg
 		m.state.SelectedGitBranch = 0
@@ -690,6 +751,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GitBranchesErrorMsg:
 		m.state.AvailableBranches = []string{} // Keep it empty
 		m.state.StatusMsg = fmt.Sprintf("❌ Git Error: %v", msg)
+		if len(m.state.AvailableBranches) == 0 {
+			m.state.AvailableBranches = []string{"main"}
+		}
 		return m, nil
 
 	case GitCheckoutCompleteMsg:
@@ -700,7 +764,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Reset state back to base dashboard layout
 		m.state.ViewState = model.StateDashboard
-		return m, nil
+		return m, m.updateWorkspaceFiles()
 
 	case model.DockerTelemetryMsg:
 		m.state.DockerTelemetry = model.DockerStats(msg)
@@ -734,6 +798,12 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case model.StatusMsg:
 		m.state.StatusMsg = string(msg)
+		if strings.Contains(m.state.StatusMsg, "successfully completed") {
+			if strings.Contains(m.state.StatusMsg, "pull") || strings.Contains(m.state.StatusMsg, "reset") {
+				return m, m.updateWorkspaceFiles()
+			}
+		}
+		return m, nil
 
 	case model.BuildLogLineMsg:
 		if sess, exists := m.state.Sessions[msg.SessionID]; exists {
@@ -963,16 +1033,13 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *appModel) executeGitCheckoutCmd(branch string) tea.Cmd {
-	return func() tea.Msg {
-		proj := m.state.Config.Projects[m.state.SelectedGitProject]
-		dir := proj.Path
-		if dir == "" {
-			dir = "."
-		}
+func (m *appModel) executeGitCheckoutCmd(proj config.Project, branch string) tea.Cmd {
+	// 🟢 THREAD SAFETY FIX: Resolve the project path string on the MAIN thread first
+	fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 
+	return func() tea.Msg {
 		cmd := exec.Command("git", "checkout", branch)
-		cmd.Dir = dir
+		cmd.Dir = fullPath
 
 		output, err := cmd.CombinedOutput()
 		return GitCheckoutCompleteMsg{
@@ -1087,11 +1154,6 @@ func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.IsBuilding = true
 		chosenOpt := m.state.BuildOptions[m.state.SelectedBuildOption]
 		proj := m.state.Config.Projects[m.state.SelectedProject]
-		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
-		backupDir := fullProjPath + "_backup_target"
-		_ = os.RemoveAll(backupDir)
-		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
-		_ = exec.Command("git", "clean", "-xdf").Run()
 		return m, m.spawnBackgroundSession(proj, chosenOpt)
 	}
 	return m, nil
@@ -1266,11 +1328,12 @@ func (m *appModel) updateGitOpsModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch keyMsg.String() {
 	case "esc":
-		// Multi-tier structural menu backtrace mapping
 		if m.state.GitOperationStep == model.StepSelectGitBranch {
 			m.state.GitOperationStep = model.StepSelectGitCommand
 		} else if m.state.GitOperationStep == model.StepSelectGitCommand {
 			m.state.GitOperationStep = model.StepSelectGitProject
+		} else if m.state.GitOperationStep == 3 {
+			m.state.GitOperationStep = model.StepSelectGitCommand
 		} else {
 			m.state.ViewState = model.StateDashboard
 		}
@@ -1314,61 +1377,118 @@ func (m *appModel) updateGitOpsModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state.GitOperationStep {
 		case model.StepSelectGitProject:
 			m.state.GitOperationStep = model.StepSelectGitCommand
+			// Prefetch branches early so they are loaded by the time they hit checkout
 			return m, m.loadGitBranchesCmd()
 
 		case model.StepSelectGitCommand:
 			chosenCmd := m.state.GitCommands[m.state.SelectedGitCommand]
+			targetProj := m.state.Config.Projects[m.state.SelectedGitProject]
+			resolvedDebugPath := filepath.Join(m.state.Config.BasePath, targetProj.Path)
+			m.state.StatusMsg = fmt.Sprintf("DEBUG | Target Absolute Path: %s | Cmd: %s", resolvedDebugPath, chosenCmd)
 
 			if strings.HasPrefix(chosenCmd, "checkout") {
 				m.state.GitOperationStep = model.StepSelectGitBranch
-				m.state.AvailableBranches = []string{}
-
-				// ⚠️ CRITICAL FIX: You MUST return the command here so the runtime triggers it!
+				m.state.AvailableBranches = []string{} // Clear old ones safely
+				m.state.SelectedGitBranch = 0
 				return m, m.loadGitBranchesCmd()
 			}
 
+			if chosenCmd == "status" {
+				m.state.GitOperationStep = 3 // Move to a new status preview display step layer!
+				m.state.GitStatusOutput = "⏳ Querying workspace parameters..."
+				return m, m.runGitCommand(targetProj, "status")
+			}
+
+			if chosenCmd == "reset" {
+
+			}
+
+			switch chosenCmd {
+			case "reset":
+				chosenCmd = "reset --hard"
+			}
+
+			// Clean exit for basic commands (pull, fetch, etc.)
 			m.state.ViewState = model.StateDashboard
-			m.state.StatusMsg = fmt.Sprintf("🚀 Executing git %s...", chosenCmd)
-			return m, m.loadGitBranchesCmd()
+			proj := m.state.Config.Projects[m.state.SelectedGitProject]
+			m.state.StatusMsg = fmt.Sprintf("DEBUG | Path: %s | Cmd: %s", proj.Path, chosenCmd)
+			return m, m.runGitCommand(targetProj, chosenCmd) // 🟢 FIX: Do not attach loadGitBranchesCmd here
 
 		case model.StepSelectGitBranch:
 			if len(m.state.AvailableBranches) > 0 {
+				targetProj := m.state.Config.Projects[m.state.SelectedGitProject]
 				targetBranch := m.state.AvailableBranches[m.state.SelectedGitBranch]
 				m.state.StatusMsg = fmt.Sprintf("🔄 Checking out %s...", targetBranch)
-				return m, m.executeGitCheckoutCmd(targetBranch)
+				return m, m.executeGitCheckoutCmd(targetProj, targetBranch)
 			}
+			return m, nil
 		}
-
-		return m, m.loadGitBranchesCmd()
 	}
 	return m, nil
 }
 
 func (m *appModel) runGitCommand(proj config.Project, operation string) tea.Cmd {
+	// 🟢 CRITICAL SEPARATOR JOIN FIX: Combine BasePath and Project Path agnostically
+	fullPath := filepath.Join(m.state.Config.BasePath, proj.Path)
+
 	return func() tea.Msg {
-		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 		var cmd *exec.Cmd
-		switch operation {
-		case "clone":
+		op := strings.ToLower(strings.TrimSpace(operation))
+
+		switch {
+		case strings.Contains(op, "clone"):
 			if proj.GitURL == "" {
 				return model.StatusMsg("❌ Git Operation Aborted: No URL found.")
 			}
 			_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
 			cmd = exec.Command("git", "clone", proj.GitURL, fullPath)
-		case "fetch":
+
+		case strings.Contains(op, "fetch"):
 			cmd = exec.Command("git", "fetch", "--all")
 			cmd.Dir = fullPath
-		case "pull":
-			cmd = exec.Command("git", "pull")
+
+		case strings.Contains(op, "pull"):
+			// Specifying origin and --no-edit keeps background executions automated
+			cmd = exec.Command("git", "pull", "origin", "--no-edit")
 			cmd.Dir = fullPath
-		case "checkout (main)":
+
+		case strings.Contains(op, "status"):
+			cmd = exec.Command("git", "status", "-s")
+			cmd.Dir = fullPath
+			cmd.Env = os.Environ()
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				return GitStatusErrorMsg(fmt.Errorf("status failed: %s (%v)", strings.TrimSpace(string(out)), err))
+			}
+
+			// Return the status string back to the coordinator thread
+			return GitStatusLoadedMsg(string(out))
+
+		case strings.Contains(op, "reset"):
+			cmd = exec.Command("git", "reset", "--hard")
+			cmd.Dir = fullPath
+
+		case strings.Contains(op, "checkout"):
 			cmd = exec.Command("git", "checkout", "main")
 			cmd.Dir = fullPath
+
+		default:
+			return model.StatusMsg(fmt.Sprintf("❌ Unknown operation: %s", operation))
 		}
+
+		// Inherit host environmental credentials and block interactive hangs
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, "GIT_TERMINAL_PROMPT=0")
+
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			return model.StatusMsg(fmt.Sprintf("❌ Error: %v | Log: %s", err, string(out)))
+			gitLog := strings.ReplaceAll(strings.TrimSpace(string(out)), "\n", " | ")
+			if gitLog == "" {
+				gitLog = err.Error()
+			}
+			return model.StatusMsg(fmt.Sprintf("❌ Pull Failed: %s", gitLog))
 		}
+
 		return model.StatusMsg(fmt.Sprintf("✅ git %s successfully completed.", operation))
 	}
 }
@@ -1621,7 +1741,7 @@ func (m *appModel) View() string {
 	case model.StateSessionLogsModal:
 		return components.RenderSessionLogsModal(m.state)
 	case model.StateFuzzyModal:
-		return components.RenderFuzzyModal(&m.state)
+		return components.RenderFuzzyModal(m.state)
 	case model.StateConfigDeckModal:
 		return components.RenderConfigDeckModal(m.state)
 	case model.StateDockerModal:
@@ -1631,6 +1751,18 @@ func (m *appModel) View() string {
 	}
 }
 func main() {
+	f, err := initLogger()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize log file: %v\n", err)
+		os.Exit(1)
+	}
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize log file: %v\n", err)
+			os.Exit(1)
+		}
+	}(f)
 	cfg, isFirstRun := config.LoadConfig()
 	_, gitErr := exec.LookPath("git")
 	gitMissing :=
@@ -1660,7 +1792,7 @@ func main() {
 		}
 	}
 	m := &appModel{
-		state: model.UIState{
+		state: &model.UIState{
 			Config:          cfg,
 			ViewState:       initialState,
 			InstallerStep:   model.StepSetGlobalPrefs,
@@ -1668,8 +1800,8 @@ func main() {
 			FileViewer:      viewport.New(30, 20),
 			Inputs:          inputs,
 			GitMissing:      gitMissing,
-			GitCommands:     []string{"fetch", "pull", "clone", "checkout (main)"},
-			BuildOptions:    []string{"clean", "test", "compile", "package", "install"},
+			GitCommands:     []string{"fetch", "pull", "clone", "checkout", "reset", "status"},
+			BuildOptions:    []string{"clean", "test", "compile", "package", "without tests", "full"},
 			BuildLogs:       []string{"Console ready. Select option step to launch..."},
 			Sessions:        make(map[int]*model.BuildSession),
 			FuzzyQueryInput: textinput.New(),
@@ -1681,4 +1813,16 @@ func main() {
 	if _, err := tea.NewProgram(m, tea.WithAltScreen()).Run(); err != nil {
 		os.Exit(1)
 	}
+}
+
+func initLogger() (*os.File, error) {
+	// Create or open a dedicated debug log file
+	f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		return nil, err
+	}
+	// Route Go's standard log package output to this file
+	log.SetOutput(f)
+	log.Println("--- TUI Engine Session Started ---")
+	return f, nil
 }

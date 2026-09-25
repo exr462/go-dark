@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderSessionLogsModal(m model.UIState) string {
+func RenderSessionLogsModal(m *model.UIState) string {
 	var body strings.Builder
 
 	body.WriteString(TitleStyle.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")

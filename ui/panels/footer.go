@@ -8,7 +8,7 @@ import (
 	"github.com/exr462/go-dark/ui/components"
 )
 
-func CreateFooter(state model.UIState) string {
+func CreateFooter(state *model.UIState) string {
 	var boundJDK string
 	if len(state.Config.Projects) > 0 && state.SelectedProject < len(state.Config.Projects) {
 		boundJDK = state.Config.Projects[state.SelectedProject].JDKName

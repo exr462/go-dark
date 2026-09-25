@@ -9,7 +9,7 @@ import (
 	"github.com/exr462/go-dark/ui/components"
 )
 
-func RenderTopMenu(m model.UIState) string {
+func RenderTopMenu(m *model.UIState) string {
 
 	// Left Side Content: Action Links
 	var leftBarStrings []string

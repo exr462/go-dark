@@ -44,6 +44,10 @@ var (
 	activeLabelStyle = boldStyle.Foreground(Yellow)
 	UnfocusedBorder  = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(DarkishGrey)
 	FocusedBorder    = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(Pink)
+	modifiedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true) // Yellow
+	untrackedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true) // Red
+	stagedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)  // Green
+	cleanStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
 )
 
 // Helper wrapper function to draw unified lines

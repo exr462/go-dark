@@ -7,7 +7,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderHelpModal(m model.UIState) string {
+func RenderHelpModal(m *model.UIState) string {
 	var body strings.Builder
 	body.WriteString(TitleStyle.Render("📖 Go-Dark Command & Shortcuts Cheat Sheet") + "\n\n")
 	body.WriteString(sectionStyle.Render("🌐 GLOBAL PANE CONTROLS") + "\n")

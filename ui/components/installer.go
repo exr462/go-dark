@@ -7,7 +7,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-func RenderInstaller(m model.UIState) string {
+func RenderInstaller(m *model.UIState) string {
 	var boxContent string
 
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)

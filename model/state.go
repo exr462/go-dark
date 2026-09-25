@@ -150,6 +150,7 @@ type UIState struct {
 	AvailableBranches   []string
 	GitMissing          bool
 	SelectedGitBranch   int
+	GitStatusOutput     string
 
 	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
 	BuildOptions []string

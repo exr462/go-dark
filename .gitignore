@@ -1,1 +1,4 @@
 .idea
+__debug_bin*
+debug.log
+go-dark

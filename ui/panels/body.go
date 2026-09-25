@@ -9,7 +9,7 @@ import (
 	"github.com/exr462/go-dark/ui/components"
 )
 
-func RenderMainBody(m model.UIState) string {
+func RenderMainBody(m *model.UIState) string {
 	columnWidth := (m.WindowWidth / 4) - 2
 	paneHeight := m.WindowHeight - 7
 	// 1. Render Left Column (Projects)
