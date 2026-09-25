@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
-	"github.com/exr462/go-dark/ui/components"
+	"github.com/exr462/go-dark/ui/renderer"
 )
 
 func RenderTopMenu(m *model.UIState) string {
@@ -57,9 +57,9 @@ func RenderTopMenu(m *model.UIState) string {
 
 	unifiedTopBarText := leftContent + strings.Repeat(" ", spaceLen) + rightContent
 
-	topMenuStyle := components.UnfocusedBorder
+	topMenuStyle := renderer.UnfocusedBorder
 	if m.ActiveFocus == model.FocusMenu && m.ViewState == model.StateDashboard {
-		topMenuStyle = components.FocusedBorder
+		topMenuStyle = renderer.FocusedBorder
 	}
 
 	return topMenuStyle.Width(m.WindowWidth - 2).Render(unifiedTopBarText)

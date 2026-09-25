@@ -6,21 +6,23 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/color"
+	"github.com/exr462/go-dark/ui/renderer"
 )
 
 func RenderGitOpsModal(m *model.UIState) string {
 	var modalBody strings.Builder
 
-	modalBody.WriteString(TitleStyle.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
+	modalBody.WriteString(renderer.Title.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
 
 	switch m.GitOperationStep {
 	case 0:
 		modalBody.WriteString("👉 Step 1: Select Target Project Repository:\n\n")
 		for i, p := range m.Config.Projects {
 			if i == m.SelectedGitProject {
-				modalBody.WriteString(selectedStyle.Render(fmt.Sprintf("> %s (%s)", p.Name, p.GitURL)) + "\n")
+				modalBody.WriteString(renderer.Selected.Render(fmt.Sprintf("> %s (%s)", p.Name, p.GitURL)) + "\n")
 			} else {
-				modalBody.WriteString(inactiveStyle.Render(fmt.Sprintf("  %s", p.Name)) + "\n")
+				modalBody.WriteString(renderer.Inactive.Render(fmt.Sprintf("  %s", p.Name)) + "\n")
 			}
 		}
 		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate | [Enter] Select Command | [Esc] Exit\x1b[0m")
@@ -32,9 +34,9 @@ func RenderGitOpsModal(m *model.UIState) string {
 
 		for i, cmd := range m.GitCommands {
 			if i == m.SelectedGitCommand {
-				modalBody.WriteString(selectedStyle.Render(fmt.Sprintf("> git %s", cmd)) + "\n")
+				modalBody.WriteString(renderer.Selected.Render(fmt.Sprintf("> git %s", cmd)) + "\n")
 			} else {
-				modalBody.WriteString(inactiveStyle.Render(fmt.Sprintf("  git %s", cmd)) + "\n")
+				modalBody.WriteString(renderer.Inactive.Render(fmt.Sprintf("  git %s", cmd)) + "\n")
 			}
 		}
 		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate | [Enter] Select | [Esc] Back to Projects\x1b[0m")
@@ -49,9 +51,9 @@ func RenderGitOpsModal(m *model.UIState) string {
 		} else {
 			for i, branch := range m.AvailableBranches {
 				if i == m.SelectedGitBranch {
-					modalBody.WriteString(selectedStyle.Render(fmt.Sprintf("> %s", branch)) + "\n")
+					modalBody.WriteString(renderer.Selected.Render(fmt.Sprintf("> %s", branch)) + "\n")
 				} else {
-					modalBody.WriteString(inactiveStyle.Render(fmt.Sprintf("  %s", branch)) + "\n")
+					modalBody.WriteString(renderer.Inactive.Render(fmt.Sprintf("  %s", branch)) + "\n")
 				}
 			}
 		}
@@ -65,7 +67,7 @@ func RenderGitOpsModal(m *model.UIState) string {
 		lines := strings.Split(m.GitStatusOutput, "\n")
 		for _, line := range lines {
 			if len(line) < 3 {
-				modalBody.WriteString(cleanStyle.Render(line) + "\n")
+				modalBody.WriteString(renderer.Clean.Render(line) + "\n")
 				continue
 			}
 
@@ -74,11 +76,11 @@ func RenderGitOpsModal(m *model.UIState) string {
 
 			switch {
 			case strings.Contains(code, "M"):
-				modalBody.WriteString(modifiedStyle.Render(" 📝 M ") + file + "\n")
+				modalBody.WriteString(renderer.Modified.Render(" 📝 M ") + file + "\n")
 			case strings.Contains(code, "??"):
-				modalBody.WriteString(untrackedStyle.Render(" ❓ ?? ") + file + "\n")
+				modalBody.WriteString(renderer.Untracked.Render(" ❓ ?? ") + file + "\n")
 			case code == "A " || code == "M ":
-				modalBody.WriteString(stagedStyle.Render(" 🟩 Staged: ") + file + "\n")
+				modalBody.WriteString(renderer.Staged.Render(" 🟩 Staged: ") + file + "\n")
 			default:
 				modalBody.WriteString("  " + line + "\n")
 			}
@@ -90,8 +92,8 @@ func RenderGitOpsModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		ModalBox.Width(m.WindowWidth-4).Render(modalBody.String()),
-		whiteSpace,
-		lipgloss.WithWhitespaceForeground(DarkerGrey),
+		renderer.ModalBox.Width(m.WindowWidth-4).Render(modalBody.String()),
+		renderer.WhiteSpace,
+		lipgloss.WithWhitespaceForeground(color.DarkerGrey),
 	)
 }

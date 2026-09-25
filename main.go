@@ -23,6 +23,18 @@ import (
 
 var sessionChannels = make(map[int]chan string)
 
+var uiState = &model.UIState{
+	InstallerStep:   model.StepSetGlobalPrefs,
+	ActiveFocus:     model.FocusProjects,
+	FileViewer:      viewport.New(30, 20),
+	GitCommands:     []string{"fetch", "pull", "clone", "checkout", "reset", "status"},
+	BuildOptions:    []string{"clean", "test", "compile", "package", "without tests", "full"},
+	BuildLogs:       []string{"Console ready. Select option step to launch..."},
+	Sessions:        make(map[int]*model.BuildSession),
+	FuzzyQueryInput: textinput.New(),
+	FuzzyViewer:     viewport.New(30, 20),
+}
+
 type WorkspaceRefreshedMsg struct {
 	Files     []string
 	TreeNodes []model.FileNode
@@ -50,7 +62,7 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 		return func() tea.Msg { return GitBranchesLoadedMsg{"main"} }
 	}
 
-	dir := filepath.Join(m.state.Config.BasePath, m.state.Config.Projects[idx].Path)
+	dir := m.state.Config.Projects[idx].Path
 	if dir == "" {
 		dir = "."
 	}
@@ -166,7 +178,7 @@ func (m *appModel) rebuildActiveTree() {
 		return
 	}
 	proj := m.state.Config.Projects[m.state.SelectedProject]
-	rootPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+	rootPath := proj.Path
 
 	// Capture which directories are expanded before wiping state
 	expandedPaths := make(map[string]bool)
@@ -412,7 +424,7 @@ func (m *appModel) runFuzzySearchEngine() {
 	}
 
 	proj := m.state.Config.Projects[m.state.SelectedProject]
-	rootPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+	rootPath := proj.Path
 
 	if m.state.FuzzyMode == model.FuzzyModeFiles {
 		// Mode 1: File Names Finder
@@ -520,7 +532,7 @@ func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 	}
 
 	proj := m.state.Config.Projects[idx]
-	fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+	fullPath := proj.Path
 
 	return func() tea.Msg {
 		// 2. Perform the isolated file system read
@@ -614,7 +626,7 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 	localCh := make(chan string, 500)
 
 	go func() {
-		fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+		fullProjPath := proj.Path
 
 		var targetMvnPath string
 		for _, mvn := range m.state.Config.Mavens {
@@ -731,7 +743,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Run your tree builder calculations safely here on the main thread
 		proj := m.state.Config.Projects[m.state.SelectedGitProject]
-		fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
+		fullPath := proj.Path
 
 		m.state.TreeNodes = []model.FileNode{}
 		m.buildTreeNodes(fullPath, 0)
@@ -1035,11 +1047,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *appModel) executeGitCheckoutCmd(proj config.Project, branch string) tea.Cmd {
 	// 🟢 THREAD SAFETY FIX: Resolve the project path string on the MAIN thread first
-	fullPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 
 	return func() tea.Msg {
 		cmd := exec.Command("git", "checkout", branch)
-		cmd.Dir = fullPath
+		cmd.Dir = proj.Path
 
 		output, err := cmd.CombinedOutput()
 		return GitCheckoutCompleteMsg{
@@ -1383,7 +1394,7 @@ func (m *appModel) updateGitOpsModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StepSelectGitCommand:
 			chosenCmd := m.state.GitCommands[m.state.SelectedGitCommand]
 			targetProj := m.state.Config.Projects[m.state.SelectedGitProject]
-			resolvedDebugPath := filepath.Join(m.state.Config.BasePath, targetProj.Path)
+			resolvedDebugPath := targetProj.Path
 			m.state.StatusMsg = fmt.Sprintf("DEBUG | Target Absolute Path: %s | Cmd: %s", resolvedDebugPath, chosenCmd)
 
 			if strings.HasPrefix(chosenCmd, "checkout") {
@@ -1429,7 +1440,7 @@ func (m *appModel) updateGitOpsModal(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *appModel) runGitCommand(proj config.Project, operation string) tea.Cmd {
 	// 🟢 CRITICAL SEPARATOR JOIN FIX: Combine BasePath and Project Path agnostically
-	fullPath := filepath.Join(m.state.Config.BasePath, proj.Path)
+	fullPath := proj.Path
 
 	return func() tea.Msg {
 		var cmd *exec.Cmd
@@ -1697,7 +1708,7 @@ func (m *appModel) updateModalForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if name == "" || path == "" {
 			return m, nil
 		}
-		newProj := config.Project{Name: name, Path: path, Type: strings.ToLower(pType), GitURL: gitURL}
+		newProj := config.Project{Name: name, Path: config.ResolvePath(m.state.Config.BasePath, path), Type: strings.ToLower(pType), GitURL: gitURL}
 		m.state.Config.Projects = append(m.state.Config.Projects, newProj)
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
@@ -1711,13 +1722,7 @@ func (m *appModel) executeActiveMenuAction() tea.Cmd {
 	if len(m.state.Config.Projects) == 0 {
 		return nil
 	}
-	proj := m.state.Config.Projects[m.state.SelectedProject]
-	fullProjPath := config.ResolvePath(m.state.Config.BasePath, proj.Path)
 	return func() tea.Msg {
-		backupDir := fullProjPath + "_backup_target"
-		_ = os.RemoveAll(backupDir)
-		_ = exec.Command("cp", "-r", fullProjPath, backupDir).Run()
-		_ = exec.Command("git", "clean", "-xdf").Run()
 		return model.StatusMsg("Manual workspace isolation completed.")
 	}
 }
@@ -1765,48 +1770,38 @@ func main() {
 	}(f)
 	cfg, isFirstRun := config.LoadConfig()
 	_, gitErr := exec.LookPath("git")
-	gitMissing :=
-		gitErr != nil
+	gitMissing := gitErr != nil
 	home, _ := os.UserHomeDir()
 	inputs := make([]textinput.Model, 11)
 	for i := range inputs {
 		inputs[i] = textinput.New()
 	}
-	inputs[0].Placeholder = "Global Workspace Base Path"
-	inputs[0].SetValue(filepath.Join(home, "Developer"))
-	inputs[1].Placeholder = "e.g. John Doe"
-	inputs[2].Placeholder = "e.g. john@example.com"
-	inputs[3].Placeholder = "My Application Service"
-	inputs[4].Placeholder = "my-service-folder"
-	inputs[5].Placeholder = "java"
-	inputs[6].Placeholder = "git@github.com:user/repo.git"
-	inputs[7].Placeholder = "Profile Name (e.g. Java-17)"
-	inputs[8].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
-	inputs[9].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
-	inputs[10].Placeholder = "MAVEN_HOME directory path"
+
 	initialState := model.StateDashboard
 	if isFirstRun || gitMissing {
 		initialState = model.StateInstaller
+		inputs[0].Placeholder = "Global Workspace Base Path"
+		inputs[0].SetValue(filepath.Join(home, "Developer"))
+		inputs[1].Placeholder = "e.g. John Doe"
+		inputs[2].Placeholder = "e.g. john@example.com"
+		inputs[3].Placeholder = "My Application Service"
+		inputs[4].Placeholder = "my-service-folder"
+		inputs[5].Placeholder = "java"
+		inputs[6].Placeholder = "git@github.com:user/repo.git"
+		inputs[7].Placeholder = "Profile Name (e.g. Java-17)"
+		inputs[8].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
+		inputs[9].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
+		inputs[10].Placeholder = "MAVEN_HOME directory path"
 		if !gitMissing {
 			inputs[0].Focus()
 		}
 	}
+	uiState.Config = cfg
+	uiState.ViewState = initialState
+	uiState.Inputs = inputs
+	uiState.GitMissing = gitMissing
 	m := &appModel{
-		state: &model.UIState{
-			Config:          cfg,
-			ViewState:       initialState,
-			InstallerStep:   model.StepSetGlobalPrefs,
-			ActiveFocus:     model.FocusProjects,
-			FileViewer:      viewport.New(30, 20),
-			Inputs:          inputs,
-			GitMissing:      gitMissing,
-			GitCommands:     []string{"fetch", "pull", "clone", "checkout", "reset", "status"},
-			BuildOptions:    []string{"clean", "test", "compile", "package", "without tests", "full"},
-			BuildLogs:       []string{"Console ready. Select option step to launch..."},
-			Sessions:        make(map[int]*model.BuildSession),
-			FuzzyQueryInput: textinput.New(),
-			FuzzyViewer:     viewport.New(30, 20),
-		},
+		state: uiState,
 	}
 	m.state.FuzzyQueryInput.Placeholder = "Type lookup phrase attributes (e.g. controller)..."
 	m.state.FuzzyQueryInput.CharLimit = 50

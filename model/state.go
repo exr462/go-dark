@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/kbd"
 )
 
 type BuildSession struct {
@@ -151,6 +152,8 @@ type UIState struct {
 	GitMissing          bool
 	SelectedGitBranch   int
 	GitStatusOutput     string
+	HelpModel           kbd.HelpModel
+	KeyMap              kbd.KeyMap
 
 	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
 	BuildOptions []string

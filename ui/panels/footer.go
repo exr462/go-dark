@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
-	"github.com/exr462/go-dark/ui/components"
+	"github.com/exr462/go-dark/ui/color"
 )
 
 func CreateFooter(state *model.UIState) string {
@@ -27,5 +27,5 @@ func CreateFooter(state *model.UIState) string {
 		sessionStatusStr = fmt.Sprintf("⚡ \x1b[33;1mBackground Active: %d Running\x1b[0m", activeCount)
 	}
 	footerText := fmt.Sprintf(" Press [?] for Help | [Ctrl+F] Fuzzy Find | Bound: %s | %s | Status: %s", boundJDK, sessionStatusStr, state.StatusMsg)
-	return lipgloss.NewStyle().Background(components.DarkerGrey).Foreground(components.Grey).Width(state.WindowWidth).Render(footerText)
+	return lipgloss.NewStyle().Background(color.DarkerGrey).Foreground(color.Grey).Width(state.WindowWidth).Render(footerText)
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/renderer"
 )
 
 func RenderBuildModal(m *model.UIState) string {
@@ -47,7 +48,7 @@ func RenderBuildModal(m *model.UIState) string {
 	if currentSessionID != 0 {
 		sessionTitleStr = fmt.Sprintf("Active Session #%d", currentSessionID)
 	}
-	body.WriteString(TitleStyle.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
+	body.WriteString(renderer.Title.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
 	body.WriteString(fmt.Sprintf("☕ Env: %s  |  🛠️ Engine: %s\n\n", targetProj.JDKName, targetProj.MavenName))
 
 	// 1. OPTIONS SELECTION MENU BLOCK (Evaluate true background activity instead of transient state variables)
@@ -56,9 +57,9 @@ func RenderBuildModal(m *model.UIState) string {
 		var optsRow []string
 		for i, opt := range m.BuildOptions {
 			if i == m.SelectedBuildOption {
-				optsRow = append(optsRow, selectedStyle.Render(strings.ToUpper(opt)))
+				optsRow = append(optsRow, renderer.Selected.Render(strings.ToUpper(opt)))
 			} else {
-				optsRow = append(optsRow, inactiveStyle.Render(opt))
+				optsRow = append(optsRow, renderer.Inactive.Render(opt))
 			}
 		}
 		body.WriteString("  " + strings.Join(optsRow, "  ") + "\n\n")
@@ -106,5 +107,5 @@ func RenderBuildModal(m *model.UIState) string {
 		MaxHeight(logHeight).
 		Render(strings.Join(historyLines, "\n"))
 	body.WriteString(consoleBox)
-	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.Width(m.WindowWidth-4).Render(body.String()))
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()))
 }

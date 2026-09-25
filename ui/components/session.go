@@ -6,12 +6,13 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/renderer"
 )
 
 func RenderSessionLogsModal(m *model.UIState) string {
 	var body strings.Builder
 
-	body.WriteString(TitleStyle.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
+	body.WriteString(renderer.Title.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
 	body.WriteString("📋 Active Background Tracking Registry Sessions List:\n")
 	if len(m.Sessions) == 0 {
 		body.WriteString("  \x1b[90m(No background tracking compiler sessions active on history stacks)\x1b[0m\n")
@@ -25,9 +26,9 @@ func RenderSessionLogsModal(m *model.UIState) string {
 			// Highlight the active session line if the user is currently viewing it
 			lineText := fmt.Sprintf("  [%d] Project: %s ➜ Command: %s [Status: %s]", id, sess.ProjectName, sess.Command, status)
 			if id == m.ViewingSessionID {
-				body.WriteString(selectedStyle.Render("> "+lineText) + "\n")
+				body.WriteString(renderer.Selected.Render("> "+lineText) + "\n")
 			} else {
-				body.WriteString(inactiveStyle.Render(lineText) + "\n")
+				body.WriteString(renderer.Inactive.Render(lineText) + "\n")
 			}
 		}
 	}
@@ -63,12 +64,12 @@ func RenderSessionLogsModal(m *model.UIState) string {
 				lines = append(lines, strings.Repeat(" ", logWidth))
 			}
 
-			consoleBox := logWindowStyle.Width(logWidth).Height(logHeight).Render(strings.Join(lines, "\n"))
+			consoleBox := renderer.LogWindow.Width(logWidth).Height(logHeight).Render(strings.Join(lines, "\n"))
 			body.WriteString(consoleBox + "\n")
 		}
 	}
 
 	body.WriteString("\x1b[90m[Esc] Close Inspector View Panel and return safely to dashboard structures portal\x1b[0m")
 
-	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.Width(m.WindowWidth-4).Render(body.String()))
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()))
 }

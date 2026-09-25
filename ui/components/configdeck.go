@@ -6,18 +6,19 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/renderer"
 )
 
 func RenderConfigDeckModal(m *model.UIState) string {
 	var body strings.Builder
 
 	// Styling tokens
-	body.WriteString(TitleStyle.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
+	body.WriteString(renderer.Title.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
 	body.WriteString("Review, expand, or adjust your system parameters across all modules below.\n")
 	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 
 	// 1. DYNAMICALLY DISPLAY CURRENT ACTIVE CONFIG RECORD VALUES
-	body.WriteString(sectionStyle.Render("📊 ACTIVE GLOBAL CONFIGURATION SETTINGS SUMMARY:") + "\n")
+	body.WriteString(renderer.Section.Render("📊 ACTIVE GLOBAL CONFIGURATION SETTINGS SUMMARY:") + "\n")
 	body.WriteString(fmt.Sprintf("  • Global Workspace Base Path : \x1b[36m%s\x1b[0m\n", m.Config.BasePath))
 	body.WriteString(fmt.Sprintf("  • Global Git Committer User  : %s\n", m.Config.GitUsername))
 	body.WriteString(fmt.Sprintf("  • Global Git Committer Email : %s\n", m.Config.GitEmail))
@@ -27,7 +28,7 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	body.WriteString(fmt.Sprintf("  • Registered Maven Engines   : \x1b[34m%d profiles loaded\x1b[0m\n", len(m.Config.Mavens)))
 	body.WriteString(fmt.Sprintf("  • Total Tracked Workspaces   : %d projects configured\n\n", len(m.Config.Projects)))
 
-	body.WriteString(sectionStyle.Render("👉 Choose Category Option to Modify / Add Entries:") + "\n\n")
+	body.WriteString(renderer.Section.Render("👉 Choose Category Option to Modify / Add Entries:") + "\n\n")
 
 	// 2. CATEGORY LIST OPTIONS SELECTION MENU BLOCK
 	options := []string{
@@ -39,16 +40,16 @@ func RenderConfigDeckModal(m *model.UIState) string {
 
 	for i, opt := range options {
 		if i == m.SelectedConfigOption {
-			body.WriteString(selectedStyle.Render("> "+opt) + "\n")
+			body.WriteString(renderer.Selected.Render("> "+opt) + "\n")
 		} else {
-			body.WriteString(inactiveStyle.Render("  "+opt) + "\n")
+			body.WriteString(renderer.Inactive.Render("  "+opt) + "\n")
 		}
 	}
 
 	body.WriteString("\n" + strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n")
-	body.WriteString(metaStyle.Render(" [↑/↓/j/k] Navigate Options  |  [Enter] Open Target Management Modal  |  [Esc] Close Deck") + "\n")
+	body.WriteString(renderer.Meta.Render(" [↑/↓/j/k] Navigate Options  |  [Enter] Open Target Management Modal  |  [Esc] Close Deck") + "\n")
 
-	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, ModalBox.
+	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.
 		Width(m.WindowWidth-4).
 		Render(body.String()))
 }
