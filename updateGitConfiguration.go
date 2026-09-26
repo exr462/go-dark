@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,6 +36,19 @@ func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.state.Config.BasePath == "" {
 			return m, nil
 		}
+		m.state.Config.Projects = make([]config.Project, 0)
+
+		for _, project := range config.AvailableProjects {
+			m.state.Config.Projects = append(m.state.Config.Projects, config.Project{
+				Deployable: project.Deployable,
+				Name:       project.Name,
+				// TODO fix this to be magical
+				Type:   "java",
+				Path:   config.ResolvePath(m.state.Config.BasePath, project.Name),
+				GitURL: fmt.Sprintf("%s%s.git", config.BaseGitURL, project.Name),
+			})
+		}
+
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
 		return m, nil

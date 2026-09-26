@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/exec"
 	"sync"
@@ -37,16 +36,13 @@ func (m *appModel) TriggerPipelineCmd(maxParallelism int) tea.Cmd {
 		sortedQueue, err := model.ResolveBuildOrder(m.state.Config.Projects, config.AvailableProjects)
 
 		if err != nil {
-			log.Printf("Error resolving build order: %v", err)
 			return PipelineCompleteMsg{Success: false, Log: err.Error()}
 		}
-		log.Printf("Resolved build order: %v", sortedQueue)
 		// Map to coordinate lookups of current paths inside Config.Projects
 		pathMap := make(map[string]string)
 		for _, p := range m.state.Config.Projects {
 			pathMap[p.Name] = p.Path
 		}
-		log.Printf("Resolved build order: %v", sortedQueue)
 
 		// Initialize structural runtime build trackers
 		var tasks []*BuildTask
@@ -76,7 +72,6 @@ func (m *appModel) TriggerPipelineCmd(maxParallelism int) tea.Cmd {
 			pipelineFailed := false
 
 			for _, t := range tasks {
-				log.Printf("Building task: %v", t.State)
 				if t.State == StateBuilding {
 					activeCount++
 					continue
@@ -156,7 +151,6 @@ func runMavenBuild(ctx context.Context, directory string) error {
 	cmd := exec.CommandContext(ctx, "mvn", "clean", "install", "-DskipTests")
 	cmd.Dir = directory
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	log.Printf("Running command: %v", cmd.Args)
 	return cmd.Run()
 }
 

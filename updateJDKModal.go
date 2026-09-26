@@ -27,10 +27,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.state.SelectedMenuIndex == 0 {
 				m.state.JDKStep = model.StepAddNewJDKVersion
-				m.state.FocusedInput = 7
-				m.state.Inputs[8].SetValue("")
-				m.state.Inputs[9].SetValue("")
-				m.state.Inputs[8].Focus()
+				m.initFields(model.JdkName, model.JdkPath)
 			} else {
 				m.state.JDKStep = model.StepAssignJDKToProject
 				m.state.SelectedJDKIndex = 0
@@ -42,22 +39,11 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
 		case "tab", "down":
-			m.state.Inputs[m.state.FocusedInput].Blur()
-			m.state.FocusedInput = 16 - m.state.FocusedInput
-			if m.state.FocusedInput < 8 || m.state.FocusedInput > 9 {
-				m.state.FocusedInput = 8
-			}
-			m.state.Inputs[m.state.FocusedInput].Focus()
+			m.switcheroo(model.JdkName, model.JdkPath)
 		case "shift+tab", "up":
-			m.state.Inputs[m.state.FocusedInput].Blur()
-			m.state.FocusedInput = 16 - m.state.FocusedInput
-			if m.state.FocusedInput < 8 || m.state.FocusedInput > 9 {
-				m.state.FocusedInput = 9
-			}
-			m.state.Inputs[m.state.FocusedInput].Focus()
+			m.switcheroo(model.JdkName, model.JdkPath)
 		case "enter":
-			jName := m.state.Inputs[8].Value()
-			jPath := m.state.Inputs[7].Value()
+			jName, jPath := m.getValues(model.JdkName, model.JdkPath)
 			if jName != "" && jPath != "" {
 				m.state.Config.JDKs = append(m.state.Config.JDKs, config.Profile{Name: jName, Path: jPath})
 				_ = config.SaveConfig(m.state.Config)

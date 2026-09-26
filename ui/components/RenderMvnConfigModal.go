@@ -53,6 +53,7 @@ func RenderMvnConfigModal(m *model.UIState) string {
 			pathLabel = decorator.ActiveLabel.Render("> Maven Home Directory (MAVEN_HOME / M2_HOME):")
 		}
 		modalBody.WriteString(pathLabel + "\n")
+		modalBody.WriteString("  " + m.Inputs[model.MvnPath].View() + "\n\n")
 
 		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",
