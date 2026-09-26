@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,12 +62,25 @@ func (m *appModel) executeGitCheckoutCmd(proj config.Project, branch string) tea
 			}
 		}
 
+		var extraArgs []string
+
+		if newBranch, ok := strings.CutSuffix(branch, " (tag)"); ok {
+			extraArgs = append(extraArgs, "checkout", fmt.Sprintf("tags/%s", newBranch), "-b", newBranch)
+		} else {
+			extraArgs = append(extraArgs, "checkout", branch)
+		}
+
+		log.Printf("Checking out branch %v", extraArgs)
 		// Local repo exists: normal checkout
-		cmd := exec.Command("git", "checkout", branch)
+		cmd := exec.Command("git", extraArgs...)
 		cmd.Dir = proj.Path
 		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 
 		output, err := cmd.CombinedOutput()
+		log.Printf("Output: %v", string(output))
+		if err != nil {
+			log.Printf("Error checking out branch: %v", err)
+		}
 		return config.GitCheckoutCompleteMsg{
 			Output: string(output),
 			Err:    err,

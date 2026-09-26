@@ -26,14 +26,16 @@ func RenderInstaller(m *model.UIState) string {
 		)
 	} else if m.InstallerStep == model.StepSetGlobalPrefs {
 		boxContent = fmt.Sprintf(
-			"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
+			"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
 			decorator.Title.Render("🚀 Global Preferences Setup (Step 1 of 2)"),
 			decorator.Bold.Render("1. Global Workspace Base Path:"),
-			m.Inputs[0].View(),
+			m.Inputs[model.GitWorkspace].View(),
 			decorator.Bold.Render("2. Global Git Username (For your code commits):"),
-			m.Inputs[1].View(),
+			m.Inputs[model.GitUsername].View(),
 			decorator.Bold.Render("3. Global Git Email Address:"),
-			m.Inputs[2].View(),
+			m.Inputs[model.GitEmail].View(),
+			decorator.Bold.Render("4. Max Tag List Size:"),
+			m.Inputs[model.GitMaxTagListSize].View(),
 			installerHint.Render(fmt.Sprintf(
 				"[%s] Navigate Fields | [%s] Continue to Project Setup | [%s] Exit",
 				installerKey.Render("Tab"),
@@ -46,13 +48,13 @@ func RenderInstaller(m *model.UIState) string {
 			"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
 			decorator.Title.Render("📁 Add First Workspace Project (Step 2 of 2)"),
 			decorator.Bold.Render("1. Project Name:"),
-			m.Inputs[3].View(),
+			m.Inputs[model.ProjectName].View(),
 			decorator.Bold.Render("2. Relative Folder:"),
-			m.Inputs[4].View(),
+			m.Inputs[model.RelativeFolder].View(),
 			decorator.Bold.Render("3. Stack Type (java, docker):"),
-			m.Inputs[5].View(),
+			m.Inputs[model.StackType].View(),
 			decorator.Bold.Render("4. Git Clone URL:"),
-			m.Inputs[6].View(),
+			m.Inputs[model.GitCloneURL].View(),
 			installerHint.Render(fmt.Sprintf(
 				"[%s] Navigate | [%s] Complete Setup & Launch | [%s] Skip",
 				installerKey.Render("Tab"),

@@ -42,18 +42,18 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString(decorator.Section.Render("➕ Step 2: Register a New Java Environment Build Context:") + "\n\n")
 
 		nameLabel := decorator.Bold.Render("  JDK Profile Logical Name (e.g. OpenJDK-17):")
-		if m.FocusedInput == 7 {
+		if m.FocusedInput == model.JdkName {
 			nameLabel = decorator.ActiveLabel.Render("> JDK Profile Logical Name (e.g. OpenJDK-17):")
 		}
 		modalBody.WriteString(nameLabel + "\n")
-		modalBody.WriteString("  " + m.Inputs[7].View() + "\n\n")
+		modalBody.WriteString("  " + m.Inputs[model.JdkName].View() + "\n\n")
 
 		pathLabel := decorator.Bold.Render("  JDK Home Absolute Path (JAVA_HOME):")
-		if m.FocusedInput == 8 {
+		if m.FocusedInput == model.JdkPath {
 			pathLabel = decorator.ActiveLabel.Render("> JDK Home Absolute Path (JAVA_HOME):")
 		}
 		modalBody.WriteString(pathLabel + "\n")
-		modalBody.WriteString("  " + m.Inputs[8].View() + "\n")
+		modalBody.WriteString("  " + m.Inputs[model.JdkPath].View() + "\n")
 
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",

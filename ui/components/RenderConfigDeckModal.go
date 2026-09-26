@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -31,6 +32,7 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	body.WriteString(fmt.Sprintf("  • Global Workspace Base Path : %s\n", deckPathVal.Render(m.Config.BasePath)))
 	body.WriteString(fmt.Sprintf("  • Global Git Committer User  : %s\n", m.Config.GitUsername))
 	body.WriteString(fmt.Sprintf("  • Global Git Committer Email : %s\n", m.Config.GitEmail))
+	body.WriteString(fmt.Sprintf("  • Max Tag			    	: %s\n\n", deckProjVal.Render(strconv.Itoa(m.Config.MaxListTag))))
 
 	body.WriteString(fmt.Sprintf("  • Registered Java SDK Pools  : %s\n", deckJDKVal.Render(fmt.Sprintf("%d profiles loaded", len(m.Config.JDKs)))))
 	body.WriteString(fmt.Sprintf("  • Registered Maven Engines   : %s\n", deckMvnVal.Render(fmt.Sprintf("%d profiles loaded", len(m.Config.Mavens)))))

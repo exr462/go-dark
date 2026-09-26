@@ -61,7 +61,7 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 							if strings.HasSuffix(tagName, "^{}") {
 								continue
 							}
-							name = tagName + " (tag)"
+							name = tagName
 						}
 
 						if name != "" && !seen[name] {
@@ -125,7 +125,7 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 
 			for _, tagLine := range tagLines {
 				// Stop parsing once we hit our cap limit to keep the UI clean
-				if tagCount >= 10 {
+				if tagCount >= m.state.Config.MaxListTag {
 					break
 				}
 

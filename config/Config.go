@@ -50,6 +50,7 @@ type Config struct {
 	Projects    []Project `json:"projects"`
 	JDKs        []Profile `json:"jdks"`
 	Mavens      []Profile `json:"mavens"`
+	MaxListTag  int       `json:"max_list_tag"`
 }
 
 func GetConfigPath() (string, error) {

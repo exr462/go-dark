@@ -15,17 +15,19 @@ var (
 )
 
 func RenderModal(m *model.UIState) string {
+	//goland:noinspection GoPrintFunctions
 	modalContent := fmt.Sprintf(
 		"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
 		decorator.Title.Render("✨ Add New Project Configuration"),
 		decorator.Bold.Render("1. Project Display Name:"),
-		m.Inputs[3].View(),
+		m.Inputs[model.ProjectName].View(),
 		decorator.Bold.Render("2. Relative Folder Name:"),
-		m.Inputs[4].View(),
+		m.Inputs[model.RelativeFolder].View(),
 		decorator.Bold.Render("3. Project Stack Type (java, docker):"),
-		m.Inputs[5].View(),
+		m.Inputs[model.StackType].View(),
 		decorator.Bold.Render("4. Git Clone URL Reference:"),
-		m.Inputs[6].View(),
+		m.Inputs[model.GitCloneURL].View(),
+		m.Inputs[model.ProjectName].Focus(),
 		addProjHint.Render(fmt.Sprintf(
 			"[%s] Cycle Inputs | [%s] Confirm Save | [%s] Cancel",
 			addProjKey.Render("Tab"),

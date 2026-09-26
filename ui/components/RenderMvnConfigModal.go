@@ -42,18 +42,18 @@ func RenderMvnConfigModal(m *model.UIState) string {
 		modalBody.WriteString(decorator.Section.Render("➕ Step 2: Register a New Maven Environment Context:") + "\n\n")
 
 		nameLabel := decorator.Bold.Render("  Maven Profile Name (e.g., Maven-3.9.6):")
-		if m.FocusedInput == 9 {
+		if m.FocusedInput == model.MavenName {
 			nameLabel = decorator.ActiveLabel.Render("> Maven Profile Name (e.g., Maven-3.9.6):")
 		}
 		modalBody.WriteString(nameLabel + "\n")
-		modalBody.WriteString("  " + m.Inputs[9].View() + "\n\n")
+		modalBody.WriteString("  " + m.Inputs[model.MavenName].View() + "\n\n")
 
 		pathLabel := decorator.Bold.Render("  Maven Home Directory (MAVEN_HOME / M2_HOME):")
-		if m.FocusedInput == 10 {
+		if m.FocusedInput == model.MavenLocation {
 			pathLabel = decorator.ActiveLabel.Render("> Maven Home Directory (MAVEN_HOME / M2_HOME):")
 		}
 		modalBody.WriteString(pathLabel + "\n")
-		modalBody.WriteString("  " + m.Inputs[10].View() + "\n")
+		modalBody.WriteString("  " + m.Inputs[model.ProjectName].View() + "\n")
 
 		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",

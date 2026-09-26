@@ -97,6 +97,23 @@ const (
 	StepAddFirstProject
 )
 
+type ConfigurationField int
+
+var (
+	GitWorkspace      = 0
+	GitUsername       = 1
+	GitEmail          = 2
+	GitMaxTagListSize = 3
+	ProjectName       = 4
+	RelativeFolder    = 5
+	StackType         = 6
+	GitCloneURL       = 7
+	JdkName           = 8
+	JdkPath           = 9
+	MavenName         = 10
+	MavenLocation     = 11
+)
+
 type GitOperationStep int
 
 const (

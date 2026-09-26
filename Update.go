@@ -47,7 +47,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case WorkspaceRefreshedMsg:
+	case config.WorkspaceRefreshedMsg:
 		m.state.Files = msg.Files
 		if m.state.SelectedProject >= 0 && m.state.SelectedProject < len(m.state.Config.Projects) {
 			proj := m.state.Config.Projects[m.state.SelectedProject]
