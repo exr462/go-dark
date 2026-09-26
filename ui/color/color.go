@@ -33,17 +33,4 @@ const (
 	Base     = lipgloss.Color("#1e1e2e")
 	Mantle   = lipgloss.Color("#181825")
 	Crust    = lipgloss.Color("#11111b")
-
-	// Semantic Elements
-	ModalBackground  = Base
-	ModalBorderColor = Mauve
-	ModalBackdrop    = Crust
-
-	// Backward Compatibility Aliases remapped to Catppuccin Mocha
-	Orange      = Peach
-	DarkGrey    = Mantle
-	Grey        = Text
-	DarkerGrey  = Crust
-	DarkishGrey = Surface1
-	MidGrey     = Surface0
 )

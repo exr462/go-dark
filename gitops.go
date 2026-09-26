@@ -23,12 +23,20 @@ type GitCheckoutCompleteMsg struct {
 
 func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 	if len(m.state.Config.Projects) == 0 {
-		return func() tea.Msg { return GitBranchesLoadedMsg{"main"} }
+		type GitStatusLoadedMsg string
+		type GitStatusErrorMsg error
+		type GitBranchesLoadedMsg []string
+		type GitBranchesErrorMsg error
+		type GitCheckoutCompleteMsg struct {
+			Output string
+			Err    error
+		}
+		return func() tea.Msg { return GitBranchesLoadedMsg{"develop"} }
 	}
 
 	idx := m.state.SelectedGitProject
 	if idx < 0 || idx >= len(m.state.Config.Projects) {
-		return func() tea.Msg { return GitBranchesLoadedMsg{"main"} }
+		return func() tea.Msg { return GitBranchesLoadedMsg{"develop"} }
 	}
 
 	proj := m.state.Config.Projects[idx]
@@ -40,56 +48,71 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 	gitDir := filepath.Join(dir, ".git")
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		// Project is not yet cloned locally.
-		// Query remote repository branches if GitURL is available.
+		// Query remote repository branches AND tags if GitURL is available.
 		if proj.GitURL != "" {
 			return func() tea.Msg {
-				cmd := exec.Command("git", "ls-remote", "--heads", proj.GitURL)
+				// Query both heads (branches) and tags from remote
+				cmd := exec.Command("git", "ls-remote", "--refs", proj.GitURL)
 				cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 				output, err := cmd.CombinedOutput()
 				if err != nil {
-					// Fall back to default branch names on failure or offline
-					return GitBranchesLoadedMsg([]string{"main", "master"})
+					return GitBranchesLoadedMsg([]string{"develop"})
 				}
 
-				var branches []string
+				var items []string
 				seen := make(map[string]bool)
 				lines := strings.Split(strings.ReplaceAll(string(output), "\r\n", "\n"), "\n")
+
 				for _, line := range lines {
 					fields := strings.Fields(line)
 					if len(fields) >= 2 {
 						ref := fields[1]
-						branch := strings.TrimPrefix(ref, "refs/heads/")
-						if branch != "" && !seen[branch] {
-							seen[branch] = true
-							branches = append(branches, branch)
+						var name string
+
+						if strings.HasPrefix(ref, "refs/heads/") {
+							name = strings.TrimPrefix(ref, "refs/heads/")
+						} else if strings.HasPrefix(ref, "refs/tags/") {
+							// Strip the tag prefix and optionally add a visual indicator
+							tagName := strings.TrimPrefix(ref, "refs/tags/")
+							// Skip dereferenced peeled tags (e.g., v1.0.0^{})
+							if strings.HasSuffix(tagName, "^{}") {
+								continue
+							}
+							name = tagName + " (tag)"
+						}
+
+						if name != "" && !seen[name] {
+							seen[name] = true
+							items = append(items, name)
 						}
 					}
 				}
-				if len(branches) == 0 {
-					branches = []string{"main"}
+				if len(items) == 0 {
+					items = []string{"develop"}
 				}
-				return GitBranchesLoadedMsg(branches)
+				return GitBranchesLoadedMsg(items)
 			}
 		}
-		return func() tea.Msg { return GitBranchesLoadedMsg([]string{"main"}) }
+		return func() tea.Msg { return GitBranchesLoadedMsg([]string{"develop"}) }
 	}
 
-	// Local git directory exists: query branches from local repo
+	// Local git directory exists: query branches AND tags from local repo
 	return func() tea.Msg {
-		cmd := exec.Command("git", "branch", "-a", "--format=%(refname:short)")
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+		// 1. Get Branches
+		branchCmd := exec.Command("git", "branch", "-a", "--format=%(refname:short)")
+		branchCmd.Dir = dir
+		branchCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 
-		output, err := cmd.CombinedOutput()
+		branchOutput, err := branchCmd.CombinedOutput()
 		if err != nil {
-			return GitBranchesErrorMsg(fmt.Errorf("git branch failed: %s (%v)", strings.TrimSpace(string(output)), err))
+			return GitBranchesErrorMsg(fmt.Errorf("git branch failed: %s (%v)", strings.TrimSpace(string(branchOutput)), err))
 		}
 
-		var branches []string
+		var items []string
 		seen := make(map[string]bool)
 
-		lines := strings.Split(strings.ReplaceAll(string(output), "\r\n", "\n"), "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(strings.ReplaceAll(string(branchOutput), "\r\n", "\n"), "\n")
+		for line := range lines {
 			trimmed := strings.TrimSpace(line)
 			if trimmed == "" || strings.Contains(trimmed, "HEAD") {
 				continue
@@ -104,15 +127,42 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 
 			if cleaned != "" && !seen[cleaned] {
 				seen[cleaned] = true
-				branches = append(branches, cleaned)
+				items = append(items, cleaned)
 			}
 		}
 
-		if len(branches) == 0 {
-			branches = append(branches, "main")
+		// 2. Get Local Tags
+		tagCmd := exec.Command("git", "tag", "--sort=-v:refname")
+		tagCmd.Dir = dir
+		tagCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+
+		if tagOutput, err := tagCmd.CombinedOutput(); err == nil {
+			tagLines := strings.Split(strings.ReplaceAll(string(tagOutput), "\r\n", "\n"), "\n")
+			tagCount := 0
+
+			for _, tagLine := range tagLines {
+				// Stop parsing once we hit our cap limit to keep the UI clean
+				if tagCount >= 10 {
+					break
+				}
+
+				trimmedTag := strings.TrimSpace(tagLine)
+				if trimmedTag != "" {
+					displayTag := trimmedTag + " (tag)"
+					if !seen[displayTag] {
+						seen[displayTag] = true
+						items = append(items, displayTag)
+						tagCount++
+					}
+				}
+			}
 		}
 
-		return GitBranchesLoadedMsg(branches)
+		if len(items) == 0 {
+			items = append(items, "develop")
+		}
+
+		return GitBranchesLoadedMsg(items)
 	}
 }
 
@@ -184,6 +234,7 @@ func (m *appModel) runGitCommand(proj config.Project, operation string) tea.Cmd 
 	return func() tea.Msg {
 		var cmd *exec.Cmd
 		op := strings.ToLower(strings.TrimSpace(operation))
+		isCheckout := strings.Contains(op, "checkout")
 
 		switch {
 		case strings.Contains(op, "clone"):
@@ -215,17 +266,78 @@ func (m *appModel) runGitCommand(proj config.Project, operation string) tea.Cmd 
 			cmd = exec.Command("git", "reset", "--hard")
 			cmd.Dir = fullPath
 
-		case strings.Contains(op, "checkout"):
-			cmd = exec.Command("git", "checkout", "main")
-			cmd.Dir = fullPath
+		case isCheckout:
+			targetRef := "develop"
+			isTag := false
+
+			if len(m.state.AvailableBranches) > 0 {
+				idx := m.state.SelectedGitBranch
+				if idx >= 0 && idx < len(m.state.AvailableBranches) {
+					rawRef := m.state.AvailableBranches[idx]
+					if strings.HasSuffix(rawRef, " (tag)") {
+						isTag = true
+						targetRef = strings.TrimSuffix(rawRef, " (tag)")
+					} else {
+						targetRef = rawRef
+					}
+				}
+			}
+
+			cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+
+			if isTag {
+				// 1. Try checking out the tag name directly (Standard approach)
+				cmd = exec.Command("git", "checkout", targetRef)
+				cmd.Dir = fullPath
+				out, err := cmd.CombinedOutput()
+
+				// 2. If it fails (Pathspec error / missing tag locally), force a deep fetch of all tags
+				if err != nil {
+					// --tags pulls all references down, overriding restrictive local refspecs
+					fetchCmd := exec.Command("git", "fetch", "origin", "--tags", "--force")
+					fetchCmd.Dir = fullPath
+					fetchCmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+					_, _ = fetchCmd.CombinedOutput()
+
+					// Retry plain checkout without the "tags/" prefix string
+					cmd = exec.Command("git", "checkout", targetRef)
+					cmd.Dir = fullPath
+					out, err = cmd.CombinedOutput()
+				}
+
+				return GitCheckoutCompleteMsg{
+					Output: string(out),
+					Err:    err,
+				}
+			} else {
+				// Standard branch checkout path
+				cmd = exec.Command("git", "checkout", targetRef)
+				cmd.Dir = fullPath
+				out, err := cmd.CombinedOutput()
+				return GitCheckoutCompleteMsg{
+					Output: string(out),
+					Err:    err,
+				}
+			}
 
 		default:
 			return model.StatusMsg(fmt.Sprintf("❌ Unknown operation: %s", operation))
 		}
 
 		cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-
 		out, err := cmd.CombinedOutput()
+
+		// 🎯 Handle Checkout Message Routing
+		if isCheckout {
+			// Assuming GitCheckoutCompleteMsg is a struct like: struct { Output string; Err error }
+			// Adjust the fields below if your struct definition uses different field names.
+			return GitCheckoutCompleteMsg{
+				Output: string(out),
+				Err:    err,
+			}
+		}
+
+		// Fallback for all other standard commands (clone, pull, fetch, reset)
 		if err != nil {
 			gitLog := strings.ReplaceAll(strings.TrimSpace(string(out)), "\n", " | ")
 			if gitLog == "" {

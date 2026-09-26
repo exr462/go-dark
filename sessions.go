@@ -23,14 +23,20 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 	if proj.Type != "java" {
 		mvnBin = "docker"
 	}
-	var d = targetStep
-	switch d {
+	// BuildOptions:    []string{"clean", "test", "compile", "package", "without tests", "full"},
+	switch targetStep {
+	case "test":
+		targetStep = "clean test"
+	case "compile":
+		targetStep = "clean compile"
+	case "package":
+		targetStep = "clean package"
 	case "without tests":
-		d = "install -DskipTests"
+		targetStep = "clean install -DskipTests"
 	case "full":
-		d = "install"
+		targetStep = "clean install"
 	}
-	cmdStr := fmt.Sprintf("%s clean %s", mvnBin, d)
+	cmdStr := fmt.Sprintf("%s clean %s", mvnBin, targetStep)
 	if proj.Type != "java" {
 		cmdStr = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(proj.Name))
 	}
@@ -64,7 +70,8 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 			if targetMvnPath != "" {
 				binPath = filepath.Join(targetMvnPath, "bin", "mvn")
 			}
-			cmdArgs = []string{"clean", targetStep}
+
+			cmdArgs = strings.Split(targetStep, " ")
 		} else {
 			binPath = "docker"
 			cmdArgs = []string{"build", "-t", strings.ToLower(proj.Name) + ":latest", "."}

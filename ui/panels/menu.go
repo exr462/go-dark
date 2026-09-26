@@ -11,11 +11,8 @@ import (
 )
 
 var (
-	badgeClean   = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Peach).Padding(0, 1).Bold(true)
-	badgeMaven   = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Lavender).Padding(0, 1).Bold(true)
-	badgeDocker  = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Sapphire).Padding(0, 1).Bold(true)
 	menuLabel    = lipgloss.NewStyle().Foreground(color.Subtext1).Bold(true)
-	dockerLabel  = lipgloss.NewStyle().Foreground(color.Sapphire).Bold(true)
+	dockerLabel  = lipgloss.NewStyle().Foreground(color.Rosewater).Bold(true)
 	activeVal    = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
 	cpuValStyle  = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
 	memValStyle  = lipgloss.NewStyle().Foreground(color.Mauve).Bold(true)
@@ -23,17 +20,6 @@ var (
 )
 
 func RenderTopMenu(m *model.UIState) string {
-	var actionBadges []string
-	actionBadges = append(actionBadges, badgeClean.Render("[Enter] Backup & Clean"))
-
-	if len(m.Config.Projects) > 0 && m.SelectedProject < len(m.Config.Projects) {
-		proj := m.Config.Projects[m.SelectedProject]
-		if proj.Type == "java" {
-			actionBadges = append(actionBadges, badgeMaven.Render("mvn install"))
-		}
-	}
-	actionBadges = append(actionBadges, badgeDocker.Render("docker build"))
-
 	var activeSessionTracker string
 	for id, sess := range m.Sessions {
 		if m.SelectedProject < len(m.Config.Projects) && sess.ProjectName == m.Config.Projects[m.SelectedProject].Name && sess.IsRunning {
@@ -41,8 +27,6 @@ func RenderTopMenu(m *model.UIState) string {
 			break
 		}
 	}
-
-	leftContent := menuLabel.Render("Actions: ") + strings.Join(actionBadges, " ") + activeSessionTracker
 
 	cpuVal := m.DockerTelemetry.CPU
 	if cpuVal == "" {
@@ -53,13 +37,15 @@ func RenderTopMenu(m *model.UIState) string {
 		memVal = "0B / 0B"
 	}
 
-	rightContent := fmt.Sprintf(
-		"%s ➜ Active: %s | CPU: %s | Mem: %s",
+	leftContent := fmt.Sprintf(
+		" %s ➜ Active: %s | CPU: %s | Mem: %s",
 		dockerLabel.Render("🐳 Docker"),
 		activeVal.Render(fmt.Sprintf("%d", m.DockerTelemetry.Running)),
 		cpuValStyle.Render(cpuVal),
 		memValStyle.Render(memVal),
 	)
+
+	rightContent := menuLabel.Render("Git Username: ") + m.Config.GitUsername + " " + menuLabel.Render("Git Email: ") + m.Config.GitEmail + " " + menuLabel.Render("Active Sessions: ") + activeSessionTracker
 
 	leftWidth := lipgloss.Width(leftContent)
 	rightWidth := lipgloss.Width(rightContent)

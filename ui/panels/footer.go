@@ -18,11 +18,17 @@ var (
 
 func CreateFooter(state *model.UIState) string {
 	var boundJDK string
+	var boundMaven string
 	if len(state.Config.Projects) > 0 && state.SelectedProject < len(state.Config.Projects) {
-		boundJDK = state.Config.Projects[state.SelectedProject].JDKName
+		project := state.Config.Projects[state.SelectedProject]
+		boundJDK = project.JDKName
+		boundMaven = project.MavenName
 	}
 	if boundJDK == "" {
-		boundJDK = "System Default"
+		boundJDK = "N/A"
+	}
+	if boundMaven == "" {
+		boundMaven = "N/A"
 	}
 
 	var activeCount int
@@ -43,14 +49,16 @@ func CreateFooter(state *model.UIState) string {
 	}
 
 	footerText := fmt.Sprintf(
-		" %s Help | %s Git Ops | %s Fuzzy | %s Config | Bound: %s | %s%s",
+		" %s Help | %s Git Ops | %s Fuzzy | %s Config | SDK: %s | Build: %s | %s%s | Debug: %s",
 		footerKeyStyle.Render("[?]"),
 		footerKeyStyle.Render("[Ctrl+G]"),
 		footerKeyStyle.Render("[Ctrl+F]"),
 		footerKeyStyle.Render("[Ctrl+Y]"),
 		footerBoundStyle.Render(boundJDK),
+		footerBoundStyle.Render(boundMaven),
 		sessionStatusStr,
 		statusDisplay,
+		state.StatusMsg,
 	)
 
 	return lipgloss.NewStyle().
