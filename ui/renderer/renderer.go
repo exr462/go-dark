@@ -10,32 +10,40 @@ import (
 )
 
 var (
-	Grey            = lipgloss.NewStyle().Foreground(color.Grey)
-	DarkGrey        = lipgloss.NewStyle().Foreground(color.DarkGrey)
-	LogWindow       = DarkGrey.Border(lipgloss.NormalBorder()).BorderForeground(color.DarkishGrey)
-	Selected        = DarkGrey.Background(lipgloss.Color("46")).Padding(0, 1).Bold(true)
-	Inactive        = Grey.Background(color.MidGrey).Padding(0, 1)
-	Title           = lipgloss.NewStyle().Foreground(color.Orange).Bold(true)
-	Error           = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
-	Section         = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
-	ModalBox        = lipgloss.NewStyle().Border(lipgloss.DoubleBorder()).BorderForeground(color.ModalBorderColor).Background(color.ModalBackground).Padding(1, 2, 1, 2)
-	Meta            = lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Italic(true)
+	Text            = lipgloss.NewStyle().Foreground(color.Text)
+	Subtext         = lipgloss.NewStyle().Foreground(color.Subtext0)
+	Muted           = lipgloss.NewStyle().Foreground(color.Overlay0)
+	Grey            = Text
+	DarkGrey        = lipgloss.NewStyle().Foreground(color.Mantle)
+	LogWindow       = lipgloss.NewStyle().Background(color.Mantle).Border(lipgloss.RoundedBorder()).BorderForeground(color.Surface1)
+	Selected        = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Mauve).Padding(0, 1).Bold(true)
+	SelectedSubtle  = lipgloss.NewStyle().Foreground(color.Mauve).Background(color.Surface1).Padding(0, 1).Bold(true)
+	Inactive        = lipgloss.NewStyle().Foreground(color.Subtext0).Background(color.Surface0).Padding(0, 1)
+	InactivePlain   = lipgloss.NewStyle().Foreground(color.Text).Padding(0, 1)
+	Title           = lipgloss.NewStyle().Foreground(color.Mauve).Bold(true)
+	Error           = lipgloss.NewStyle().Foreground(color.Red).Bold(true)
+	Success         = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
+	Warning         = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+	Info            = lipgloss.NewStyle().Foreground(color.Sky)
+	Section         = lipgloss.NewStyle().Foreground(color.Lavender).Bold(true)
+	ModalBox        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color.Mauve).Background(color.Base).Padding(1, 2, 1, 2)
+	Meta            = lipgloss.NewStyle().Foreground(color.Overlay0).Italic(true)
 	Key             = lipgloss.NewStyle().Foreground(color.Yellow).Width(14)
-	Description     = Grey
-	Author          = lipgloss.NewStyle().Foreground(lipgloss.Color("#dcdcdd")).Align(lipgloss.Center).Height(10)
-	TableHeader     = lipgloss.NewStyle().Foreground(lipgloss.Color("45")).Bold(true)
-	Mode            = lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Bold(true)
-	PanelTitle      = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
-	BorderPane      = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(color.DarkishGrey).Padding(1, 2)
+	Description     = lipgloss.NewStyle().Foreground(color.Subtext0)
+	Author          = lipgloss.NewStyle().Foreground(color.Subtext1).Align(lipgloss.Center).Height(10)
+	TableHeader     = lipgloss.NewStyle().Foreground(color.Blue).Bold(true)
+	Mode            = lipgloss.NewStyle().Foreground(color.Peach).Bold(true)
+	PanelTitle      = lipgloss.NewStyle().Foreground(color.Lavender).Bold(true)
+	BorderPane      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color.Surface1).Padding(1, 2)
 	Bold            = lipgloss.NewStyle().Bold(true)
-	WhiteSpace      = lipgloss.WithWhitespaceChars("░")
+	WhiteSpace      = lipgloss.WithWhitespaceChars(" ")
 	ActiveLabel     = Bold.Foreground(color.Yellow)
-	UnfocusedBorder = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(color.DarkishGrey)
-	FocusedBorder   = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(color.Pink)
-	Modified        = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true) // Yellow
-	Untracked       = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true) // Red
-	Staged          = lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)  // Green
-	Clean           = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
+	UnfocusedBorder = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color.Surface1)
+	FocusedBorder   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color.Mauve)
+	Modified        = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+	Untracked       = lipgloss.NewStyle().Foreground(color.Red).Bold(true)
+	Staged          = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
+	Clean           = lipgloss.NewStyle().Foreground(color.Teal)
 )
 
 // Row Helper wrapper function to draw unified lines
@@ -43,7 +51,7 @@ func Row(key, desc string) string {
 	return Key.Render(" "+key) + Description.Render(desc) + "\n"
 }
 
-func DecorateProfiles(modalBody Strings.Builder, label string, index int, profiles []config.Profile) {
+func DecorateProfiles(modalBody *Strings.Builder, label string, index int, profiles []config.Profile) {
 	if len(profiles) == 0 {
 		modalBody.WriteString(fmt.Sprintf("  ❌ No configured %s profiles found in database.\n  Go back and add one first.", label))
 	} else {

@@ -6,33 +6,44 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/renderer"
 )
 
-func RenderTopMenu(m *model.UIState) string {
+var (
+	badgeClean   = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Peach).Padding(0, 1).Bold(true)
+	badgeMaven   = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Lavender).Padding(0, 1).Bold(true)
+	badgeDocker  = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Sapphire).Padding(0, 1).Bold(true)
+	menuLabel    = lipgloss.NewStyle().Foreground(color.Subtext1).Bold(true)
+	dockerLabel  = lipgloss.NewStyle().Foreground(color.Sapphire).Bold(true)
+	activeVal    = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
+	cpuValStyle  = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+	memValStyle  = lipgloss.NewStyle().Foreground(color.Mauve).Bold(true)
+	sessionAlert = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+)
 
-	// Left Side Content: Action Links
-	var leftBarStrings []string
-	topBarStrings := append(leftBarStrings, "\x1b[41m[Enter] Backup & Clean\x1b[0m")
+func RenderTopMenu(m *model.UIState) string {
+	var actionBadges []string
+	actionBadges = append(actionBadges, badgeClean.Render("[Enter] Backup & Clean"))
 
 	if len(m.Config.Projects) > 0 && m.SelectedProject < len(m.Config.Projects) {
 		proj := m.Config.Projects[m.SelectedProject]
 		if proj.Type == "java" {
-			topBarStrings = append(topBarStrings, "\x1b[44mExecute: mvn install\x1b[0m")
+			actionBadges = append(actionBadges, badgeMaven.Render("mvn install"))
 		}
 	}
-	topBarStrings = append(topBarStrings, "\x1b[42mExecute: docker build\x1b[0m")
+	actionBadges = append(actionBadges, badgeDocker.Render("docker build"))
 
 	var activeSessionTracker string
 	for id, sess := range m.Sessions {
-		if sess.ProjectName == m.Config.Projects[m.SelectedProject].Name && sess.IsRunning {
-			activeSessionTracker = fmt.Sprintf("  ⚡ [\x1b[33;1mSession %d\x1b[0m: COMPILING]", id)
+		if m.SelectedProject < len(m.Config.Projects) && sess.ProjectName == m.Config.Projects[m.SelectedProject].Name && sess.IsRunning {
+			activeSessionTracker = sessionAlert.Render(fmt.Sprintf("  ⚡ [Session %d: COMPILING]", id))
 			break
 		}
 	}
-	leftContent := "Operations Menu: " + strings.Join(topBarStrings, " | ") + activeSessionTracker
 
-	// !!! FIXED: COMPOSING THE TOP-RIGHT DOCKER REAL-TIME TELEMETRY PANEL HEADER !!!
+	leftContent := menuLabel.Render("Actions: ") + strings.Join(actionBadges, " ") + activeSessionTracker
+
 	cpuVal := m.DockerTelemetry.CPU
 	if cpuVal == "" {
 		cpuVal = "0.0%"
@@ -43,23 +54,22 @@ func RenderTopMenu(m *model.UIState) string {
 	}
 
 	rightContent := fmt.Sprintf(
-		"🐳 \x1b[36;1mDocker\x1b[0m ➜ Active: \x1b[32m%d\x1b[0m | CPU: \x1b[33m%s\x1b[0m | Mem: \x1b[35m%s\x1b[0m",
-		m.DockerTelemetry.Running,
-		cpuVal,
-		memVal,
+		"%s ➜ Active: %s | CPU: %s | Mem: %s",
+		dockerLabel.Render("🐳 Docker"),
+		activeVal.Render(fmt.Sprintf("%d", m.DockerTelemetry.Running)),
+		cpuValStyle.Render(cpuVal),
+		memValStyle.Render(memVal),
 	)
 
-	// Math calculation to compute dynamic spacing based on terminal dimensions width bounds
 	leftWidth := lipgloss.Width(leftContent)
 	rightWidth := lipgloss.Width(rightContent)
-	// Factor margins and padding
 	spaceLen := max(m.WindowWidth-leftWidth-rightWidth-6, 2)
 
 	unifiedTopBarText := leftContent + strings.Repeat(" ", spaceLen) + rightContent
 
-	topMenuStyle := renderer.UnfocusedBorder
+	topMenuStyle := renderer.UnfocusedBorder.Background(color.Base)
 	if m.ActiveFocus == model.FocusMenu && m.ViewState == model.StateDashboard {
-		topMenuStyle = renderer.FocusedBorder
+		topMenuStyle = renderer.FocusedBorder.Background(color.Base)
 	}
 
 	return topMenuStyle.Width(m.WindowWidth - 2).Render(unifiedTopBarText)

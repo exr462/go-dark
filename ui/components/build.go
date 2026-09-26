@@ -6,15 +6,28 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/renderer"
+)
+
+var (
+	buildExecStyle  = lipgloss.NewStyle().Foreground(color.Mauve).Bold(true)
+	buildAlertStyle = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+	buildHintStyle  = lipgloss.NewStyle().Foreground(color.Overlay0)
+	buildKeyHint    = lipgloss.NewStyle().Foreground(color.Yellow)
 )
 
 func RenderBuildModal(m *model.UIState) string {
 	var body strings.Builder
+	if len(m.Config.Projects) == 0 || m.SelectedProject >= len(m.Config.Projects) {
+		return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.Render("No project selected"))
+	}
 	targetProj := m.Config.Projects[m.SelectedProject]
-	buildLogWindowStyle := lipgloss.NewStyle().Background(lipgloss.Color("233")).Border(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
+	buildLogWindowStyle := lipgloss.NewStyle().
+		Background(color.Mantle).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(color.Surface1)
 
-	// !!! NEW: DETERMINE IF THIS SPECIFIC PROJECT HAS A RUNNING RECOGNIZED SESSION ID !!!
 	var currentSessionID int
 	var isRunningBackground bool
 	for id, sess := range m.Sessions {
@@ -29,7 +42,10 @@ func RenderBuildModal(m *model.UIState) string {
 	if targetProj.Type != "java" {
 		mvnBin = "docker"
 	}
-	var selectedBuildOption = m.BuildOptions[m.SelectedBuildOption]
+	var selectedBuildOption = "full"
+	if m.SelectedBuildOption < len(m.BuildOptions) {
+		selectedBuildOption = m.BuildOptions[m.SelectedBuildOption]
+	}
 	switch selectedBuildOption {
 	case "without tests":
 		selectedBuildOption = "install -DskipTests"
@@ -41,9 +57,8 @@ func RenderBuildModal(m *model.UIState) string {
 		activeCmdString = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(targetProj.Name))
 	}
 
-	body.WriteString(fmt.Sprintf("🚀 Target Executable Execution: \x1b[35;1m%s\x1b[0m\n\n", activeCmdString))
+	body.WriteString(fmt.Sprintf("🚀 Target Executable Execution: %s\n\n", buildExecStyle.Render(activeCmdString)))
 
-	// DISPLAY ASSIGNED BOUND SESSION ID IN THE COCKPIT TITLE
 	sessionTitleStr := "Detached State"
 	if currentSessionID != 0 {
 		sessionTitleStr = fmt.Sprintf("Active Session #%d", currentSessionID)
@@ -51,9 +66,8 @@ func RenderBuildModal(m *model.UIState) string {
 	body.WriteString(renderer.Title.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
 	body.WriteString(fmt.Sprintf("☕ Env: %s  |  🛠️ Engine: %s\n\n", targetProj.JDKName, targetProj.MavenName))
 
-	// 1. OPTIONS SELECTION MENU BLOCK (Evaluate true background activity instead of transient state variables)
 	if !isRunningBackground {
-		body.WriteString("👉 Select Target Lifecycle Step to Fire:\n\n")
+		body.WriteString(renderer.Section.Render("👉 Select Target Lifecycle Step to Fire:") + "\n\n")
 		var optsRow []string
 		for i, opt := range m.BuildOptions {
 			if i == m.SelectedBuildOption {
@@ -63,15 +77,18 @@ func RenderBuildModal(m *model.UIState) string {
 			}
 		}
 		body.WriteString("  " + strings.Join(optsRow, "  ") + "\n\n")
-		body.WriteString("\x1b[90m [←/→] Navigate Choices  |  [Enter] Initialize Pipeline  |  [Esc] Dashboard\x1b[0m\n")
+		body.WriteString(buildHintStyle.Render(fmt.Sprintf(
+			"[%s] Navigate Choices | [%s] Initialize Pipeline | [%s] Dashboard",
+			buildKeyHint.Render("←/→"),
+			buildKeyHint.Render("Enter"),
+			buildKeyHint.Render("Esc"),
+		)) + "\n")
 	} else {
-		body.WriteString(fmt.Sprintf("⏳ \x1b[33;1mRunning in background process pool... Assigned Session ID: %d\x1b[0m\n\n", currentSessionID))
+		body.WriteString(buildAlertStyle.Render(fmt.Sprintf("⏳ Running in background process pool... Assigned Session ID: %d", currentSessionID)) + "\n\n")
 	}
 
-	// 2. COMPILATION HISTORY VIEWPORT BOX
-	body.WriteString("📋 Complete Build Output History Trail:\n")
+	body.WriteString(renderer.Section.Render("📋 Complete Build Output History Trail:") + "\n")
 
-	// If we are currently running or have matching session data, fetch from the map registry
 	var activeLogsSource []string
 	if currentSessionID != 0 && m.Sessions[currentSessionID] != nil {
 		activeLogsSource = m.Sessions[currentSessionID].Logs
@@ -107,5 +124,12 @@ func RenderBuildModal(m *model.UIState) string {
 		MaxHeight(logHeight).
 		Render(strings.Join(historyLines, "\n"))
 	body.WriteString(consoleBox)
-	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()))
+
+	return lipgloss.Place(
+		m.WindowWidth, m.WindowHeight,
+		lipgloss.Center, lipgloss.Center,
+		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		renderer.WhiteSpace,
+		lipgloss.WithWhitespaceForeground(color.Crust),
+	)
 }

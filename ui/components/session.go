@@ -6,24 +6,33 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/renderer"
+)
+
+var (
+	sessCompleteStyle = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
+	sessRunningStyle  = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+	sessCmdStyle      = lipgloss.NewStyle().Foreground(color.Mauve).Bold(true)
+	sessHintStyle     = lipgloss.NewStyle().Foreground(color.Overlay0)
+	sessKeyHint       = lipgloss.NewStyle().Foreground(color.Yellow)
 )
 
 func RenderSessionLogsModal(m *model.UIState) string {
 	var body strings.Builder
 
 	body.WriteString(renderer.Title.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
-	body.WriteString("📋 Active Background Tracking Registry Sessions List:\n")
+	body.WriteString(renderer.Section.Render("📋 Active Background Tracking Registry Sessions List:") + "\n")
+
 	if len(m.Sessions) == 0 {
-		body.WriteString("  \x1b[90m(No background tracking compiler sessions active on history stacks)\x1b[0m\n")
+		body.WriteString(renderer.Meta.Render("  (No background tracking compiler sessions active on history stacks)") + "\n")
 	} else {
 		for id, sess := range m.Sessions {
-			status := "\x1b[32mCOMPLETE\x1b[0m"
+			status := sessCompleteStyle.Render("COMPLETE")
 			if sess.IsRunning {
-				status = "⏳ \x1b[33mRUNNING\x1b[0m"
+				status = sessRunningStyle.Render("⏳ RUNNING")
 			}
 
-			// Highlight the active session line if the user is currently viewing it
 			lineText := fmt.Sprintf("  [%d] Project: %s ➜ Command: %s [Status: %s]", id, sess.ProjectName, sess.Command, status)
 			if id == m.ViewingSessionID {
 				body.WriteString(renderer.Selected.Render("> "+lineText) + "\n")
@@ -35,15 +44,15 @@ func RenderSessionLogsModal(m *model.UIState) string {
 	body.WriteString("\n")
 
 	if m.ViewingSessionID == 0 {
-		body.WriteString("👉 \x1b[226;1mPress a digit key number button [1-9] to select and unpack history logs context...\x1b[0m\n\n")
+		body.WriteString(sessKeyHint.Render("👉 Press a digit key number [1-9] to select and view history logs context...") + "\n\n")
 		body.WriteString(strings.Repeat("\n", 6))
 	} else {
 		sess, exists := m.Sessions[m.ViewingSessionID]
 		if !exists {
-			body.WriteString(fmt.Sprintf("❌ Error: Session profile ID index [%d] could not be found or has been scrubbed.\n\n", m.ViewingSessionID))
+			body.WriteString(renderer.Error.Render(fmt.Sprintf("❌ Error: Session profile ID index [%d] could not be found or has been scrubbed.\n\n", m.ViewingSessionID)))
 			body.WriteString(strings.Repeat("\n", 6))
 		} else {
-			body.WriteString(fmt.Sprintf("誠 Session Logs Output Trail targeting ID [%d]: \x1b[35;1m%s\x1b[0m\n", m.ViewingSessionID, m.Sessions[m.ViewingSessionID].Command))
+			body.WriteString(fmt.Sprintf("📄 Session Logs Output targeting ID [%d]: %s\n", m.ViewingSessionID, sessCmdStyle.Render(sess.Command)))
 
 			logHeight := max(m.WindowHeight-16, 5)
 			logWidth := max(m.WindowWidth-8, 20)
@@ -69,7 +78,13 @@ func RenderSessionLogsModal(m *model.UIState) string {
 		}
 	}
 
-	body.WriteString("\x1b[90m[Esc] Close Inspector View Panel and return safely to dashboard structures portal\x1b[0m")
+	body.WriteString(sessHintStyle.Render(fmt.Sprintf("[%s] Return to Dashboard", sessKeyHint.Render("Esc"))))
 
-	return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()))
+	return lipgloss.Place(
+		m.WindowWidth, m.WindowHeight,
+		lipgloss.Center, lipgloss.Center,
+		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		renderer.WhiteSpace,
+		lipgloss.WithWhitespaceForeground(color.Crust),
+	)
 }

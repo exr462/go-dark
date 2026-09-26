@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,20 +110,34 @@ func LoadConfig() (Config, bool) {
 
 	// 2. Add defaults from AvailableProjects if they aren't already there
 	for _, ap := range AvailableProjects {
-		if !existingProjects[ap.Name] { // Assuming AvailableProject struct has '.Name'
+		if !existingProjects[ap.Name] {
 			cfg.Projects = append(cfg.Projects, Project{
 				Name:       ap.Name,
 				Type:       "java",
 				Path:       ResolvePath(cfg.BasePath, ap.Name),
 				GitURL:     fmt.Sprintf("%s%s.git", BaseGitURL, ap.Name),
-				Deployable: ap.Deployable, // Or whatever the boolean represents in your struct
+				Deployable: ap.Deployable,
 			})
 		}
 	}
 
-	// Note: Changed return to true/false depending on your business logic
-	// for successfully loaded configs
-	return cfg, true
+	// 3. Dynamically sync the Fetched status by checking if .git exists locally
+	for i := range cfg.Projects {
+		if cfg.Projects[i].Path == "" && cfg.BasePath != "" {
+			cfg.Projects[i].Path = ResolvePath(cfg.BasePath, cfg.Projects[i].Name)
+		}
+		if cfg.Projects[i].Path != "" {
+			gitDir := filepath.Join(cfg.Projects[i].Path, ".git")
+			if _, err := os.Stat(gitDir); err == nil {
+				cfg.Projects[i].Fetched = true
+			} else {
+				cfg.Projects[i].Fetched = false
+			}
+		}
+	}
+
+	isFirstRun := cfg.BasePath == ""
+	return cfg, isFirstRun
 }
 
 func SaveConfig(cfg Config) error {
@@ -136,7 +149,7 @@ func SaveConfig(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(configPath, bytes, 0o644)
+	return os.WriteFile(configPath, bytes, 0o644)
 }
 
 func ResolvePath(base string, projectPath string) string {

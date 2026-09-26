@@ -2,16 +2,48 @@ package color
 
 import "github.com/charmbracelet/lipgloss"
 
-// TODO fix colors for every screen
+// Catppuccin Mocha Color Palette
 const (
-	ModalBackground  = lipgloss.Color("#1e1e2e")
-	ModalBorderColor = lipgloss.Color("#1d1d2c")
-	Orange           = lipgloss.Color("208")
-	DarkGrey         = lipgloss.Color("0")
-	Grey             = lipgloss.Color("250")
-	DarkerGrey       = lipgloss.Color("233")
-	DarkishGrey      = lipgloss.Color("240")
-	MidGrey          = lipgloss.Color("237")
-	Yellow           = lipgloss.Color("229")
-	Pink             = lipgloss.Color("205")
+	// Base Accents
+	Rosewater = lipgloss.Color("#f5e0dc")
+	Flamingo  = lipgloss.Color("#f2cdcd")
+	Pink      = lipgloss.Color("#f5c2e7")
+	Mauve     = lipgloss.Color("#cba6f7")
+	Red       = lipgloss.Color("#f38ba8")
+	Maroon    = lipgloss.Color("#eba0ac")
+	Peach     = lipgloss.Color("#fab387")
+	Yellow    = lipgloss.Color("#f9e2af")
+	Green     = lipgloss.Color("#a6e3a1")
+	Teal      = lipgloss.Color("#94e2d5")
+	Sky       = lipgloss.Color("#89dceb")
+	Sapphire  = lipgloss.Color("#74c7ec")
+	Blue      = lipgloss.Color("#89b4fa")
+	Lavender  = lipgloss.Color("#b4befe")
+
+	// Neutral / Surface Layers
+	Text     = lipgloss.Color("#cdd6f4")
+	Subtext1 = lipgloss.Color("#bac2de")
+	Subtext0 = lipgloss.Color("#a6adc8")
+	Overlay2 = lipgloss.Color("#9399b2")
+	Overlay1 = lipgloss.Color("#7f849c")
+	Overlay0 = lipgloss.Color("#6c7086")
+	Surface2 = lipgloss.Color("#585b70")
+	Surface1 = lipgloss.Color("#45475a")
+	Surface0 = lipgloss.Color("#313244")
+	Base     = lipgloss.Color("#1e1e2e")
+	Mantle   = lipgloss.Color("#181825")
+	Crust    = lipgloss.Color("#11111b")
+
+	// Semantic Elements
+	ModalBackground  = Base
+	ModalBorderColor = Mauve
+	ModalBackdrop    = Crust
+
+	// Backward Compatibility Aliases remapped to Catppuccin Mocha
+	Orange      = Peach
+	DarkGrey    = Mantle
+	Grey        = Text
+	DarkerGrey  = Crust
+	DarkishGrey = Surface1
+	MidGrey     = Surface0
 )

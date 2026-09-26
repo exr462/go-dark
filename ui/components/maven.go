@@ -1,35 +1,45 @@
 package components
 
 import (
-	Fmt "fmt"
-	Strings "strings"
+	"fmt"
+	"strings"
 
-	Lipgloss "github.com/charmbracelet/lipgloss"
-	Modal "github.com/exr462/go-dark/model"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/renderer"
 )
 
-func RenderMvnConfigModal(m *Modal.UIState) string {
-	var modalBody Strings.Builder
+var (
+	mvnHintStyle = lipgloss.NewStyle().Foreground(color.Overlay0)
+	mvnKeyHint   = lipgloss.NewStyle().Foreground(color.Yellow)
+)
+
+func RenderMvnConfigModal(m *model.UIState) string {
+	var modalBody strings.Builder
 
 	modalBody.WriteString(renderer.Title.Render("🛠️ Apache Maven Manager (Ctrl+U)") + "\n\n")
 
 	switch m.MavenStep {
-	case Modal.StepSelectMvnAction:
-		modalBody.WriteString("👉 Select Dashboard Action to Perform:\n\n")
+	case model.StepSelectMvnAction:
+		modalBody.WriteString(renderer.Section.Render("👉 Select Action to Perform:") + "\n\n")
 		options := []string{"Add New Maven Version Profile to Global Pool", "Assign Selected Maven to Active Workspace"}
 		for i, opt := range options {
 			if i == m.SelectedMenuIndex {
-				modalBody.WriteString(renderer.Selected.Render(Fmt.Sprintf("> %s", opt)) + "\n")
+				modalBody.WriteString(renderer.Selected.Render(fmt.Sprintf("> %s", opt)) + "\n")
 			} else {
-				modalBody.WriteString(renderer.Inactive.Render(Fmt.Sprintf("  %s", opt)) + "\n")
+				modalBody.WriteString(renderer.Inactive.Render(fmt.Sprintf("  %s", opt)) + "\n")
 			}
 		}
-		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Navigate Options | [Enter] Select | [Esc] Close Menu\x1b[0m")
+		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
+			"[%s] Navigate | [%s] Select | [%s] Close Menu",
+			mvnKeyHint.Render("↑/↓/j/k"),
+			mvnKeyHint.Render("Enter"),
+			mvnKeyHint.Render("Esc"),
+		)))
 
-	case Modal.StepAddNewMvnVersion:
-		modalBody.WriteString("➕ Step 2: Register a New Maven Environment Context:\n\n")
+	case model.StepAddNewMvnVersion:
+		modalBody.WriteString(renderer.Section.Render("➕ Step 2: Register a New Maven Environment Context:") + "\n\n")
 
 		nameLabel := renderer.Bold.Render("  Maven Profile Name (e.g., Maven-3.9.6):")
 		if m.FocusedInput == 9 {
@@ -45,21 +55,35 @@ func RenderMvnConfigModal(m *Modal.UIState) string {
 		modalBody.WriteString(pathLabel + "\n")
 		modalBody.WriteString("  " + m.Inputs[10].View() + "\n")
 
-		modalBody.WriteString("\n\x1b[90m[Tab] Swap Fields | [Enter] Save Profile Entry | [Esc] Cancel and Return\x1b[0m")
+		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
+			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",
+			mvnKeyHint.Render("Tab"),
+			mvnKeyHint.Render("Enter"),
+			mvnKeyHint.Render("Esc"),
+		)))
 
-	case Modal.StepAssignMvnToProject:
+	case model.StepAssignMvnToProject:
 		currentProj := m.Config.Projects[m.SelectedProject]
 		currentBound := currentProj.MavenName
 		if currentBound == "" {
 			currentBound = "System Default (PATH)"
 		}
-		modalBody.WriteString(Fmt.Sprintf("📦 Target Workspace: %s (Current Bound Maven: %s)\n\n", currentProj.Name, currentBound))
-		modalBody.WriteString("👉 Step 2: Select Profile to Bind to Workspace:\n\n")
-		renderer.DecorateProfiles(modalBody, "Maven", m.SelectedMavenIndex, m.Config.Mavens)
-		modalBody.WriteString("\n\x1b[90m[↑/↓/j/k] Browse Maven Installations | [Enter] Confirm Bindings | [Esc] Back\x1b[0m")
+		modalBody.WriteString(fmt.Sprintf("📦 Target Workspace: %s (Current Bound Maven: %s)\n\n", currentProj.Name, currentBound))
+		modalBody.WriteString(renderer.Section.Render("👉 Step 2: Select Profile to Bind to Workspace:") + "\n\n")
+		renderer.DecorateProfiles(&modalBody, "Maven", m.SelectedMavenIndex, m.Config.Mavens)
+		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
+			"[%s] Browse Maven Installations | [%s] Confirm Binding | [%s] Back",
+			mvnKeyHint.Render("↑/↓/j/k"),
+			mvnKeyHint.Render("Enter"),
+			mvnKeyHint.Render("Esc"),
+		)))
 	}
 
-	return Lipgloss.Place(m.WindowWidth, m.WindowHeight, Lipgloss.Center, Lipgloss.Center, renderer.ModalBox.
-		Width(m.WindowWidth-4).
-		Render(modalBody.String()), renderer.WhiteSpace, Lipgloss.WithWhitespaceForeground(color.DarkerGrey))
+	return lipgloss.Place(
+		m.WindowWidth, m.WindowHeight,
+		lipgloss.Center, lipgloss.Center,
+		renderer.ModalBox.Width(min(m.WindowWidth-4, 85)).Render(modalBody.String()),
+		renderer.WhiteSpace,
+		lipgloss.WithWhitespaceForeground(color.Crust),
+	)
 }
