@@ -28,7 +28,7 @@ func main() {
 	gitMissing := gitErr != nil
 	home, _ := os.UserHomeDir()
 
-	inputs := make([]textinput.Model, model.MvnPath+1)
+	inputs := make([]textinput.Model, model.Ceiling)
 	for i := range inputs {
 		inputs[i] = textinput.New()
 	}

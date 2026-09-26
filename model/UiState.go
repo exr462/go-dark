@@ -94,6 +94,8 @@ const (
 	JdkPath
 	MvnName
 	MvnPath
+	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
+	Ceiling
 )
 
 type GitOperationStep int
