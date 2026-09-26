@@ -16,12 +16,19 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/components"
 	"github.com/exr462/go-dark/ui/panels"
 )
 
 var sessionChannels = make(map[int]chan string)
+
+var factory = lsp.NewProviderFactory([]lsp.LanguageProvider{
+	lsp.GoProvider{},     // Go provider
+	lsp.KotlinProvider{}, // Kotlin provider
+	lsp.JavaProvider{},   // Java provider
+})
 
 var uiState = &model.UIState{
 	InstallerStep:   model.StepSetGlobalPrefs,
@@ -130,6 +137,27 @@ func (m *appModel) Init() tea.Cmd {
 	}
 	// Batch initial workspace discovery alongside the background docker ticker poll
 	return tea.Batch(m.updateWorkspaceFiles(), m.pollDockerTelemetryCmd())
+}
+
+func (m *appModel) refreshRightPaneFromSelectedProject() {
+	if len(m.state.Config.Projects) == 0 || m.state.SelectedProject >= len(m.state.Config.Projects) {
+		return
+	}
+
+	// 1. Resolve the path of the newly targeted project
+	// Adjust '.Path' to match the actual path property on your config's Project struct
+	m.state.CurrentDirectory = ""
+	// 2. Load the fresh files from disk for this project
+	newNodes, err := m.loadDirectory(m.state.CurrentDirectory)
+	if err != nil {
+		m.state.StatusMsg = "Error loading project directory: " + err.Error()
+		m.state.TreeNodes = []model.FileNode{} // Reset to clean empty layout on structural disk failures
+		return
+	}
+
+	// 3. Update right pane array files and snap selection cursor back to the top item
+	m.state.TreeNodes = newNodes
+	m.state.SelectedFile = 0
 }
 
 func (m *appModel) buildTreeNodes(currentPath string, depth int) {
@@ -708,6 +736,30 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 	return listenToSessionChannel(sID, localCh)
 }
 
+func (m *appModel) loadDirectory(dirPath string) ([]model.FileNode, error) {
+	proj := m.state.Config.Projects[m.state.SelectedGitProject]
+	entries, err := os.ReadDir(filepath.Join(proj.Path, dirPath))
+	if err != nil {
+		return nil, err
+	}
+
+	var nodes []model.FileNode
+	for _, entry := range entries {
+		// Ignore hidden files/folders (like .git) if you want to keep the UI clean
+		if entry.Name()[0] == '.' {
+			continue
+		}
+
+		nodes = append(nodes, model.FileNode{
+			Name:  entry.Name(),
+			IsDir: entry.IsDir(),
+			// Add any other custom properties your FileNode struct requires
+		})
+	}
+
+	return nodes, nil
+}
+
 func listenToSessionChannel(sID int, ch chan string) tea.Cmd {
 	if ch != nil {
 		sessionChannels[sID] = ch
@@ -865,93 +917,182 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		delete(sessionChannels, msg.SessionID)
 		return m, nil
+	case components.EditFileMsg:
+		m.state.ViewState = model.StateDashboard // Or wherever your fallback state routes to
+
+		if msg.Err != nil {
+			m.state.LastError = msg.Err
+			return m, nil
+		}
+
+		// Store your updated edited string back into your state model data
+		m.state.ActiveCodeBuffer = msg.Content
+		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+q" {
+		switch msg.String() {
+		case "ctrl+q":
 			return m, tea.Quit
-		}
+		case "ctrl+@", "ctrl+space":
+			m.state.ViewState = model.StateEditorModal
 
-		if (msg.String() == "?" || msg.String() == "h") && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateHelpModal
-			return m, nil
-		}
-
-		if msg.String() == "ctrl+g" && m.state.ViewState == model.StateDashboard {
-			if len(m.state.Config.Projects) > 0 {
-				m.state.ViewState = model.StateGitOperationsModal
-				m.state.GitOperationStep = model.StepSelectGitProject
-				m.state.SelectedGitProject = m.state.SelectedProject
-				m.state.SelectedGitCommand = 0
+			// 2. Fetch active content from state or the selected file buffer
+			initialCode := m.state.ActiveCodeBuffer
+			return m, components.OpenEditorComponent(m.state.Provider, initialCode)
+		case "?", "h":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateHelpModal
 				return m, nil
 			}
-		}
-		if msg.String() == "ctrl+d" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateDockerModal
-			m.state.SelectedDockerRow = 0
-			return m, m.fetchDockerContainersCmd() // Instantly populate rows table layout
-		}
-
-		if msg.String() == "ctrl+j" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateJDKConfigModal
-			m.state.JDKStep = model.StepSelectJDKAction
-			m.state.SelectedMenuIndex = 0
-			m.state.SelectedJDKIndex = 0
 			return m, nil
-		}
-
-		if msg.String() == "ctrl+y" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateConfigDeckModal
-			m.state.SelectedConfigOption = 0
-			return m, nil
-		}
-
-		if msg.String() == "ctrl+u" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateMavenConfigModal
-			m.state.MavenStep = model.StepSelectMvnAction
-			m.state.SelectedMenuIndex = 0
-			m.state.SelectedMavenIndex = 0
-			return m, nil
-		}
-
-		if msg.String() == "ctr+t" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateDashboard
-			return m, nil
-		}
-
-		if msg.String() == "ctrl+f" && m.state.ViewState == model.StateDashboard {
-			if len(m.state.Config.Projects) > 0 {
-				m.state.ViewState = model.StateFuzzyModal
-				m.state.FuzzyMode = model.FuzzyModeFiles
-				m.state.FuzzyQueryInput.SetValue("")
-				m.state.FuzzyResults = []model.FuzzyResult{}
-				m.state.SelectedFuzzy = 0
-				m.state.FuzzyQueryInput.Focus()
-				return m, textinput.Blink
+		case "ctrl+g":
+			if m.state.ViewState == model.StateDashboard {
+				if len(m.state.Config.Projects) > 0 {
+					m.state.ViewState = model.StateGitOperationsModal
+					m.state.GitOperationStep = model.StepSelectGitProject
+					m.state.SelectedGitProject = m.state.SelectedProject
+					m.state.SelectedGitCommand = 0
+					return m, nil
+				}
 			}
-		}
-
-		if msg.String() == "ctrl+n" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateAddProjectModal
 			return m, nil
-		}
-
-		if msg.String() == "ctrl+b" && m.state.ViewState == model.StateDashboard {
-			if len(m.state.Config.Projects) > 0 {
-				m.state.ViewState = model.StateBuildModal
-				m.state.SelectedBuildOption = 0
-				m.state.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
-				m.state.IsBuilding = false
+		case "backspace", "left":
+			if m.state.ViewState == model.StateDashboard && m.state.ActiveFocus == model.FocusTree {
+				parentDir := filepath.Dir(m.state.CurrentDirectory)
+				if m.state.CurrentDirectory != "/" && m.state.CurrentDirectory != "." {
+					m.state.CurrentDirectory = parentDir
+					newNodes, _ := m.loadDirectory(m.state.CurrentDirectory)
+					m.state.TreeNodes = newNodes
+					m.state.SelectedFile = 0
+				}
 				return m, nil
 			}
-		}
-
-		if msg.String() == "ctrl+s" && m.state.ViewState == model.StateDashboard {
-			m.state.ViewState = model.StateSessionLogsModal
-			m.state.ViewingSessionID = 0
 			return m, nil
-		}
+		case "enter":
+			if m.state.ViewState == model.StateDashboard && m.state.ActiveFocus == model.FocusTree {
+				if len(m.state.TreeNodes) == 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
+					return m, nil
+				}
 
-		if msg.String() == "esc" {
+				// 1. Fetch the active highlighted file node
+				selectedNode := m.state.TreeNodes[m.state.SelectedFile]
+
+				// Calculate the full absolute path for whatever item is selected
+				fullPath := filepath.Join(m.state.CurrentDirectory, selectedNode.Name)
+
+				if selectedNode.IsDir {
+					// FIX: Dynamically combine the previous path with the new sub-directory name
+					m.state.CurrentDirectory = fullPath
+
+					// 2. Refresh your state contents using your project's directory reader function
+					newNodes, err := m.loadDirectory(m.state.CurrentDirectory)
+					if err != nil {
+						m.state.StatusMsg = "Error loading directory: " + err.Error()
+						return m, nil
+					}
+
+					// 3. Update the tracking slice and reset the selection cursor to the first row
+					m.state.TreeNodes = newNodes
+					m.state.SelectedFile = 0
+					return m, nil
+				}
+
+				// --- HANDLE REGULAR FILE ACTIVATION ---
+				// 1. Resolve the correct LSP provider based on the file extension
+				m.state.Provider = factory.GetProvider(fullPath)
+				proj := m.state.Config.Projects[m.state.SelectedGitProject]
+				// 2. Read the file contents into your buffer so the editor opens with the code inside
+				content, err := os.ReadFile(filepath.Join(proj.Path, fullPath))
+				if err != nil {
+					m.state.StatusMsg = "Error reading file: " + err.Error()
+					return m, nil
+				}
+				m.state.ActiveCodeBuffer = string(content)
+
+				// 3. Switch your view layout state to the Editor View
+				m.state.ViewState = model.StateEditorModal
+
+				// 4. Pass the provider and content into your editor component command to spin up Vim/Nano
+				return m, components.OpenEditorComponent(m.state.Provider, m.state.ActiveCodeBuffer)
+			}
+			return m, nil
+		case "ctrl+d":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateDockerModal
+				m.state.SelectedDockerRow = 0
+				return m, m.fetchDockerContainersCmd() // Instantly populate rows table layout
+			}
+			return m, nil
+		case "ctrl+j":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateJDKConfigModal
+				m.state.JDKStep = model.StepSelectJDKAction
+				m.state.SelectedMenuIndex = 0
+				m.state.SelectedJDKIndex = 0
+				return m, nil
+			}
+			return m, nil
+		case "ctrl+y":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateConfigDeckModal
+				m.state.SelectedConfigOption = 0
+				return m, nil
+			}
+			return m, nil
+		case "ctrl+u":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateMavenConfigModal
+				m.state.MavenStep = model.StepSelectMvnAction
+				m.state.SelectedMenuIndex = 0
+				m.state.SelectedMavenIndex = 0
+				return m, nil
+			}
+			return m, nil
+		case "ctrl+t":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateDashboard
+				return m, nil
+			}
+			return m, nil
+		case "ctrl+f":
+			if m.state.ViewState == model.StateDashboard {
+				if len(m.state.Config.Projects) > 0 {
+					m.state.ViewState = model.StateFuzzyModal
+					m.state.FuzzyMode = model.FuzzyModeFiles
+					m.state.FuzzyQueryInput.SetValue("")
+					m.state.FuzzyResults = []model.FuzzyResult{}
+					m.state.SelectedFuzzy = 0
+					m.state.FuzzyQueryInput.Focus()
+					return m, textinput.Blink
+				}
+			}
+			return m, nil
+		case "ctrl+n":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateAddProjectModal
+				return m, nil
+			}
+
+			return m, nil
+		case "ctrl+b":
+			if m.state.ViewState == model.StateDashboard {
+				if len(m.state.Config.Projects) > 0 {
+					m.state.ViewState = model.StateBuildModal
+					m.state.SelectedBuildOption = 0
+					m.state.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
+					m.state.IsBuilding = false
+					return m, nil
+				}
+			}
+			return m, nil
+		case "ctrl+s":
+			if m.state.ViewState == model.StateDashboard {
+				m.state.ViewState = model.StateSessionLogsModal
+				m.state.ViewingSessionID = 0
+				return m, nil
+			}
+			return m, nil
+		case "esc":
 			m.state.ViewState = model.StateDashboard
 			if m.state.ViewState == model.StateBuildModal {
 				if m.state.ActiveSessionID != 0 {
@@ -964,6 +1105,23 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.state.ViewState == model.StateSessionLogsModal || m.state.ViewState == model.StateHelpModal {
 				m.state.ViewState = model.StateDashboard
 				return m, nil
+			}
+			return m, nil
+		}
+
+		if m.state.ViewState == model.StateDashboard && m.state.ActiveFocus == model.FocusProjects {
+			switch msg.String() {
+			case "up", "k":
+				if m.state.SelectedProject > 0 {
+					m.state.SelectedProject--
+					m.refreshRightPaneFromSelectedProject()
+				}
+			case "down", "j":
+				// Protect array boundary checking against total config projects length
+				if m.state.SelectedProject < len(m.state.Config.Projects)-1 {
+					m.state.SelectedProject++
+					m.refreshRightPaneFromSelectedProject()
+				}
 			}
 		}
 
@@ -1751,6 +1909,10 @@ func (m *appModel) View() string {
 		return components.RenderConfigDeckModal(m.state)
 	case model.StateDockerModal:
 		return components.RenderDockerModal(m.state)
+	case model.StateEditorModal:
+		return "Opening your system editor..."
+	case model.StateDashboard:
+		fallthrough
 	default:
 		return lipgloss.JoinVertical(lipgloss.Left, panels.RenderTopMenu(m.state), panels.RenderMainBody(m.state), panels.CreateFooter(m.state))
 	}

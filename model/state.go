@@ -5,6 +5,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/kbd"
+	"github.com/exr462/go-dark/lsp"
 )
 
 type BuildSession struct {
@@ -55,6 +56,7 @@ const (
 	StateFuzzyModal
 	StateConfigDeckModal
 	StateDockerModal
+	StateEditorModal
 )
 
 type DockerStats struct {
@@ -137,10 +139,11 @@ type UIState struct {
 	Inputs            []textinput.Model
 
 	// !!! GLOBAL FILE SYSTEM VARIABLES MAPPINGS !!!
-	SelectedFile int
-	TreeNodes    []FileNode
-	Files        []string
-	FileViewer   viewport.Model
+	SelectedFile     int
+	TreeNodes        []FileNode
+	Files            []string
+	FileViewer       viewport.Model
+	CurrentDirectory string
 
 	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
 	GitCommands         []string
@@ -189,6 +192,13 @@ type UIState struct {
 	DockerTelemetry   DockerStats       // Stores data displayed in top-right header
 	DockerContainers  []DockerContainer // Parsed rows for the Ctrl+D interaction table
 	SelectedDockerRow int               // Highlighted container index in the modal view
+
+	// !!! GLOBAL LSP STATE MAPPINGS !!!
+	Provider         lsp.LanguageProvider
+	Code             string
+	Err              error
+	ActiveCodeBuffer string // Holds the text content of the editor buffer
+	LastError        error
 }
 
 type StatusMsg string
