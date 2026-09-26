@@ -20,8 +20,8 @@ func (k KotlinProvider) Extensions() []string {
 }
 
 // GetLSPConfig wires up the standard open-source kotlin-language-server execution parameters
-func (k KotlinProvider) GetLSPConfig() LSPConfig {
-	return LSPConfig{
+func (k KotlinProvider) GetLSPConfig() LspConfig {
+	return LspConfig{
 		ServerBinary: "kotlin-language-server",
 		Args:         []string{}, // Add any custom telemetry flags your tool requires here
 	}

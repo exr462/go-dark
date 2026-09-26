@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -32,7 +32,7 @@ func RenderMainBody(m *model.UIState) string {
 
 	// 1. Render Left Column (Projects)
 	var projList strings.Builder
-	projList.WriteString(renderer.Title.Render("📁 Configured Projects") + "\n\n")
+	projList.WriteString(decorator.Title.Render("📁 Configured Projects") + "\n\n")
 
 	for i, p := range m.Config.Projects {
 		sessionLabel := ""
@@ -59,9 +59,9 @@ func RenderMainBody(m *model.UIState) string {
 		}
 	}
 
-	leftBoxStyle := renderer.UnfocusedBorder.Background(color.Base)
+	leftBoxStyle := decorator.UnfocusedBorder.Background(color.Base)
 	if m.ActiveFocus == model.FocusProjects && m.ViewState == model.StateDashboard {
-		leftBoxStyle = renderer.FocusedBorder.Background(color.Base)
+		leftBoxStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 	leftPanel := leftBoxStyle.
 		Width(((m.WindowWidth / widthDivider) * leftPaneMultiplier) - widthPadding).
@@ -70,7 +70,7 @@ func RenderMainBody(m *model.UIState) string {
 
 	// 2. Render Directory Tree in the Center Column
 	var treeList strings.Builder
-	treeList.WriteString(renderer.Title.Render("🌿 Workspace Directory Tree (Ctrl+E to edit in external editor)") + "\n\n")
+	treeList.WriteString(decorator.Title.Render("🌿 Workspace Directory Tree (Ctrl+E to edit in external editor)") + "\n\n")
 
 	if len(m.TreeNodes) == 0 {
 		treeList.WriteString(mutedTextStyle.Render("  (No workspace directories loaded. Use Ctrl+G to clone/checkout projects)"))
@@ -101,9 +101,9 @@ func RenderMainBody(m *model.UIState) string {
 		}
 	}
 
-	centerBoxStyle := renderer.UnfocusedBorder.Background(color.Base)
+	centerBoxStyle := decorator.UnfocusedBorder.Background(color.Base)
 	if m.ActiveFocus == model.FocusTree && m.ViewState == model.StateDashboard {
-		centerBoxStyle = renderer.FocusedBorder.Background(color.Base)
+		centerBoxStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 	centerPanel := centerBoxStyle.
 		Width(((m.WindowWidth / widthDivider) * rightPaneMultiplier) - widthPadding).

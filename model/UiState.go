@@ -158,6 +158,7 @@ type UIState struct {
 	GitStatusOutput     string
 	HelpModel           kbd.HelpModel
 	KeyMap              kbd.KeyMap
+	LastGitActionLog    string
 
 	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
 	BuildOptions []string

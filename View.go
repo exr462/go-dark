@@ -41,9 +41,9 @@ func (m *appModel) View() string {
 	default:
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
-			panels.RenderTopMenu(m.state),
+			panels.RenderMenu(m.state),
 			panels.RenderMainBody(m.state),
-			panels.CreateFooter(m.state),
+			panels.RenderFooter(m.state),
 		)
 	}
 }

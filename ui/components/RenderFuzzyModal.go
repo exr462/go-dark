@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 func RenderFuzzyModal(m *model.UIState) string {
 	var body strings.Builder
 
-	body.WriteString(renderer.Title.Render("🔍 Workspace Fuzzy Lookup Engine (Ctrl+F)") + "\n\n")
+	body.WriteString(decorator.Title.Render("🔍 Workspace Fuzzy Lookup Engine (Ctrl+F)") + "\n\n")
 
 	modeLabel := "📁 [FILES SEARCH MODE]"
 	if m.FuzzyMode == model.FuzzyModeContent {
@@ -26,7 +26,7 @@ func RenderFuzzyModal(m *model.UIState) string {
 	}
 	body.WriteString(fmt.Sprintf(
 		"Active Filter: %s   %s\n\n",
-		renderer.Mode.Render(modeLabel),
+		decorator.Mode.Render(modeLabel),
 		fuzzyHintStyle.Render(fmt.Sprintf("(Press %s to toggle mode)", fuzzyKeyHint.Render("Ctrl+T"))),
 	))
 
@@ -46,10 +46,10 @@ func RenderFuzzyModal(m *model.UIState) string {
 
 	// --- 1. BUILD LEFT SIDE PANEL (THE RESULTS LIST) ---
 	var leftBody strings.Builder
-	leftBody.WriteString(renderer.PanelTitle.Render("📋 Ranked Filter Matching Results:") + "\n\n")
+	leftBody.WriteString(decorator.PanelTitle.Render("📋 Ranked Filter Matching Results:") + "\n\n")
 
 	if len(m.FuzzyResults) == 0 {
-		leftBody.WriteString(renderer.Meta.Render("  (No matches found)") + "\n")
+		leftBody.WriteString(decorator.Meta.Render("  (No matches found)") + "\n")
 	} else {
 		startIdx := 0
 		if m.SelectedFuzzy >= listHeight-2 {
@@ -71,14 +71,14 @@ func RenderFuzzyModal(m *model.UIState) string {
 			}
 
 			if i == m.SelectedFuzzy {
-				leftBody.WriteString(renderer.Selected.Render("> "+lineText) + "\n")
+				leftBody.WriteString(decorator.Selected.Render("> "+lineText) + "\n")
 			} else {
-				leftBody.WriteString(renderer.Inactive.Render("  "+lineText) + "\n")
+				leftBody.WriteString(decorator.Inactive.Render("  "+lineText) + "\n")
 			}
 		}
 	}
 
-	leftPanel := renderer.BorderPane.Width(containerWidth).
+	leftPanel := decorator.BorderPane.Width(containerWidth).
 		Height(listHeight).
 		MaxWidth(containerWidth).
 		MaxHeight(listHeight).
@@ -86,10 +86,10 @@ func RenderFuzzyModal(m *model.UIState) string {
 
 	// --- 2. BUILD RIGHT SIDE PANEL (THE FILE CODE PREVIEW) ---
 	var rightBody strings.Builder
-	rightBody.WriteString(renderer.PanelTitle.Render("🗒 Live File View Context Preview:") + "\n\n")
+	rightBody.WriteString(decorator.PanelTitle.Render("🗒 Live File View Context Preview:") + "\n\n")
 	rightBody.WriteString(m.FuzzyViewer.View())
 
-	rightPanel := renderer.BorderPane.Width(containerWidth).
+	rightPanel := decorator.BorderPane.Width(containerWidth).
 		Height(listHeight).
 		MaxWidth(containerWidth).
 		MaxHeight(listHeight).
@@ -108,8 +108,8 @@ func RenderFuzzyModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
-		renderer.WhiteSpace,
+		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -22,11 +22,11 @@ var (
 func RenderGitOpsModal(m *model.UIState) string {
 	var modalBody strings.Builder
 
-	modalBody.WriteString(renderer.Title.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
+	modalBody.WriteString(decorator.Title.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
 
 	switch m.GitOperationStep {
 	case 0:
-		modalBody.WriteString(renderer.Section.Render("👉 Step 1: Select Target Project Repository:") + "\n\n")
+		modalBody.WriteString(decorator.Section.Render("👉 Step 1: Select Target Project Repository:") + "\n\n")
 
 		maxVisible := max(m.WindowHeight-14, 6)
 		startIdx := 0
@@ -52,9 +52,9 @@ func RenderGitOpsModal(m *model.UIState) string {
 			}
 
 			if i == m.SelectedGitProject {
-				modalBody.WriteString(renderer.Selected.Render("> "+lineText) + "\n")
+				modalBody.WriteString(decorator.Selected.Render("> "+lineText) + "\n")
 			} else {
-				modalBody.WriteString(renderer.Inactive.Render("  "+lineText) + "\n")
+				modalBody.WriteString(decorator.Inactive.Render("  "+lineText) + "\n")
 			}
 		}
 
@@ -78,7 +78,7 @@ func RenderGitOpsModal(m *model.UIState) string {
 
 		modalBody.WriteString(fmt.Sprintf("📦 Project: %s  |  Status: %s\n", gitProjHeader.Render(targetProj.Name), statusDesc))
 		modalBody.WriteString(fmt.Sprintf("📁 Local Path: %s\n\n", gitPathHeader.Render(targetProj.Path)))
-		modalBody.WriteString(renderer.Section.Render("👉 Step 2: Choose Git Operation to Execute:") + "\n\n")
+		modalBody.WriteString(decorator.Section.Render("👉 Step 2: Choose Git Operation to Execute:") + "\n\n")
 
 		for i, cmd := range m.GitCommands {
 			cmdDesc := ""
@@ -103,9 +103,9 @@ func RenderGitOpsModal(m *model.UIState) string {
 
 			lineText := fmt.Sprintf("git %s%s", cmd, cmdDesc)
 			if i == m.SelectedGitCommand {
-				modalBody.WriteString(renderer.Selected.Render("> "+lineText) + "\n")
+				modalBody.WriteString(decorator.Selected.Render("> "+lineText) + "\n")
 			} else {
-				modalBody.WriteString(renderer.Inactive.Render("  "+lineText) + "\n")
+				modalBody.WriteString(decorator.Inactive.Render("  "+lineText) + "\n")
 			}
 		}
 
@@ -120,10 +120,10 @@ func RenderGitOpsModal(m *model.UIState) string {
 		targetProj := m.Config.Projects[m.SelectedGitProject]
 		modalBody.WriteString(fmt.Sprintf("📦 Project: %s\n", gitProjHeader.Render(targetProj.Name)))
 		modalBody.WriteString(fmt.Sprintf("📁 Destination: %s\n\n", gitPathHeader.Render(targetProj.Path)))
-		modalBody.WriteString(renderer.Section.Render("👉 Step 3: Select Branch to Checkout:") + "\n\n")
+		modalBody.WriteString(decorator.Section.Render("👉 Step 3: Select Branch to Checkout:") + "\n\n")
 
 		if len(m.AvailableBranches) == 0 {
-			modalBody.WriteString(renderer.Info.Render("  ⏳ Loading branch list from repository...") + "\n")
+			modalBody.WriteString(decorator.Info.Render("  ⏳ Loading branch list from repository...") + "\n")
 		} else {
 			maxVisible := max(m.WindowHeight-14, 5)
 			startIdx := 0
@@ -139,9 +139,9 @@ func RenderGitOpsModal(m *model.UIState) string {
 			for i := startIdx; i < endIdx; i++ {
 				branch := m.AvailableBranches[i]
 				if i == m.SelectedGitBranch {
-					modalBody.WriteString(renderer.Selected.Render("> "+branch) + "\n")
+					modalBody.WriteString(decorator.Selected.Render("> "+branch) + "\n")
 				} else {
-					modalBody.WriteString(renderer.Inactive.Render("  "+branch) + "\n")
+					modalBody.WriteString(decorator.Inactive.Render("  "+branch) + "\n")
 				}
 			}
 
@@ -160,12 +160,12 @@ func RenderGitOpsModal(m *model.UIState) string {
 	case 3:
 		targetProj := m.Config.Projects[m.SelectedGitProject]
 		modalBody.WriteString(fmt.Sprintf("📦 Project: %s\n", gitProjHeader.Render(targetProj.Name)))
-		modalBody.WriteString(renderer.Section.Render("📊 Current Working Tree Status:") + "\n\n")
+		modalBody.WriteString(decorator.Section.Render("📊 Current Working Tree Status:") + "\n\n")
 
 		lines := strings.Split(m.GitStatusOutput, "\n")
 		for _, line := range lines {
 			if len(line) < 3 {
-				modalBody.WriteString(renderer.Clean.Render(line) + "\n")
+				modalBody.WriteString(decorator.Clean.Render(line) + "\n")
 				continue
 			}
 
@@ -174,11 +174,11 @@ func RenderGitOpsModal(m *model.UIState) string {
 
 			switch {
 			case strings.Contains(code, "M"):
-				modalBody.WriteString(renderer.Modified.Render(" 📝 M ") + file + "\n")
+				modalBody.WriteString(decorator.Modified.Render(" 📝 M ") + file + "\n")
 			case strings.Contains(code, "??"):
-				modalBody.WriteString(renderer.Untracked.Render(" ❓ ?? ") + file + "\n")
+				modalBody.WriteString(decorator.Untracked.Render(" ❓ ?? ") + file + "\n")
 			case code == "A " || code == "M ":
-				modalBody.WriteString(renderer.Staged.Render(" 🟩 Staged: ") + file + "\n")
+				modalBody.WriteString(decorator.Staged.Render(" 🟩 Staged: ") + file + "\n")
 			default:
 				modalBody.WriteString("  " + line + "\n")
 			}
@@ -190,8 +190,8 @@ func RenderGitOpsModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		renderer.ModalBox.Width(min(m.WindowWidth-4, 100)).Render(modalBody.String()),
-		renderer.WhiteSpace,
+		decorator.ModalBox.Width(min(m.WindowWidth-4, 100)).Render(modalBody.String()),
+		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
 }

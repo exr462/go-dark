@@ -6,8 +6,8 @@ type GoProvider struct{}
 
 func (g GoProvider) Name() string         { return "Go" }
 func (g GoProvider) Extensions() []string { return []string{".go"} }
-func (g GoProvider) GetLSPConfig() LSPConfig {
-	return LSPConfig{
+func (g GoProvider) GetLSPConfig() LspConfig {
+	return LspConfig{
 		ServerBinary: "gopls",
 		Args:         []string{"serve"},
 	}

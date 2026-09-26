@@ -16,7 +16,7 @@ var (
 	footerBoundStyle  = lipgloss.NewStyle().Foreground(color.Lavender)
 )
 
-func CreateFooter(state *model.UIState) string {
+func RenderFooter(state *model.UIState) string {
 	var boundJDK string
 	var boundMaven string
 	if len(state.Config.Projects) > 0 && state.SelectedProject < len(state.Config.Projects) {

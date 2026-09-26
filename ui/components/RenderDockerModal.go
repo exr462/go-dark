@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -19,19 +19,19 @@ var (
 
 func RenderDockerModal(m *model.UIState) string {
 	var body strings.Builder
-	body.WriteString(renderer.Title.Render("🐳 Docker Infrastructure Control Center (Ctrl+D)") + "\n")
-	body.WriteString(renderer.Description.Render("Monitor and orchestrate local microservice containers across your daemon runtime layers.") + "\n")
+	body.WriteString(decorator.Title.Render("🐳 Docker Infrastructure Control Center (Ctrl+D)") + "\n")
+	body.WriteString(decorator.Description.Render("Monitor and orchestrate local microservice containers across your daemon runtime layers.") + "\n")
 	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 
 	// Print Table Grid Headers
 	body.WriteString(fmt.Sprintf(
 		"  %-12s %-25s %-20s %-20s\n",
-		renderer.TableHeader.Render("CONTAINER ID"), renderer.TableHeader.Render("NAMES"), renderer.TableHeader.Render("IMAGE"), renderer.TableHeader.Render("STATUS"),
+		decorator.TableHeader.Render("CONTAINER ID"), decorator.TableHeader.Render("NAMES"), decorator.TableHeader.Render("IMAGE"), decorator.TableHeader.Render("STATUS"),
 	))
 	body.WriteString(strings.Repeat("╌", max(m.WindowWidth-8, 20)) + "\n")
 
 	if len(m.DockerContainers) == 0 {
-		body.WriteString(renderer.Meta.Render("  (No docker container contexts active or discovered on your machine daemon)") + "\n")
+		body.WriteString(decorator.Meta.Render("  (No docker container contexts active or discovered on your machine daemon)") + "\n")
 	} else {
 		for i, c := range m.DockerContainers {
 			statusFormatted := dockerStoppedStyle.Render(c.Status)
@@ -49,9 +49,9 @@ func RenderDockerModal(m *model.UIState) string {
 			}
 
 			if i == m.SelectedDockerRow {
-				body.WriteString(renderer.Selected.Render("> "+rowText) + "\n")
+				body.WriteString(decorator.Selected.Render("> "+rowText) + "\n")
 			} else {
-				body.WriteString(renderer.Inactive.Render(rowText) + "\n")
+				body.WriteString(decorator.Inactive.Render(rowText) + "\n")
 			}
 		}
 	}
@@ -68,8 +68,8 @@ func RenderDockerModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
-		renderer.WhiteSpace,
+		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
 }

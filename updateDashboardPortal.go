@@ -45,6 +45,14 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state.ViewState = model.StateDependencyConfigModal
 			return m, nil
 		}
+		// Add this case inside your updateDashboardPortal switch-case handler:
+	case "P": // 👈 Pressing Shift+P triggers the parallel DAG build
+		m.state.StatusMsg = "🏗️ Resolving dependency graph and starting parallel builds..."
+
+		// Fire off the background compilation using your exact AvailableProjects layout
+		// Limits the machine execution block to a safe ceiling of 4 concurrent threads
+		return m, m.TriggerPipelineCmd(4)
+
 	case "B": // 👈 Capital 'B' triggers the full parallel build pipeline
 		m.state.StatusMsg = "🏗️ Initializing parallel build graph..."
 		m.state.ViewState = model.StateBuildModal // Optional: switch to a loading/progress view

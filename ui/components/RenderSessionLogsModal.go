@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -21,11 +21,11 @@ var (
 func RenderSessionLogsModal(m *model.UIState) string {
 	var body strings.Builder
 
-	body.WriteString(renderer.Title.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
-	body.WriteString(renderer.Section.Render("📋 Active Background Tracking Registry Sessions List:") + "\n")
+	body.WriteString(decorator.Title.Render("🛰️ Global Background Session Inspector Panel (Ctrl+S)") + "\n\n")
+	body.WriteString(decorator.Section.Render("📋 Active Background Tracking Registry Sessions List:") + "\n")
 
 	if len(m.Sessions) == 0 {
-		body.WriteString(renderer.Meta.Render("  (No background tracking compiler sessions active on history stacks)") + "\n")
+		body.WriteString(decorator.Meta.Render("  (No background tracking compiler sessions active on history stacks)") + "\n")
 	} else {
 		for id, sess := range m.Sessions {
 			status := sessCompleteStyle.Render("COMPLETE")
@@ -35,9 +35,9 @@ func RenderSessionLogsModal(m *model.UIState) string {
 
 			lineText := fmt.Sprintf("  [%d] Project: %s ➜ Command: %s [Status: %s]", id, sess.ProjectName, sess.Command, status)
 			if id == m.ViewingSessionID {
-				body.WriteString(renderer.Selected.Render("> "+lineText) + "\n")
+				body.WriteString(decorator.Selected.Render("> "+lineText) + "\n")
 			} else {
-				body.WriteString(renderer.Inactive.Render(lineText) + "\n")
+				body.WriteString(decorator.Inactive.Render(lineText) + "\n")
 			}
 		}
 	}
@@ -49,7 +49,7 @@ func RenderSessionLogsModal(m *model.UIState) string {
 	} else {
 		sess, exists := m.Sessions[m.ViewingSessionID]
 		if !exists {
-			body.WriteString(renderer.Error.Render(fmt.Sprintf("❌ Error: Session profile ID index [%d] could not be found or has been scrubbed.\n\n", m.ViewingSessionID)))
+			body.WriteString(decorator.Error.Render(fmt.Sprintf("❌ Error: Session profile ID index [%d] could not be found or has been scrubbed.\n\n", m.ViewingSessionID)))
 			body.WriteString(strings.Repeat("\n", 6))
 		} else {
 			body.WriteString(fmt.Sprintf("📄 Session Logs Output targeting ID [%d]: %s\n", m.ViewingSessionID, sessCmdStyle.Render(sess.Command)))
@@ -73,7 +73,7 @@ func RenderSessionLogsModal(m *model.UIState) string {
 				lines = append(lines, strings.Repeat(" ", logWidth))
 			}
 
-			consoleBox := renderer.LogWindow.Width(logWidth).Height(logHeight).Render(strings.Join(lines, "\n"))
+			consoleBox := decorator.LogWindow.Width(logWidth).Height(logHeight).Render(strings.Join(lines, "\n"))
 			body.WriteString(consoleBox + "\n")
 		}
 	}
@@ -83,8 +83,8 @@ func RenderSessionLogsModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
-		renderer.WhiteSpace,
+		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
 }

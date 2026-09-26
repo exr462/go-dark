@@ -17,11 +17,6 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	projIdx := m.state.DepScreen.ActiveProjectIndex
-	if projIdx < 0 || projIdx >= len(m.state.Config.Projects) {
-		m.state.ViewState = model.StateDashboard // Safe fallback redirect
-		return m, nil
-	}
 
 	switch msg := msg.(type) {
 	case task.PipelineTaskStartedMsg:
@@ -45,7 +40,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state.ViewState = model.StateDashboard
 		return m, m.updateWorkspaceFiles()
 
-	case GitStatusLoadedMsg:
+	case config.GitStatusLoadedMsg:
 		m.state.GitStatusOutput = string(msg)
 		if m.state.GitStatusOutput == "" {
 			m.state.GitStatusOutput = "✨ Working tree clean."
@@ -63,22 +58,22 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, func() tea.Msg { return model.FileLoadMsg("sync") }
 
-	case GitStatusErrorMsg:
+	case config.GitStatusErrorMsg:
 		m.state.GitStatusOutput = fmt.Sprintf("❌ Error: %v", msg)
 		return m, nil
 
-	case GitBranchesLoadedMsg:
+	case config.GitBranchesLoadedMsg:
 		m.state.AvailableBranches = msg
 		m.state.SelectedGitBranch = 0
 		return m, nil
 
-	case GitBranchesErrorMsg:
+	case config.GitBranchesErrorMsg:
 		m.state.AvailableBranches = []string{"main"}
 		m.state.SelectedGitBranch = 0
 		m.state.StatusMsg = fmt.Sprintf("❌ Git: %v", msg)
 		return m, nil
 
-	case GitCheckoutCompleteMsg:
+	case config.GitCheckoutCompleteMsg:
 		if msg.Err != nil {
 			m.state.StatusMsg = fmt.Sprintf("❌ %v", msg.Err)
 		} else {
@@ -231,6 +226,12 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateEditorModal:
 			return m, nil
 		case model.StateDependencyConfigModal:
+			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
+			projIdx := m.state.DepScreen.ActiveProjectIndex
+			if projIdx < 0 || projIdx >= len(m.state.Config.Projects) {
+				m.state.ViewState = model.StateDashboard
+				return m, nil
+			}
 			return m.updateDependencyScreen(msg)
 		case model.StateDashboard:
 			fallthrough
@@ -252,13 +253,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, fuzzyCmd)
 	}
 
-	if m.state.ViewState == model.StateDependencyConfig {
-		switch ma := msg.(type) {
-		case tea.KeyMsg:
-			return m.updateDependencyScreen(ma)
-		}
-		return m, nil
-	}
-
+	// Cleaned duplicate fallback block at the bottom
 	return m, tea.Batch(cmds...)
 }

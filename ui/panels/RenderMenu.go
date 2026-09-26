@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -19,7 +19,7 @@ var (
 	sessionAlert = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
 )
 
-func RenderTopMenu(m *model.UIState) string {
+func RenderMenu(m *model.UIState) string {
 	var activeSessionTracker string
 	for id, sess := range m.Sessions {
 		if m.SelectedProject < len(m.Config.Projects) && sess.ProjectName == m.Config.Projects[m.SelectedProject].Name && sess.IsRunning {
@@ -53,9 +53,9 @@ func RenderTopMenu(m *model.UIState) string {
 
 	unifiedTopBarText := leftContent + strings.Repeat(" ", spaceLen) + rightContent
 
-	topMenuStyle := renderer.UnfocusedBorder.Background(color.Base)
+	topMenuStyle := decorator.UnfocusedBorder.Background(color.Base)
 	if m.ActiveFocus == model.FocusMenu && m.ViewState == model.StateDashboard {
-		topMenuStyle = renderer.FocusedBorder.Background(color.Base)
+		topMenuStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 
 	return topMenuStyle.Width(m.WindowWidth - 2).Render(unifiedTopBarText)

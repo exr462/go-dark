@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -22,12 +22,12 @@ var (
 func RenderConfigDeckModal(m *model.UIState) string {
 	var body strings.Builder
 
-	body.WriteString(renderer.Title.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
-	body.WriteString(renderer.Description.Render("Review, expand, or adjust your system parameters across all modules below.") + "\n")
+	body.WriteString(decorator.Title.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
+	body.WriteString(decorator.Description.Render("Review, expand, or adjust your system parameters across all modules below.") + "\n")
 	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 
 	// 1. DYNAMICALLY DISPLAY CURRENT ACTIVE CONFIG RECORD VALUES
-	body.WriteString(renderer.Section.Render("📊 ACTIVE GLOBAL CONFIGURATION SETTINGS SUMMARY:") + "\n")
+	body.WriteString(decorator.Section.Render("📊 ACTIVE GLOBAL CONFIGURATION SETTINGS SUMMARY:") + "\n")
 	body.WriteString(fmt.Sprintf("  • Global Workspace Base Path : %s\n", deckPathVal.Render(m.Config.BasePath)))
 	body.WriteString(fmt.Sprintf("  • Global Git Committer User  : %s\n", m.Config.GitUsername))
 	body.WriteString(fmt.Sprintf("  • Global Git Committer Email : %s\n", m.Config.GitEmail))
@@ -36,7 +36,7 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	body.WriteString(fmt.Sprintf("  • Registered Maven Engines   : %s\n", deckMvnVal.Render(fmt.Sprintf("%d profiles loaded", len(m.Config.Mavens)))))
 	body.WriteString(fmt.Sprintf("  • Total Tracked Workspaces   : %s\n\n", deckProjVal.Render(fmt.Sprintf("%d projects configured", len(m.Config.Projects)))))
 
-	body.WriteString(renderer.Section.Render("👉 Choose Category Option to Modify / Add Entries:") + "\n\n")
+	body.WriteString(decorator.Section.Render("👉 Choose Category Option to Modify / Add Entries:") + "\n\n")
 
 	options := []string{
 		"[1] Edit Global Core Credentials (BasePath, Git Profile Parameters)",
@@ -47,9 +47,9 @@ func RenderConfigDeckModal(m *model.UIState) string {
 
 	for i, opt := range options {
 		if i == m.SelectedConfigOption {
-			body.WriteString(renderer.Selected.Render("> "+opt) + "\n")
+			body.WriteString(decorator.Selected.Render("> "+opt) + "\n")
 		} else {
-			body.WriteString(renderer.Inactive.Render("  "+opt) + "\n")
+			body.WriteString(decorator.Inactive.Render("  "+opt) + "\n")
 		}
 	}
 
@@ -64,8 +64,8 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
-		renderer.WhiteSpace,
+		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
 }

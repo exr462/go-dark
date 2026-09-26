@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
-	"github.com/exr462/go-dark/ui/renderer"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 func RenderBuildModal(m *model.UIState) string {
 	var body strings.Builder
 	if len(m.Config.Projects) == 0 || m.SelectedProject >= len(m.Config.Projects) {
-		return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, renderer.ModalBox.Render("No project selected"))
+		return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, decorator.ModalBox.Render("No project selected"))
 	}
 	targetProj := m.Config.Projects[m.SelectedProject]
 	buildLogWindowStyle := lipgloss.NewStyle().
@@ -63,17 +63,17 @@ func RenderBuildModal(m *model.UIState) string {
 	if currentSessionID != 0 {
 		sessionTitleStr = fmt.Sprintf("Active Session #%d", currentSessionID)
 	}
-	body.WriteString(renderer.Title.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
+	body.WriteString(decorator.Title.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
 	body.WriteString(fmt.Sprintf("☕ Env: %s  |  🛠️ Engine: %s\n\n", targetProj.JDKName, targetProj.MavenName))
 
 	if !isRunningBackground {
-		body.WriteString(renderer.Section.Render("👉 Select Target Lifecycle Step to Fire:") + "\n\n")
+		body.WriteString(decorator.Section.Render("👉 Select Target Lifecycle Step to Fire:") + "\n\n")
 		var optsRow []string
 		for i, opt := range m.BuildOptions {
 			if i == m.SelectedBuildOption {
-				optsRow = append(optsRow, renderer.Selected.Render(strings.ToUpper(opt)))
+				optsRow = append(optsRow, decorator.Selected.Render(strings.ToUpper(opt)))
 			} else {
-				optsRow = append(optsRow, renderer.Inactive.Render(opt))
+				optsRow = append(optsRow, decorator.Inactive.Render(opt))
 			}
 		}
 		body.WriteString("  " + strings.Join(optsRow, "  ") + "\n\n")
@@ -87,7 +87,7 @@ func RenderBuildModal(m *model.UIState) string {
 		body.WriteString(buildAlertStyle.Render(fmt.Sprintf("⏳ Running in background process pool... Assigned Session ID: %d", currentSessionID)) + "\n\n")
 	}
 
-	body.WriteString(renderer.Section.Render("📋 Complete Build Output History Trail:") + "\n")
+	body.WriteString(decorator.Section.Render("📋 Complete Build Output History Trail:") + "\n")
 
 	var activeLogsSource []string
 	if currentSessionID != 0 && m.Sessions[currentSessionID] != nil {
@@ -128,8 +128,8 @@ func RenderBuildModal(m *model.UIState) string {
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		renderer.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
-		renderer.WhiteSpace,
+		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
 }
