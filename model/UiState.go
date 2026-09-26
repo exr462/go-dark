@@ -46,7 +46,6 @@ type ApplicationViewState int
 const (
 	StateDashboard ApplicationViewState = iota
 	StateAddProjectModal
-	StateInstaller
 	StateGitOperationsModal
 	StateJDKConfigModal
 	StateHelpModal

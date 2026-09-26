@@ -12,8 +12,6 @@ func (m *appModel) View() string {
 	switch m.state.ViewState {
 	case model.StateHelpModal:
 		return components.RenderHelpModal(m.state)
-	case model.StateInstaller:
-		return components.RenderInstaller(m.state)
 	case model.StateGitConfigurationModal:
 		return components.RenderGitConfiguration(m.state)
 	case model.StateAddProjectModal:

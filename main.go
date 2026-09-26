@@ -48,7 +48,7 @@ func main() {
 
 	initialState := model.StateDashboard
 	if isFirstRun || gitMissing {
-		initialState = model.StateInstaller
+		initialState = model.StateGitConfigurationModal
 		if !gitMissing {
 			inputs[0].Focus()
 		}

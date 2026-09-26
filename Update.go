@@ -1,12 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
@@ -20,178 +14,58 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case task.PipelineTaskStartedMsg:
-		m.state.StatusMsg = fmt.Sprintf("🏗️  Building: %s...", msg)
-		return m, nil
+		return m.pipelineTaskStarted(msg)
 
 	case task.PipelineTaskFinishedMsg:
-		if msg.Err != nil {
-			m.state.StatusMsg = fmt.Sprintf("❌ Build Error on component: %s", msg.ProjectName)
-		} else {
-			m.state.StatusMsg = fmt.Sprintf("✅ Component complete: %s", msg.ProjectName)
-		}
-		return m, nil
+		return m.pipelineTaskFinished(msg)
 
 	case task.PipelineCompleteMsg:
-		if msg.Success {
-			m.state.StatusMsg = "🎉 All workspace modules built successfully!"
-		} else {
-			m.state.StatusMsg = "❌ Pipeline compilation aborted due to build errors."
-		}
-		m.state.ViewState = model.StateDashboard
-		return m, m.updateWorkspaceFiles()
+		return m.pipelineComplete(msg)
 
 	case config.GitStatusLoadedMsg:
-		m.state.GitStatusOutput = string(msg)
-		if m.state.GitStatusOutput == "" {
-			m.state.GitStatusOutput = "✨ Working tree clean."
-		}
-		return m, nil
+		return m.gitStatusLoaded(msg)
 
 	case config.WorkspaceRefreshedMsg:
-		m.state.Files = msg.Files
-		if m.state.SelectedProject >= 0 && m.state.SelectedProject < len(m.state.Config.Projects) {
-			proj := m.state.Config.Projects[m.state.SelectedProject]
-			m.state.TreeNodes = []model.FileNode{}
-			if _, err := os.Stat(proj.Path); err == nil {
-				m.buildTreeNodes(proj.Path, 0)
-			}
-		}
-		return m, func() tea.Msg { return model.FileLoadMsg("sync") }
+		return m.workspaceRefreshed(msg)
 
 	case config.GitStatusErrorMsg:
-		m.state.GitStatusOutput = fmt.Sprintf("❌ Error: %v", msg)
-		return m, nil
+		return m.gitStatusError(msg)
 
 	case config.GitBranchesLoadedMsg:
-		m.state.AvailableBranches = msg
-		m.state.SelectedGitBranch = 0
-		return m, nil
+		return m.gitBranchesLoaded(msg)
 
 	case config.GitBranchesErrorMsg:
-		m.state.AvailableBranches = []string{"main"}
-		m.state.SelectedGitBranch = 0
-		m.state.StatusMsg = fmt.Sprintf("❌ Git: %v", msg)
-		return m, nil
+		return m.gitBranchesError(msg)
 
 	case config.GitCheckoutCompleteMsg:
-		if msg.Err != nil {
-			m.state.StatusMsg = fmt.Sprintf("❌ %v", msg.Err)
-		} else {
-			m.state.StatusMsg = fmt.Sprintf("✅ %s", strings.TrimSpace(msg.Output))
-			// Refresh fetched status across projects
-			for i := range m.state.Config.Projects {
-				gitDir := filepath.Join(m.state.Config.Projects[i].Path, ".git")
-				if _, err := os.Stat(gitDir); err == nil {
-					m.state.Config.Projects[i].Fetched = true
-				}
-			}
-			_ = config.SaveConfig(m.state.Config)
-		}
-		m.state.ViewState = model.StateDashboard
-		return m, m.updateWorkspaceFiles()
+		return m.gitCheckoutComplete(msg)
 
 	case model.DockerTelemetryMsg:
-		m.state.DockerTelemetry = model.DockerStats(msg)
-		return m, m.pollDockerTelemetryCmd()
+		return m.dockerTelemetry(msg)
 
 	case model.DockerContainersMsg:
-		m.state.DockerContainers = []model.DockerContainer(msg)
-		return m, nil
+		return m.dockerContainers(msg)
 
 	case tea.WindowSizeMsg:
-		m.state.WindowWidth = msg.Width
-		m.state.WindowHeight = msg.Height
-		m.state.FileViewer.Width = (msg.Width / 2) - 4
-		m.state.FileViewer.Height = max(msg.Height-8, 5)
-		m.state.FuzzyViewer.Width = (msg.Width / 2) - 4
-		m.state.FuzzyViewer.Height = max(msg.Height-12, 5)
-		return m, nil
+		return m.windowSize(msg)
 
 	case model.FileLoadMsg:
-		if len(m.state.TreeNodes) > 0 {
-			if m.state.SelectedFile >= len(m.state.TreeNodes) {
-				m.state.SelectedFile = 0
-			}
-			cmds = append(cmds, m.readFileContentCmd())
-		} else {
-			m.state.FileViewer.SetContent("Empty or uncloned project repository.")
-		}
+		cmds = m.fileLoad(cmds)
 
 	case model.ConfigRefreshedMsg:
-		m.state.Config = config.Config(msg)
-		cmds = append(cmds, m.updateWorkspaceFiles())
+		cmds = m.configRefreshed(msg, cmds)
 
 	case model.StatusMsg:
-		m.state.StatusMsg = string(msg)
-		if strings.Contains(m.state.StatusMsg, "successfully completed") {
-			for i := range m.state.Config.Projects {
-				gitDir := filepath.Join(m.state.Config.Projects[i].Path, ".git")
-				if _, err := os.Stat(gitDir); err == nil {
-					m.state.Config.Projects[i].Fetched = true
-				}
-			}
-			_ = config.SaveConfig(m.state.Config)
-			return m, m.updateWorkspaceFiles()
-		}
-		return m, nil
+		return m.status(msg)
 
 	case model.BuildLogLineMsg:
-		if sess, exists := m.state.Sessions[msg.SessionID]; exists {
-			if msg.Line != "" {
-				line := msg.Line
-				if regexp.MustCompile(`(?i)\[error\]|fail`).MatchString(line) {
-					line = "\x1b[31;1m" + line + "\x1b[0m"
-				} else if regexp.MustCompile(`(?i)\[warn`).MatchString(line) {
-					line = "\x1b[33;1m" + line + "\x1b[0m"
-				} else if regexp.MustCompile(`(?i)\[info\]|success`).MatchString(line) {
-					line = "\x1b[32m" + line + "\x1b[0m"
-				}
-
-				sess.Logs = append(sess.Logs, line)
-				if m.state.ViewState == model.StateBuildModal && m.state.ActiveSessionID == msg.SessionID {
-					m.state.BuildLogs = sess.Logs
-				}
-			}
-		}
-		return m, func() tea.Msg {
-			activeCh, exists := sessionChannels[msg.SessionID]
-			if !exists {
-				return nil
-			}
-			line, ok := <-activeCh
-			if !ok {
-				return model.BuildCompleteMsg{SessionID: msg.SessionID, Err: nil}
-			}
-			return model.BuildLogLineMsg{SessionID: msg.SessionID, Line: line}
-		}
+		return m.buildLogLine(msg)
 
 	case model.BuildCompleteMsg:
-		if sess, exists := m.state.Sessions[msg.SessionID]; exists {
-			sess.IsRunning = false
-			sess.Logs = append(sess.Logs, "────────────────────────────────────────────────────────")
-			if msg.Err != nil {
-				sess.Logs = append(sess.Logs, fmt.Sprintf("❌ PROCESS TERMINATED WITH ERROR: %v", msg.Err))
-			} else {
-				sess.Logs = append(sess.Logs, "✅ PROCESS LOOP SUCCESSFULLY TERMINATED IN BACKGROUND.")
-			}
-
-			if m.state.ViewState == model.StateBuildModal && m.state.ActiveSessionID == msg.SessionID {
-				m.state.BuildLogs = sess.Logs
-				m.state.IsBuilding = false
-			}
-		}
-		delete(sessionChannels, msg.SessionID)
-		return m, nil
+		return m.buildComplete(msg)
 
 	case components.EditFileMsg:
-		m.state.ViewState = model.StateDashboard
-		if msg.Err != nil {
-			m.state.LastError = msg.Err
-			m.state.StatusMsg = fmt.Sprintf("❌ Editor: %v", msg.Err)
-			return m, nil
-		}
-		m.state.ActiveCodeBuffer = msg.Content
-		return m, nil
+		return m.editFile(msg)
 
 	case tea.KeyMsg:
 		// Global quit shortcuts
@@ -203,8 +77,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state.ViewState {
 		case model.StateHelpModal:
 			return m.updateHelpModal(msg)
-		case model.StateInstaller:
-			return m.updateInstaller(msg)
 		case model.StateGitConfigurationModal:
 			return m.updateGitConfiguration(msg)
 		case model.StateAddProjectModal:

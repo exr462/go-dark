@@ -9,6 +9,11 @@ import (
 	"github.com/exr462/go-dark/ui/decorator"
 )
 
+var (
+	installerHint = lipgloss.NewStyle().Foreground(color.Overlay0)
+	installerKey  = lipgloss.NewStyle().Foreground(color.Yellow)
+)
+
 func RenderGitConfiguration(m *model.UIState) string {
 	var boxContent string
 	boxContent = fmt.Sprintf(
