@@ -28,23 +28,19 @@ func main() {
 	gitMissing := gitErr != nil
 	home, _ := os.UserHomeDir()
 
-	inputs := make([]textinput.Model, 11)
+	inputs := make([]textinput.Model, model.MvnPath+1)
 	for i := range inputs {
 		inputs[i] = textinput.New()
 	}
 
-	inputs[0].Placeholder = "Global Workspace Base Path"
-	inputs[0].SetValue(filepath.Join(home, "workspace"))
-	inputs[1].Placeholder = "e.g. John Doe"
-	inputs[2].Placeholder = "e.g. john@example.com"
-	inputs[3].Placeholder = "Project Display Name"
-	inputs[4].Placeholder = "folder-name"
-	inputs[5].Placeholder = "java"
-	inputs[6].Placeholder = "git@bitbucket.org:belgiantrain/repo.git"
-	inputs[7].Placeholder = "Profile Name (e.g. Java-17)"
-	inputs[8].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
-	inputs[9].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
-	inputs[10].Placeholder = "MAVEN_HOME directory path"
+	inputs[model.GitWorkspace].Placeholder = "Global Workspace Base Path"
+	inputs[model.GitWorkspace].SetValue(filepath.Join(home, "workspace"))
+	inputs[model.GitUsername].Placeholder = "e.g. John Doe"
+	inputs[model.GitEmail].Placeholder = "e.g. john@example.com"
+	inputs[model.JdkName].Placeholder = "Profile Name (e.g. Java-17)"
+	inputs[model.JdkPath].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
+	inputs[model.MvnName].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
+	inputs[model.MvnPath].Placeholder = "MAVEN_HOME directory path"
 
 	initialState := model.StateDashboard
 	if isFirstRun || gitMissing {

@@ -72,6 +72,8 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+j":
 		m.state.ViewState = model.StateJDKConfigModal
 		m.state.JDKStep = model.StepSelectJDKAction
+		m.state.Inputs[model.JdkName].SetValue("")
+		m.state.Inputs[model.JdkPath].SetValue("")
 		m.state.SelectedMenuIndex = 0
 		m.state.SelectedJDKIndex = 0
 		return m, nil
@@ -79,6 +81,8 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+u":
 		m.state.ViewState = model.StateMavenConfigModal
 		m.state.MavenStep = model.StepSelectMvnAction
+		m.state.Inputs[model.MvnName].SetValue("")
+		m.state.Inputs[model.MvnPath].SetValue("")
 		m.state.SelectedMenuIndex = 0
 		m.state.SelectedMavenIndex = 0
 		return m, nil
@@ -87,16 +91,6 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.ViewState = model.StateConfigDeckModal
 		m.state.SelectedConfigOption = 0
 		return m, nil
-
-	case "ctrl+n":
-		m.state.ViewState = model.StateAddProjectModal
-		m.state.FocusedInput = model.ProjectName
-		m.state.Inputs[model.ProjectName].SetValue("")
-		m.state.Inputs[model.RelativeFolder].SetValue("")
-		m.state.Inputs[model.StackType].SetValue("")
-		m.state.Inputs[model.GitCloneURL].SetValue("")
-		m.state.Inputs[model.ProjectName].Focus()
-		return m, textinput.Blink
 
 	case "ctrl+b":
 		if len(m.state.Config.Projects) > 0 {

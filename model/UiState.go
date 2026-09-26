@@ -34,18 +34,10 @@ const (
 
 type ConfigCategory int
 
-const (
-	CfgCatGeneral  GitOperationStep = iota // BasePath & Git Credentials
-	CfgCatJDKs                             // Registered Java Environments Pool
-	CfgCatMavens                           // Registered Maven Engines Pool
-	CfgCatProjects                         // Registered Workspaces List
-)
-
 type ApplicationViewState int
 
 const (
 	StateDashboard ApplicationViewState = iota
-	StateAddProjectModal
 	StateGitOperationsModal
 	StateJDKConfigModal
 	StateHelpModal
@@ -89,29 +81,19 @@ type FuzzyResult struct {
 	LineNum  int    // Used if content-searching (0 if file-only search)
 	Snippet  string // Shows the matched text phrase context match
 }
-
-type InstallerStep int
-
-const (
-	StepSetGlobalPrefs InstallerStep = iota // Handles BasePath, User, and Email fields
-	StepAddFirstProject
-)
-
 type ConfigurationField int
 
-var (
-	GitWorkspace      = 0
-	GitUsername       = 1
-	GitEmail          = 2
-	GitMaxTagListSize = 3
-	ProjectName       = 4
-	RelativeFolder    = 5
-	StackType         = 6
-	GitCloneURL       = 7
-	JdkName           = 8
-	JdkPath           = 9
-	MavenName         = 10
-	MavenLocation     = 11
+type InputField int
+
+const (
+	GitWorkspace InputField = iota
+	GitUsername
+	GitEmail
+	GitMaxTagListSize
+	JdkName
+	JdkPath
+	MvnName
+	MvnPath
 )
 
 type GitOperationStep int
@@ -146,13 +128,10 @@ type UIState struct {
 	WindowWidth  int
 	WindowHeight int
 
-	// !!! GLOBAL INSTALLER VARIABLES MAPPINGS !!!
-	InstallerStep InstallerStep
-
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea
 	SelectedMenuIndex int
-	FocusedInput      int
+	FocusedInput      InputField
 	StatusMsg         string
 	Inputs            []textinput.Model
 

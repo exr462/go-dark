@@ -42,24 +42,18 @@ func (m *appModel) updateConfigDeckModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 1:
 			m.state.ViewState = model.StateJDKConfigModal
 			m.state.JDKStep = model.StepSelectJDKAction
+			m.state.Inputs[model.JdkName].SetValue("")
+			m.state.Inputs[model.JdkPath].SetValue("")
 			m.state.SelectedMenuIndex = 0
 			return m, nil
 
 		case 2:
 			m.state.ViewState = model.StateMavenConfigModal
 			m.state.MavenStep = model.StepSelectMvnAction
+			m.state.Inputs[model.MvnName].SetValue("")
+			m.state.Inputs[model.MvnPath].SetValue("")
 			m.state.SelectedMenuIndex = 0
 			return m, nil
-
-		case 3:
-			m.state.ViewState = model.StateAddProjectModal
-			m.state.FocusedInput = model.ProjectName
-			m.state.Inputs[model.ProjectName].SetValue("")
-			m.state.Inputs[model.RelativeFolder].SetValue("")
-			m.state.Inputs[model.StackType].SetValue("")
-			m.state.Inputs[model.GitCloneURL].SetValue("")
-			m.state.Inputs[model.ProjectName].Focus()
-			return m, textinput.Blink
 		}
 	}
 	return m, nil

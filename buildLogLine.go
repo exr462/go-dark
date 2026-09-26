@@ -11,11 +11,11 @@ func (m *appModel) buildLogLine(msg model.BuildLogLineMsg) (tea.Model, tea.Cmd) 
 	if sess, exists := m.state.Sessions[msg.SessionID]; exists {
 		if msg.Line != "" {
 			line := msg.Line
-			if regexp.MustCompile(`(?i)\[error\]|fail`).MatchString(line) {
+			if regexp.MustCompile(`(?i)\[error|fail`).MatchString(line) {
 				line = "\x1b[31;1m" + line + "\x1b[0m"
 			} else if regexp.MustCompile(`(?i)\[warn`).MatchString(line) {
 				line = "\x1b[33;1m" + line + "\x1b[0m"
-			} else if regexp.MustCompile(`(?i)\[info\]|success`).MatchString(line) {
+			} else if regexp.MustCompile(`(?i)\[info|success`).MatchString(line) {
 				line = "\x1b[32m" + line + "\x1b[0m"
 			}
 

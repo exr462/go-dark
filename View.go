@@ -14,8 +14,6 @@ func (m *appModel) View() string {
 		return components.RenderHelpModal(m.state)
 	case model.StateGitConfigurationModal:
 		return components.RenderGitConfiguration(m.state)
-	case model.StateAddProjectModal:
-		return components.RenderModal(m.state)
 	case model.StateGitOperationsModal:
 		return components.RenderGitOpsModal(m.state)
 	case model.StateJDKConfigModal:

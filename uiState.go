@@ -7,7 +7,6 @@ import (
 )
 
 var uiState = &model.UIState{
-	InstallerStep:   model.StepSetGlobalPrefs,
 	ActiveFocus:     model.FocusProjects,
 	FileViewer:      viewport.New(30, 20),
 	GitCommands:     []string{"checkout", "clone", "pull", "fetch", "status", "reset"},
