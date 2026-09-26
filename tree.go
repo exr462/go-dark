@@ -48,7 +48,7 @@ func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 	}
 }
 
-func (m *appModel) readFileContentCmd() tea.Cmd {
+func (m appModel) readFileContentCmd() tea.Cmd {
 	return func() tea.Msg {
 		if len(m.state.TreeNodes) == 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
 			return model.StatusMsg("No files in active workspace hierarchy.")
@@ -83,7 +83,7 @@ func (m *appModel) readFileContentCmd() tea.Cmd {
 	}
 }
 
-func (m *appModel) buildTreeNodes(currentPath string, depth int) {
+func (m appModel) buildTreeNodes(currentPath string, depth int) {
 	entries, err := os.ReadDir(currentPath)
 	if err != nil {
 		return
@@ -116,7 +116,7 @@ func (m *appModel) buildTreeNodes(currentPath string, depth int) {
 	}
 }
 
-func (m *appModel) rebuildActiveTree() {
+func (m appModel) rebuildActiveTree() {
 	if len(m.state.Config.Projects) == 0 {
 		return
 	}
@@ -177,7 +177,7 @@ func (m *appModel) rebuildActiveTree() {
 	m.state.TreeNodes = freshTree
 }
 
-func (m *appModel) loadDirectory(dirPath string) ([]model.FileNode, error) {
+func (m appModel) loadDirectory(dirPath string) ([]model.FileNode, error) {
 	if len(m.state.Config.Projects) == 0 || m.state.SelectedProject >= len(m.state.Config.Projects) {
 		return nil, fmt.Errorf("no project selected")
 	}
@@ -204,7 +204,7 @@ func (m *appModel) loadDirectory(dirPath string) ([]model.FileNode, error) {
 	return nodes, nil
 }
 
-func (m *appModel) refreshRightPaneFromSelectedProject() {
+func (m appModel) refreshRightPaneFromSelectedProject() {
 	if len(m.state.Config.Projects) == 0 || m.state.SelectedProject >= len(m.state.Config.Projects) {
 		return
 	}

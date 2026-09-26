@@ -28,6 +28,8 @@ type BuildTask struct {
 }
 
 // TriggerPipelineCmd spins up the concurrency workers
+//
+//goland:noinspection GoMixedReceiverTypes
 func (m *appModel) TriggerPipelineCmd(maxParallelism int) tea.Cmd {
 	return func() tea.Msg {
 		// Resolve the exact build queue order based on your registry

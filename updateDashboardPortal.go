@@ -16,6 +16,7 @@ import (
 	"github.com/exr462/go-dark/ui/color"
 )
 
+//goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
