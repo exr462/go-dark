@@ -1,3 +1,5 @@
+# ![Go](gopher.png) Dark
+
 ### Delve via command line
 
 Before running this configuration, start your application and Delve as described below.
