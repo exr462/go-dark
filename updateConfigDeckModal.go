@@ -30,8 +30,7 @@ func (m *appModel) updateConfigDeckModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		switch m.state.SelectedConfigOption {
 		case 0:
-			m.state.ViewState = model.StateInstaller
-			m.state.InstallerStep = model.StepSetGlobalPrefs
+			m.state.ViewState = model.StateGitConfigurationModal
 			m.state.FocusedInput = model.GitWorkspace
 			m.state.Inputs[model.GitWorkspace].SetValue(m.state.Config.BasePath)
 			m.state.Inputs[model.GitUsername].SetValue(m.state.Config.GitUsername)

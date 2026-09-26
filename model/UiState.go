@@ -58,6 +58,7 @@ const (
 	StateDockerModal
 	StateEditorModal
 	StateDependencyConfigModal
+	StateGitConfigurationModal
 )
 
 type DockerStats struct {

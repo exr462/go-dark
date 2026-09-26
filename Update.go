@@ -205,6 +205,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateHelpModal(msg)
 		case model.StateInstaller:
 			return m.updateInstaller(msg)
+		case model.StateGitConfigurationModal:
+			return m.updateGitConfiguration(msg)
 		case model.StateAddProjectModal:
 			return m.updateModalForm(msg)
 		case model.StateGitOperationsModal:
