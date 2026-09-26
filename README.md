@@ -1,4 +1,4 @@
-# ![Go](gopher.png) Dark
+# ![Go](https://shields.io) Dark
 
 ### Delve via command line
 
