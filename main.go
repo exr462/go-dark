@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -16,6 +18,7 @@ import (
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/ui/components"
 	"github.com/exr462/go-dark/ui/panels"
 )
@@ -42,17 +45,279 @@ type appModel struct {
 	state *model.UIState
 }
 
+// RunPipelineCmd handles dependency checking and concurrent orchestration
+func (m *appModel) RunPipelineCmd(tasks []*task.BuildTask, maxParallelism int) tea.Cmd {
+	return func() tea.Msg {
+		var wg sync.WaitGroup
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Mutex to protect task state writes across multiple goroutines
+		var mu sync.Mutex
+
+		// Create a semaphore channel to limit maximum parallel operations
+		sem := make(chan struct{}, maxParallelism)
+
+		// Map for lightning-fast state lookups
+		taskMap := make(map[string]*task.BuildTask)
+		for _, t := range tasks {
+			taskMap[t.ProjectName] = t
+		}
+
+		// Channel to notify the coordinator whenever any task completes
+		taskDoneChan := make(chan string, len(tasks))
+
+		for {
+			mu.Lock()
+			activeCount := 0
+			pendingCount := 0
+			failedPipeline := false
+
+			// Step A: Evaluate graph nodes
+			for _, t := range tasks {
+				if t.State == task.StateBuilding {
+					activeCount++
+					continue
+				}
+				if t.State == task.StateFailed {
+					failedPipeline = true
+					continue
+				}
+				if t.State != task.StatePending {
+					continue
+				}
+
+				pendingCount++
+
+				// Check if all prerequisites are fulfilled successfully
+				dependenciesMet := true
+				for _, depName := range t.Dependencies {
+					depTask, exists := taskMap[depName]
+					if !exists || depTask.State != task.StateSuccess {
+						dependenciesMet = false
+						break
+					}
+				}
+
+				// Step B: Dispatch the build if prerequisites are clear
+				if dependenciesMet {
+					t.State = task.StateBuilding
+					activeCount++
+					pendingCount--
+					wg.Add(1)
+
+					// Dispatch build worker in a background goroutine
+					go func(buildTask *task.BuildTask) {
+						defer wg.Done()
+
+						// Block until a concurrency slot opens up
+						sem <- struct{}{}
+						defer func() { <-sem }()
+
+						// Trigger execution hook
+						err := executeBuild(ctx, buildTask.Path, buildTask.BuildArgs)
+
+						mu.Lock()
+						if err != nil {
+							buildTask.State = task.StateFailed
+							buildTask.Error = err
+						} else {
+							buildTask.State = task.StateSuccess
+						}
+						mu.Unlock()
+
+						// Wake up main graph loop to recalculate next tasks
+						taskDoneChan <- buildTask.ProjectName
+					}(t)
+				}
+			}
+			mu.Unlock()
+
+			// Step C: Check termination boundaries
+			if failedPipeline {
+				cancel() // Instantly kill remaining processes if a hard dependency fails
+				wg.Wait()
+				return task.PipelineCompleteMsg{Success: false}
+			}
+
+			if pendingCount == 0 && activeCount == 0 {
+				break // Everything processed successfully
+			}
+
+			// Wait until an active build finishes before cycling the loop
+			if activeCount > 0 {
+				<-taskDoneChan
+			} else if pendingCount > 0 && activeCount == 0 {
+				// Deadlock safety fallback: dependencies are cyclic or broken
+				return task.PipelineCompleteMsg{Success: false}
+			}
+		}
+
+		wg.Wait()
+		return task.PipelineCompleteMsg{Success: true}
+	}
+}
+
+// Underlying execution function parsing input logic
+func executeBuild(ctx context.Context, dir string, buildArgs string) error {
+	// Clean and parse build parameters safely
+	args := []string{"clean"}
+	for _, arg := range strings.Split(buildArgs, " ") {
+		if trimmed := strings.TrimSpace(arg); trimmed != "" {
+			args = append(args, trimmed)
+		}
+	}
+
+	// Assuming a Maven environment given your project logs
+	cmd := exec.CommandContext(ctx, "mvn", args...)
+	cmd.Dir = dir
+
+	// Capture output or pipe to a tracker log if debugging is needed
+	err := cmd.Run()
+	return err
+}
+
+func (m *appModel) updateDependencyScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	projIdx := m.state.DepScreen.ActiveProjectIndex
+	if projIdx < 0 || projIdx >= len(m.state.Config.Projects) {
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+	}
+
+	// 🔍 FIX 1: Direct slice reference modification
+	// Do NOT copy out the project struct into a local variable.
+	// Instead, manipulate the array directly at its absolute index position.
+
+	switch msg.String() {
+	case "up", "k":
+		if m.state.DepScreen.Cursor > 0 {
+			m.state.DepScreen.Cursor--
+		}
+
+	case "down", "j":
+		if m.state.DepScreen.Cursor < len(m.state.DepScreen.AvailableOptions)-1 {
+			m.state.DepScreen.Cursor++
+		}
+
+	case "space":
+		selectedTarget := m.state.DepScreen.AvailableOptions[m.state.DepScreen.Cursor]
+
+		// Find if dependency exists in our absolute index target
+		foundIdx := -1
+		for i, dep := range config.AvailableProjects[projIdx].Dependencies {
+			if dep == selectedTarget {
+				foundIdx = i
+				break
+			}
+		}
+
+		if foundIdx >= 0 {
+			// Toggle Off: Remove dependency directly from the slice array
+			config.AvailableProjects[projIdx].Dependencies = append(
+				config.AvailableProjects[projIdx].Dependencies[:foundIdx],
+				config.AvailableProjects[projIdx].Dependencies[foundIdx+1:]...,
+			)
+		} else {
+			// Toggle On: Add dependency directly to the slice array
+			config.AvailableProjects[projIdx].Dependencies = append(
+				config.AvailableProjects[projIdx].Dependencies,
+				selectedTarget,
+			)
+		}
+
+	case "enter":
+		_ = config.SaveConfig(m.state.Config)
+		m.state.ViewState = model.StateDashboard
+		return m, m.updateWorkspaceFiles()
+
+	case "esc", "q":
+		m.state.ViewState = model.StateDashboard
+		return m, nil
+	}
+
+	// 🔍 FIX 2: Return the updated model 'm' back to Bubble Tea!
+	// If you were returning 'nil, nil' or a raw unmutated model state here,
+	// Bubble Tea wouldn't know the selection markers changed.
+	return m, nil
+}
+
+func (m *appModel) renderDependencyView() string {
+	projIdx := m.state.DepScreen.ActiveProjectIndex
+	proj := config.AvailableProjects[projIdx]
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("🔗  Configure Dependencies for: \033[1;36m%s\033[0m\n", proj.Name))
+	b.WriteString("Use [↑/↓] to navigate, [Space] to toggle, [Enter] to save, [Esc] to cancel.\n\n")
+
+	// Build a hash map of current active selections for quick lookups
+	activeDeps := make(map[string]bool)
+	for _, d := range proj.Dependencies {
+		activeDeps[d] = true
+	}
+
+	for i, option := range m.state.DepScreen.AvailableOptions {
+		// Draw cursor point indicator
+		cursor := " "
+		if m.state.DepScreen.Cursor == i {
+			cursor = "❯"
+		}
+
+		// Draw selection checkbox status
+		checked := " "
+		if activeDeps[option] {
+			checked = "⬢" // Filled indicator for checked dependency
+		} else {
+			checked = "⬡" // Empty indicator
+		}
+
+		// Format output row
+		if m.state.DepScreen.Cursor == i {
+			b.WriteString(fmt.Sprintf("%s [%s] \033[1;33m%s\033[0m\n", cursor, checked, option))
+		} else {
+			b.WriteString(fmt.Sprintf("%s [%s] %s\n", cursor, checked, option))
+		}
+	}
+
+	return b.String()
+}
+
 func (m *appModel) Init() tea.Cmd {
 	if m.state.ViewState == model.StateInstaller {
 		return textinput.Blink
 	}
-	return tea.Batch(m.updateWorkspaceFiles(), m.pollDockerTelemetryCmd())
+	return tea.Batch(m.updateWorkspaceFiles(), m.pollDockerTelemetryCmd(), m.TriggerPipelineCmd(4))
 }
 
 func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+	projIdx := m.state.DepScreen.ActiveProjectIndex
+	if projIdx < 0 || projIdx >= len(m.state.Config.Projects) {
+		m.state.ViewState = model.StateDashboard // Safe fallback redirect
+		return m, nil
+	}
 
 	switch msg := msg.(type) {
+	case task.PipelineTaskStartedMsg:
+		m.state.StatusMsg = fmt.Sprintf("🏗️  Building: %s...", msg)
+		return m, nil
+
+	case task.PipelineTaskFinishedMsg:
+		if msg.Err != nil {
+			m.state.StatusMsg = fmt.Sprintf("❌ Build Error on component: %s", msg.ProjectName)
+		} else {
+			m.state.StatusMsg = fmt.Sprintf("✅ Component complete: %s", msg.ProjectName)
+		}
+		return m, nil
+
+	case task.PipelineCompleteMsg:
+		if msg.Success {
+			m.state.StatusMsg = "🎉 All workspace modules built successfully!"
+		} else {
+			m.state.StatusMsg = "❌ Pipeline compilation aborted due to build errors."
+		}
+		m.state.ViewState = model.StateDashboard
+		return m, m.updateWorkspaceFiles()
+
 	case GitStatusLoadedMsg:
 		m.state.GitStatusOutput = string(msg)
 		if m.state.GitStatusOutput == "" {
@@ -238,6 +503,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateDockerModal(msg)
 		case model.StateEditorModal:
 			return m, nil
+		case model.StateDependencyConfigModal:
+			return m.updateDependencyScreen(msg)
 		case model.StateDashboard:
 			fallthrough
 		default:
@@ -256,6 +523,14 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var fuzzyCmd tea.Cmd
 		m.state.FuzzyViewer, fuzzyCmd = m.state.FuzzyViewer.Update(msg)
 		cmds = append(cmds, fuzzyCmd)
+	}
+
+	if m.state.ViewState == model.StateDependencyConfig {
+		switch ma := msg.(type) {
+		case tea.KeyMsg:
+			return m.updateDependencyScreen(ma)
+		}
+		return m, nil
 	}
 
 	return m, tea.Batch(cmds...)
@@ -285,6 +560,8 @@ func (m *appModel) View() string {
 		return components.RenderConfigDeckModal(m.state)
 	case model.StateDockerModal:
 		return components.RenderDockerModal(m.state)
+	case model.StateDependencyConfigModal: // 👈 ADD THIS CASE
+		return components.RenderDependencyModal(m.state)
 	case model.StateEditorModal:
 		return "Opening external editor..."
 	case model.StateDashboard:

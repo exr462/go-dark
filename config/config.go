@@ -29,39 +29,41 @@ type Profile struct {
 }
 
 type AvailableProject struct {
-	Name       string `json:"name"`
-	Deployable bool   `json:"deployable"`
+	Name         string
+	Deployable   bool
+	Buildable    bool
+	Dependencies []string
 }
 
 const BaseGitURL = "git@bitbucket.org:belgiantrain/"
 
 var (
 	AvailableProjects = []AvailableProject{
-		{"ypto-maven-parent", false},
-		{"contract-first-api-parent", false},
-		{"til-purchase", true},
-		{"til-product", true},
-		{"til-smm", true},
-		{"til-fdm", true},
-		{"til-b2b-traveler", true},
-		{"til-stop-place", true},
-		{"til-channel", true},
-		{"til-b2c-voucher", true},
-		{"til-fulfillment", true},
-		{"til-document", true},
-		{"til-dtm", true},
-		{"til-notification", true},
-		{"til-order", true},
-		{"til-b2b-voucher", true},
-		{"til-authorization", true},
-		{"til-mms", true},
-		{"til-report", true},
-		{"til-travel-time", true},
-		{"til-payment", true},
-		{"til-global-aks", true},
-		{"til-communication", true},
-		{"til-cash-device", true},
-		{"til-voucher", true},
+		{"ypto-maven-parent", false, true, []string{}},
+		{"contract-first-api-parent", false, true, []string{"ypto-maven-parent"}},
+		{"til-purchase", true, true, []string{"contract-first-api-parent"}},
+		{"til-product", true, true, []string{"contract-first-api-parent"}},
+		{"til-smm", true, true, []string{"contract-first-api-parent"}},
+		{"til-fdm", true, true, []string{"contract-first-api-parent"}},
+		{"til-b2b-traveler", true, true, []string{"contract-first-api-parent"}},
+		{"til-stop-place", true, true, []string{"contract-first-api-parent"}},
+		{"til-channel", true, true, []string{"contract-first-api-parent"}},
+		{"til-b2c-voucher", true, true, []string{"contract-first-api-parent"}},
+		{"til-fulfillment", true, true, []string{"contract-first-api-parent"}},
+		{"til-document", true, true, []string{"contract-first-api-parent"}},
+		{"til-dtm", true, true, []string{"contract-first-api-parent"}},
+		{"til-notification", true, true, []string{"contract-first-api-parent"}},
+		{"til-order", true, true, []string{"contract-first-api-parent"}},
+		{"til-b2b-voucher", true, true, []string{"contract-first-api-parent"}},
+		{"til-authorization", true, true, []string{"contract-first-api-parent"}},
+		{"til-mms", true, true, []string{"contract-first-api-parent"}},
+		{"til-report", true, true, []string{"contract-first-api-parent"}},
+		{"til-travel-time", true, true, []string{"contract-first-api-parent"}},
+		{"til-payment", true, true, []string{"contract-first-api-parent"}},
+		{"til-global-aks", true, false, []string{"contract-first-api-parent"}},
+		{"til-communication", true, true, []string{"contract-first-api-parent"}},
+		{"til-cash-device", true, true, []string{"contract-first-api-parent"}},
+		{"til-voucher", true, true, []string{"contract-first-api-parent"}},
 	}
 )
 

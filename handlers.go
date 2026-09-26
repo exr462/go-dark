@@ -32,7 +32,24 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, nil
+	case "d": // 👈 Pressing 'd' over a highlighted row opens its dependency mapper
+		if len(m.state.Config.Projects) > 0 && m.state.SelectedProject >= 0 {
+			activeProj := m.state.Config.Projects[m.state.SelectedProject]
 
+			// Initialize options excluding self to prevent cyclical dependencies
+			m.state.DepScreen = model.NewDependencyScreen(activeProj.Name, m.state.Config.Projects)
+			m.state.DepScreen.ActiveProjectIndex = m.state.SelectedProject
+
+			// Flip view state boundary to render configuration modal
+			m.state.ViewState = model.StateDependencyConfigModal
+			return m, nil
+		}
+	case "B": // 👈 Capital 'B' triggers the full parallel build pipeline
+		m.state.StatusMsg = "🏗️ Initializing parallel build graph..."
+		m.state.ViewState = model.StateBuildModal // Optional: switch to a loading/progress view
+
+		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
+		return m, m.TriggerPipelineCmd(4)
 	case "ctrl+f":
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateFuzzyModal

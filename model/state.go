@@ -57,6 +57,7 @@ const (
 	StateConfigDeckModal
 	StateDockerModal
 	StateEditorModal
+	StateDependencyConfigModal
 )
 
 type DockerStats struct {
@@ -199,6 +200,9 @@ type UIState struct {
 	Err              error
 	ActiveCodeBuffer string // Holds the text content of the editor buffer
 	LastError        error
+
+	// !!! GLOBAL DEPENDENCY SCREEN STATE MAPPINGS !!!
+	DepScreen DependencyScreenState
 }
 
 type StatusMsg string
