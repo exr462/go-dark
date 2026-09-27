@@ -21,8 +21,8 @@ Shortcut: ctrl+g\
 Select the project you want to clone\
 ![git_projects](images/git_projects.png)
 
-![git_operations](images/git_operations.png)
-Select the branch you want to checkout\
+![git_operations](images/git_operations.png)\
+Select the branch you want to check out\
 ![branches](images/branches.png)
 
 Project successfully checked out\
