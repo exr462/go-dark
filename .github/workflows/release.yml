@@ -20,7 +20,7 @@ jobs:
       - name: Setup Go Environment
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22' # Set this to your required Go version
+          go-version: '1.27.1' # Set this to your required Go version
           cache: true        # Speeds up subsequent workflow runs by caching Go modules
 
       - name: Compile Cross-Platform Binaries
