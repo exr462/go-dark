@@ -1,0 +1,39 @@
+name: Go Build and Test
+
+# This configuration restricts the workflow execution exclusively to the main branch
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Go App
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up the Go environment
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22' # Replace with your project's Go version
+          cache: true        # Automatically caches and restores Go dependencies
+
+      # Step 3: Install dependencies (optional but recommended)
+      - name: Install dependencies
+        run: go mod download
+
+      # Step 4: Run your project tests
+      - name: Run Tests
+        run: go test -v ./...
+
+      # Step 5: Build the Go executable
+      - name: Build Binary
+        run: go build -v -o go-dark .
