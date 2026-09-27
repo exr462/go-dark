@@ -11,24 +11,24 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) runFuzzySearchEngine() {
-	query := strings.ToLower(strings.TrimSpace(m.state.FuzzyQueryInput.Value()))
-	m.state.FuzzyResults = []model.FuzzyResult{}
+	query := strings.ToLower(strings.TrimSpace(m.ui.FuzzyQueryInput.Value()))
+	m.ui.FuzzyResults = []model.FuzzyResult{}
 	if query == "" {
 		return
 	}
 
-	if len(m.state.Config.Projects) == 0 || m.state.SelectedProject >= len(m.state.Config.Projects) {
+	if len(m.ui.Config.Projects) == 0 || m.ui.SelectedProject >= len(m.ui.Config.Projects) {
 		return
 	}
 
-	proj := m.state.Config.Projects[m.state.SelectedProject]
+	proj := m.ui.Config.Projects[m.ui.SelectedProject]
 	rootPath := proj.Path
 
 	if _, err := os.Stat(rootPath); os.IsNotExist(err) {
 		return
 	}
 
-	if m.state.FuzzyMode == model.FuzzyModeFiles {
+	if m.ui.FuzzyMode == model.FuzzyModeFiles {
 		var traverse func(string)
 		traverse = func(p string) {
 			files, err := os.ReadDir(p)
@@ -52,11 +52,11 @@ func (m *appModel) runFuzzySearchEngine() {
 				}
 
 				if strings.Contains(strings.ToLower(name), query) {
-					m.state.FuzzyResults = append(m.state.FuzzyResults, model.FuzzyResult{
+					m.ui.FuzzyResults = append(m.ui.FuzzyResults, model.FuzzyResult{
 						FileName: name,
 						FullPath: fullP,
 					})
-					if len(m.state.FuzzyResults) > 100 {
+					if len(m.ui.FuzzyResults) > 100 {
 						return
 					}
 				}
@@ -100,19 +100,19 @@ func (m *appModel) runFuzzySearchEngine() {
 							lineCount++
 							txt := scanner.Text()
 							if strings.Contains(strings.ToLower(txt), query) {
-								m.state.FuzzyResults = append(m.state.FuzzyResults, model.FuzzyResult{
+								m.ui.FuzzyResults = append(m.ui.FuzzyResults, model.FuzzyResult{
 									FileName: name,
 									FullPath: fullP,
 									LineNum:  lineCount,
 									Snippet:  strings.TrimSpace(txt),
 								})
-								if len(m.state.FuzzyResults) > 100 {
-									file.Close()
+								if len(m.ui.FuzzyResults) > 100 {
+									_ = file.Close()
 									return
 								}
 							}
 						}
-						file.Close()
+						_ = file.Close()
 					}
 				}
 			}

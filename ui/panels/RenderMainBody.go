@@ -23,20 +23,20 @@ var (
 	mutedTextStyle    = lipgloss.NewStyle().Foreground(color.Overlay0).Italic(true)
 )
 
-func RenderMainBody(m *model.UIState) string {
+func RenderMainBody(ui *model.UI) string {
 	rightPaneMultiplier := 8
 	leftPaneMultiplier := 2
 	widthDivider := 10
 	widthPadding := 2
-	paneHeight := max(m.WindowHeight-7, 5)
+	paneHeight := max(ui.WindowHeight-7, 5)
 
 	// 1. Render Left Column (Projects)
 	var projList strings.Builder
 	projList.WriteString(decorator.Title.Render("📁 Configured Projects") + "\n\n")
 
-	for i, p := range m.Config.Projects {
+	for i, p := range ui.Config.Projects {
 		sessionLabel := ""
-		for id, sess := range m.Sessions {
+		for id, sess := range ui.Sessions {
 			if sess.ProjectName == p.Name && sess.IsRunning {
 				sessionLabel = sessionBadgeStyle.Render(fmt.Sprintf(" (ID:%d ⏳)", id))
 				break
@@ -48,7 +48,7 @@ func RenderMainBody(m *model.UIState) string {
 			statusBadge = remoteBadgeStyle.Render("[remote]")
 		}
 
-		if i == m.SelectedProject {
+		if i == ui.SelectedProject {
 			projList.WriteString(fmt.Sprintf("> %s [%s] %s%s\n", selectedProjStyle.Render(p.Name), p.Type, statusBadge, sessionLabel))
 		} else {
 			if p.Fetched {
@@ -60,11 +60,11 @@ func RenderMainBody(m *model.UIState) string {
 	}
 
 	leftBoxStyle := decorator.UnfocusedBorder.Background(color.Base)
-	if m.ActiveFocus == model.FocusProjects && m.ViewState == model.StateDashboard {
+	if ui.ActiveFocus == model.FocusProjects && ui.ViewState == model.StateDashboard {
 		leftBoxStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 	leftPanel := leftBoxStyle.
-		Width(((m.WindowWidth / widthDivider) * leftPaneMultiplier) - widthPadding).
+		Width(((ui.WindowWidth / widthDivider) * leftPaneMultiplier) - widthPadding).
 		Height(paneHeight).
 		Render(projList.String())
 
@@ -72,10 +72,10 @@ func RenderMainBody(m *model.UIState) string {
 	var treeList strings.Builder
 	treeList.WriteString(decorator.Title.Render("🌿 Workspace Directory Tree (Ctrl+E to edit in external editor)") + "\n\n")
 
-	if len(m.TreeNodes) == 0 {
+	if len(ui.TreeNodes) == 0 {
 		treeList.WriteString(mutedTextStyle.Render("  (No workspace directories loaded. Use Ctrl+G to clone/checkout projects)"))
 	} else {
-		for i, node := range m.TreeNodes {
+		for i, node := range ui.TreeNodes {
 			indent := strings.Repeat("  ", node.Depth)
 
 			prefix := "📄 "
@@ -89,7 +89,7 @@ func RenderMainBody(m *model.UIState) string {
 
 			lineText := fmt.Sprintf("%s%s%s", indent, prefix, node.Name)
 
-			if i == m.SelectedFile {
+			if i == ui.SelectedFile {
 				treeList.WriteString(fmt.Sprintf("> %s\n", selectedTreeStyle.Render(lineText)))
 			} else {
 				if node.IsDir {
@@ -102,11 +102,11 @@ func RenderMainBody(m *model.UIState) string {
 	}
 
 	centerBoxStyle := decorator.UnfocusedBorder.Background(color.Base)
-	if m.ActiveFocus == model.FocusTree && m.ViewState == model.StateDashboard {
+	if ui.ActiveFocus == model.FocusTree && ui.ViewState == model.StateDashboard {
 		centerBoxStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 	centerPanel := centerBoxStyle.
-		Width(((m.WindowWidth / widthDivider) * rightPaneMultiplier) - widthPadding).
+		Width(((ui.WindowWidth / widthDivider) * rightPaneMultiplier) - widthPadding).
 		Height(paneHeight).
 		Render(treeList.String())
 

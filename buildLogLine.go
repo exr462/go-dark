@@ -8,7 +8,7 @@ import (
 )
 
 func (m *appModel) buildLogLine(msg model.BuildLogLineMsg) (tea.Model, tea.Cmd) {
-	if sess, exists := m.state.Sessions[msg.SessionID]; exists {
+	if sess, exists := m.ui.Sessions[msg.SessionID]; exists {
 		if msg.Line != "" {
 			line := msg.Line
 			if regexp.MustCompile(`(?i)\[error|fail`).MatchString(line) {
@@ -20,8 +20,8 @@ func (m *appModel) buildLogLine(msg model.BuildLogLineMsg) (tea.Model, tea.Cmd) 
 			}
 
 			sess.Logs = append(sess.Logs, line)
-			if m.state.ViewState == model.StateBuildModal && m.state.ActiveSessionID == msg.SessionID {
-				m.state.BuildLogs = sess.Logs
+			if m.ui.ViewState == model.StateBuildModal && m.ui.ActiveSessionID == msg.SessionID {
+				m.ui.BuildLogs = sess.Logs
 			}
 		}
 	}

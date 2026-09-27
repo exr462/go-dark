@@ -7,7 +7,7 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) executeActiveMenuAction() tea.Cmd {
-	if len(m.state.Config.Projects) == 0 {
+	if len(m.ui.Config.Projects) == 0 {
 		return nil
 	}
 	return func() tea.Msg {

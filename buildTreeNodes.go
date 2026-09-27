@@ -39,6 +39,6 @@ func (m appModel) buildTreeNodes(currentPath string, depth int) {
 			IsDir:    e.IsDir(),
 			Depth:    depth,
 		}
-		m.state.TreeNodes = append(m.state.TreeNodes, node)
+		m.ui.TreeNodes = append(m.ui.TreeNodes, node)
 	}
 }

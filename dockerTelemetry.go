@@ -6,6 +6,6 @@ import (
 )
 
 func (m *appModel) dockerTelemetry(msg model.DockerTelemetryMsg) (tea.Model, tea.Cmd) {
-	m.state.DockerTelemetry = model.DockerStats(msg)
+	m.ui.DockerTelemetry = model.DockerStats(msg)
 	return m, m.pollDockerTelemetryCmd()
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
-var uiState = &model.UIState{
+var ui = &model.UI{
 	ActiveFocus:     model.FocusProjects,
 	FileViewer:      viewport.New(30, 20),
 	GitCommands:     []string{"checkout", "clone", "pull", "fetch", "status", "reset"},

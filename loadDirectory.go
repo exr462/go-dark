@@ -10,10 +10,10 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m appModel) loadDirectory(dirPath string) ([]model.FileNode, error) {
-	if len(m.state.Config.Projects) == 0 || m.state.SelectedProject >= len(m.state.Config.Projects) {
+	if len(m.ui.Config.Projects) == 0 || m.ui.SelectedProject >= len(m.ui.Config.Projects) {
 		return nil, fmt.Errorf("no project selected")
 	}
-	proj := m.state.Config.Projects[m.state.SelectedProject]
+	proj := m.ui.Config.Projects[m.ui.SelectedProject]
 	targetPath := filepath.Join(proj.Path, dirPath)
 	entries, err := os.ReadDir(targetPath)
 	if err != nil {

@@ -13,12 +13,12 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) syncFuzzyPreviewPane() {
-	if len(m.state.FuzzyResults) == 0 || m.state.SelectedFuzzy >= len(m.state.FuzzyResults) {
-		m.state.FuzzyViewer.SetContent("No file selected for preview.")
+	if len(m.ui.FuzzyResults) == 0 || m.ui.SelectedFuzzy >= len(m.ui.FuzzyResults) {
+		m.ui.FuzzyViewer.SetContent("No file selected for preview.")
 		return
 	}
 
-	res := m.state.FuzzyResults[m.state.SelectedFuzzy]
+	res := m.ui.FuzzyResults[m.ui.SelectedFuzzy]
 	ext := strings.ToLower(filepath.Ext(res.FileName))
 	isTextFile := ext == ".go" || ext == ".kt" || ext == ".java" || ext == ".xml" || ext == ".json" ||
 		ext == ".properties" || ext == ".yml" || ext == ".yaml" || ext == ".jsx" || ext == ".tsx" || ext == ".ts" || ext == ".txt" ||
@@ -26,24 +26,24 @@ func (m *appModel) syncFuzzyPreviewPane() {
 
 	if !isTextFile {
 		notice := fmt.Sprintf("\n  📦 [BINARY ARTIFACT] Previews Blocked\n\n  File: %s\n\n  Fuzzy preview is disabled for compiled binary artifacts.", res.FileName)
-		m.state.FuzzyViewer.SetContent(lipgloss.NewStyle().Foreground(color.Overlay0).Italic(true).Render(notice))
+		m.ui.FuzzyViewer.SetContent(lipgloss.NewStyle().Foreground(color.Overlay0).Italic(true).Render(notice))
 		return
 	}
 
 	data, err := os.ReadFile(res.FullPath)
 	if err != nil {
-		m.state.FuzzyViewer.SetContent(fmt.Sprintf("❌ Error opening preview: %v", err))
+		m.ui.FuzzyViewer.SetContent(fmt.Sprintf("❌ Error opening preview: %v", err))
 		return
 	}
 
-	m.state.FuzzyViewer.SetContent(string(data))
+	m.ui.FuzzyViewer.SetContent(string(data))
 
-	if m.state.FuzzyMode == model.FuzzyModeContent && res.LineNum > 0 {
-		m.state.FuzzyViewer.GotoTop()
-		for i := 0; i < res.LineNum-3 && i < m.state.FuzzyViewer.Height; i++ {
-			m.state.FuzzyViewer.LineDown(1)
+	if m.ui.FuzzyMode == model.FuzzyModeContent && res.LineNum > 0 {
+		m.ui.FuzzyViewer.GotoTop()
+		for i := 0; i < res.LineNum-3 && i < m.ui.FuzzyViewer.Height; i++ {
+			m.ui.FuzzyViewer.ScrollDown(1)
 		}
 	} else {
-		m.state.FuzzyViewer.GotoTop()
+		m.ui.FuzzyViewer.GotoTop()
 	}
 }

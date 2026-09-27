@@ -11,15 +11,15 @@ import (
 )
 
 func (m *appModel) status(msg model.StatusMsg) (tea.Model, tea.Cmd) {
-	m.state.StatusMsg = string(msg)
-	if strings.Contains(m.state.StatusMsg, "successfully completed") {
-		for i := range m.state.Config.Projects {
-			gitDir := filepath.Join(m.state.Config.Projects[i].Path, ".git")
+	m.ui.StatusMsg = string(msg)
+	if strings.Contains(m.ui.StatusMsg, "successfully completed") {
+		for i := range m.ui.Config.Projects {
+			gitDir := filepath.Join(m.ui.Config.Projects[i].Path, ".git")
 			if _, err := os.Stat(gitDir); err == nil {
-				m.state.Config.Projects[i].Fetched = true
+				m.ui.Config.Projects[i].Fetched = true
 			}
 		}
-		_ = config.SaveConfig(m.state.Config)
+		_ = config.SaveConfig(m.ui.Config)
 		return m, m.updateWorkspaceFiles()
 	}
 	return m, nil

@@ -8,10 +8,10 @@ import (
 
 func (m *appModel) pipelineComplete(msg task.PipelineCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Success {
-		m.state.StatusMsg = "🎉 All workspace modules built successfully!"
+		m.ui.StatusMsg = "🎉 All workspace modules built successfully!"
 	} else {
-		m.state.StatusMsg = "❌ Pipeline compilation aborted due to build errors."
+		m.ui.StatusMsg = "❌ Pipeline compilation aborted due to build errors."
 	}
-	m.state.ViewState = model.StateDashboard
+	m.ui.ViewState = model.StateDashboard
 	return m, m.updateWorkspaceFiles()
 }

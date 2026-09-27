@@ -7,7 +7,7 @@ import (
 )
 
 type appModel struct {
-	state           *model.UIState
+	ui              *model.UI
 	contentLoader   storage.ContentLoader
 	providerFactory *lsp.ProviderFactory
 	maxParallelism  int

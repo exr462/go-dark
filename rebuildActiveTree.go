@@ -10,17 +10,17 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m appModel) rebuildActiveTree() {
-	if len(m.state.Config.Projects) == 0 {
+	if len(m.ui.Config.Projects) == 0 {
 		return
 	}
-	if m.state.SelectedProject < 0 || m.state.SelectedProject >= len(m.state.Config.Projects) {
+	if m.ui.SelectedProject < 0 || m.ui.SelectedProject >= len(m.ui.Config.Projects) {
 		return
 	}
-	proj := m.state.Config.Projects[m.state.SelectedProject]
+	proj := m.ui.Config.Projects[m.ui.SelectedProject]
 	rootPath := proj.Path
 
 	expandedPaths := make(map[string]bool)
-	for _, n := range m.state.TreeNodes {
+	for _, n := range m.ui.TreeNodes {
 		if n.IsDir && n.IsExpanded {
 			expandedPaths[n.FullPath] = true
 		}
@@ -68,5 +68,5 @@ func (m appModel) rebuildActiveTree() {
 	}
 
 	walkDir(rootPath, 0)
-	m.state.TreeNodes = freshTree
+	m.ui.TreeNodes = freshTree
 }

@@ -8,8 +8,8 @@ import (
 )
 
 func (m *appModel) gitBranchesError(msg config.GitBranchesErrorMsg) (tea.Model, tea.Cmd) {
-	m.state.AvailableBranches = []string{"main"}
-	m.state.SelectedGitBranch = 0
-	m.state.StatusMsg = fmt.Sprintf("❌ Git: %v", msg)
+	m.ui.AvailableBranches = []string{"main"}
+	m.ui.SelectedGitBranch = 0
+	m.ui.StatusMsg = fmt.Sprintf("❌ Git: %v", msg)
 	return m, nil
 }

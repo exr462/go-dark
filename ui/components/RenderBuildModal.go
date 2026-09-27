@@ -18,12 +18,12 @@ var (
 	buildKeyHint    = lipgloss.NewStyle().Foreground(color.Yellow)
 )
 
-func RenderBuildModal(m *model.UIState) string {
+func RenderBuildModal(ui *model.UI) string {
 	var body strings.Builder
-	if len(m.Config.Projects) == 0 || m.SelectedProject >= len(m.Config.Projects) {
-		return lipgloss.Place(m.WindowWidth, m.WindowHeight, lipgloss.Center, lipgloss.Center, decorator.ModalBox.Render("No project selected"))
+	if len(ui.Config.Projects) == 0 || ui.SelectedProject >= len(ui.Config.Projects) {
+		return lipgloss.Place(ui.WindowWidth, ui.WindowHeight, lipgloss.Center, lipgloss.Center, decorator.ModalBox.Render("No project selected"))
 	}
-	targetProj := m.Config.Projects[m.SelectedProject]
+	targetProj := ui.Config.Projects[ui.SelectedProject]
 	buildLogWindowStyle := lipgloss.NewStyle().
 		Background(color.Mantle).
 		Border(lipgloss.RoundedBorder()).
@@ -31,7 +31,7 @@ func RenderBuildModal(m *model.UIState) string {
 
 	var currentSessionID int
 	var isRunningBackground bool
-	for id, sess := range m.Sessions {
+	for id, sess := range ui.Sessions {
 		if sess.ProjectName == targetProj.Name && sess.IsRunning {
 			currentSessionID = id
 			isRunningBackground = true
@@ -44,8 +44,8 @@ func RenderBuildModal(m *model.UIState) string {
 		mvnBin = "docker"
 	}
 	var selectedBuildOption = "full"
-	if m.SelectedBuildOption < len(m.BuildOptions) {
-		selectedBuildOption = m.BuildOptions[m.SelectedBuildOption]
+	if ui.SelectedBuildOption < len(ui.BuildOptions) {
+		selectedBuildOption = ui.BuildOptions[ui.SelectedBuildOption]
 	}
 	switch selectedBuildOption {
 	case "without tests":
@@ -70,8 +70,8 @@ func RenderBuildModal(m *model.UIState) string {
 	if !isRunningBackground {
 		body.WriteString(decorator.Section.Render("👉 Select Target Lifecycle Step to Fire:") + "\n\n")
 		var optsRow []string
-		for i, opt := range m.BuildOptions {
-			if i == m.SelectedBuildOption {
+		for i, opt := range ui.BuildOptions {
+			if i == ui.SelectedBuildOption {
 				optsRow = append(optsRow, decorator.Selected.Render(strings.ToUpper(opt)))
 			} else {
 				optsRow = append(optsRow, decorator.Inactive.Render(opt))
@@ -81,8 +81,8 @@ func RenderBuildModal(m *model.UIState) string {
 		body.WriteString(buildHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate Choices | [%s] Initialize Pipeline | [%s] Dashboard",
 			buildKeyHint.Render("←/→"),
-			buildKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
-			buildKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
+			buildKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
+			buildKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 		)) + "\n")
 	} else {
 		body.WriteString(buildAlertStyle.Render(fmt.Sprintf("⏳ Running in background process pool... Assigned Session ID: %d", currentSessionID)) + "\n\n")
@@ -91,15 +91,15 @@ func RenderBuildModal(m *model.UIState) string {
 	body.WriteString(decorator.Section.Render("📋 Complete Build Output History Trail:") + "\n")
 
 	var activeLogsSource []string
-	if currentSessionID != 0 && m.Sessions[currentSessionID] != nil {
-		activeLogsSource = m.Sessions[currentSessionID].Logs
+	if currentSessionID != 0 && ui.Sessions[currentSessionID] != nil {
+		activeLogsSource = ui.Sessions[currentSessionID].Logs
 	} else {
-		activeLogsSource = m.BuildLogs
+		activeLogsSource = ui.BuildLogs
 	}
 	logLen := len(activeLogsSource)
 
-	logHeight := max(m.WindowHeight-18, 5)
-	logWidth := max(m.WindowWidth-8, 20)
+	logHeight := max(ui.WindowHeight-18, 5)
+	logWidth := max(ui.WindowWidth-8, 20)
 
 	var historyLines []string
 	startIdx := 0
@@ -127,9 +127,9 @@ func RenderBuildModal(m *model.UIState) string {
 	body.WriteString(consoleBox)
 
 	return lipgloss.Place(
-		m.WindowWidth, m.WindowHeight,
+		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.ModalBox.Width(ui.WindowWidth-4).Render(body.String()),
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)

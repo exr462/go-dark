@@ -20,20 +20,20 @@ type EditFileMsg struct {
 }
 
 // RenderOpenEditor initializes the external editor process using tea.ExecProcess
-func RenderOpenEditor(m *model.UIState) string {
-	rawEditorText := m.Editor.Value()
+func RenderOpenEditor(ui *model.UI) string {
+	rawEditorText := ui.Editor.Value()
 
 	// Split raw plain text into individual rows
 	rawLines := strings.Split(rawEditorText, "\n")
 	var editorBuilder strings.Builder
 
-	activeLineIdx := m.Editor.Line()
+	activeLineIdx := ui.Editor.Line()
 
 	// CORRECT METHOD: Fetches the column character position natively from the textarea engine
-	activeColIdx := m.Editor.LineInfo().CharOffset
+	activeColIdx := ui.Editor.LineInfo().CharOffset
 
 	// Configure visible scroll viewport boundaries
-	maxVisibleLines := m.WindowHeight - 8
+	maxVisibleLines := ui.WindowHeight - 8
 	if maxVisibleLines < 1 {
 		maxVisibleLines = 1
 	}
@@ -58,12 +58,12 @@ func RenderOpenEditor(m *model.UIState) string {
 		var finalLineContent string
 
 		// Render the cursor precisely onto the current active line
-		if i == activeLineIdx && m.Editor.Focused() {
+		if i == activeLineIdx && ui.Editor.Focused() {
 			lineRunes := []rune(rawLine)
 
 			if activeColIdx >= len(lineRunes) {
 				// Cursor is at the absolute end of the line
-				highlightedText := highlightCode(rawLine, m.ActiveLanguageProvider.Name())
+				highlightedText := highlightCode(rawLine, ui.ActiveLanguageProvider.Name())
 				cursorBlock := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Render("█")
 				finalLineContent = highlightedText + cursorBlock
 			} else {
@@ -73,8 +73,8 @@ func RenderOpenEditor(m *model.UIState) string {
 				rightStr := string(lineRunes[activeColIdx+1:])
 
 				// Highlight text blocks *separately* around the plain cursor coordinate
-				highlightedLeft := highlightCode(leftStr, m.ActiveLanguageProvider.Name())
-				highlightedRight := highlightCode(rightStr, m.ActiveLanguageProvider.Name())
+				highlightedLeft := highlightCode(leftStr, ui.ActiveLanguageProvider.Name())
+				highlightedRight := highlightCode(rightStr, ui.ActiveLanguageProvider.Name())
 
 				// Create the highlighted reverse-block cursor style
 				cursorBlock := lipgloss.NewStyle().Background(lipgloss.Color("205")).Foreground(lipgloss.Color("0")).Render(charAtCursor)
@@ -84,7 +84,7 @@ func RenderOpenEditor(m *model.UIState) string {
 			}
 		} else {
 			// This line doesn't have focus, highlight normally
-			finalLineContent = highlightCode(rawLine, m.ActiveLanguageProvider.Name())
+			finalLineContent = highlightCode(rawLine, ui.ActiveLanguageProvider.Name())
 		}
 
 		editorBuilder.WriteString(gutter + finalLineContent + "\n")
@@ -93,9 +93,9 @@ func RenderOpenEditor(m *model.UIState) string {
 	editorView := lipgloss.NewStyle().Padding(0, 1).Render(editorBuilder.String())
 
 	return lipgloss.Place(
-		m.WindowWidth, m.WindowHeight,
+		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(m.WindowWidth-4).Height(m.WindowHeight-4).Render(editorView),
+		decorator.ModalBox.Width(ui.WindowWidth-4).Height(ui.WindowHeight-4).Render(editorView),
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)

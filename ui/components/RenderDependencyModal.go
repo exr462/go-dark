@@ -9,13 +9,13 @@ import (
 )
 
 // RenderDependencyModal renders an interactive configuration checklist overlay
-func RenderDependencyModal(state *model.UIState) string {
-	projIdx := state.DepScreen.ActiveProjectIndex
-	if projIdx < 0 || projIdx >= len(state.Config.Projects) {
+func RenderDependencyModal(ui *model.UI) string {
+	projIdx := ui.DepScreen.ActiveProjectIndex
+	if projIdx < 0 || projIdx >= len(ui.Config.Projects) {
 		return "⚠️ No project active for configuration."
 	}
 
-	proj := state.Config.Projects[projIdx]
+	proj := ui.Config.Projects[projIdx]
 	availableProject := config.AvailableProjects[projIdx]
 
 	var b strings.Builder
@@ -30,15 +30,15 @@ func RenderDependencyModal(state *model.UIState) string {
 		activeDeps[d] = true
 	}
 
-	if len(state.DepScreen.AvailableOptions) == 0 {
+	if len(ui.DepScreen.AvailableOptions) == 0 {
 		b.WriteString("  ❌ No other workspace projects available to link.\n")
 		return b.String()
 	}
 
-	for i, option := range state.DepScreen.AvailableOptions {
+	for i, option := range ui.DepScreen.AvailableOptions {
 		// Calculate the line cursor arrow
 		cursor := "  "
-		if state.DepScreen.Cursor == i {
+		if ui.DepScreen.Cursor == i {
 			cursor = " ❯"
 		}
 
@@ -49,7 +49,7 @@ func RenderDependencyModal(state *model.UIState) string {
 		}
 
 		// Render rows highlighting the item currently under the cursor
-		if state.DepScreen.Cursor == i {
+		if ui.DepScreen.Cursor == i {
 			b.WriteString(fmt.Sprintf("%s \033[1;33m[%s] %s\033[0m\n", cursor, checked, option))
 		} else {
 			b.WriteString(fmt.Sprintf("%s [%s] %s\n", cursor, checked, option))

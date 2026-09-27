@@ -9,30 +9,30 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateDockerModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
-		m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape):
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 	case "up", "k":
-		if m.state.SelectedDockerRow > 0 {
-			m.state.SelectedDockerRow--
+		if m.ui.SelectedDockerRow > 0 {
+			m.ui.SelectedDockerRow--
 		}
 	case "down", "j":
-		if m.state.SelectedDockerRow < len(m.state.DockerContainers)-1 {
-			m.state.SelectedDockerRow++
+		if m.ui.SelectedDockerRow < len(m.ui.DockerContainers)-1 {
+			m.ui.SelectedDockerRow++
 		}
 	case "s", "t", "r":
-		if len(m.state.DockerContainers) == 0 || m.state.SelectedDockerRow >= len(m.state.DockerContainers) {
+		if len(m.ui.DockerContainers) == 0 || m.ui.SelectedDockerRow >= len(m.ui.DockerContainers) {
 			return m, nil
 		}
-		target := m.state.DockerContainers[m.state.SelectedDockerRow]
-		action := "start"
+		target := m.ui.DockerContainers[m.ui.SelectedDockerRow]
+		a := "start"
 		if msg.String() == "t" {
-			action = "stop"
+			a = "stop"
 		}
 		if msg.String() == "r" {
-			action = "restart"
+			a = "restart"
 		}
-		return m, tea.Batch(m.runDockerActionCmd(target.ID, action), m.fetchDockerContainersCmd())
+		return m, tea.Batch(m.runDockerActionCmd(target.ID, a), m.fetchDockerContainersCmd())
 	}
 	return m, nil
 }

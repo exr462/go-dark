@@ -8,6 +8,6 @@ import (
 )
 
 func (m *appModel) pipelineTaskStarted(msg task.PipelineTaskStartedMsg) (tea.Model, tea.Cmd) {
-	m.state.StatusMsg = fmt.Sprintf("🏗️  Building: %s...", msg)
+	m.ui.StatusMsg = fmt.Sprintf("🏗️  Building: %s...", msg)
 	return m, nil
 }

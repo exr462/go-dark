@@ -18,23 +18,23 @@ var (
 	dockerKeyHint      = lipgloss.NewStyle().Foreground(color.Yellow)
 )
 
-func RenderDockerModal(m *model.UIState) string {
+func RenderDockerModal(ui *model.UI) string {
 	var body strings.Builder
-	body.WriteString(decorator.Title.Render(fmt.Sprintf("🐳 Docker Infrastructure Control Center (%s)", action.GetShortcutKeyBinding(m.Config.ShortCuts, action.OpenDocker))) + "\n")
+	body.WriteString(decorator.Title.Render(fmt.Sprintf("🐳 Docker Infrastructure Control Center (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDocker))) + "\n")
 	body.WriteString(decorator.Description.Render("Monitor and orchestrate local microservice containers across your daemon runtime layers.") + "\n")
-	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
+	body.WriteString(strings.Repeat("─", max(ui.WindowWidth-8, 20)) + "\n\n")
 
 	// Print Table Grid Headers
 	body.WriteString(fmt.Sprintf(
 		"  %-12s %-25s %-20s %-20s\n",
 		decorator.TableHeader.Render("CONTAINER ID"), decorator.TableHeader.Render("NAMES"), decorator.TableHeader.Render("IMAGE"), decorator.TableHeader.Render("STATUS"),
 	))
-	body.WriteString(strings.Repeat("╌", max(m.WindowWidth-8, 20)) + "\n")
+	body.WriteString(strings.Repeat("╌", max(ui.WindowWidth-8, 20)) + "\n")
 
-	if len(m.DockerContainers) == 0 {
+	if len(ui.DockerContainers) == 0 {
 		body.WriteString(decorator.Meta.Render("  (No docker container contexts active or discovered on your machine daemon)") + "\n")
 	} else {
-		for i, c := range m.DockerContainers {
+		for i, c := range ui.DockerContainers {
 			statusFormatted := dockerStoppedStyle.Render(c.Status)
 			if strings.HasPrefix(strings.ToLower(c.Status), "up") {
 				statusFormatted = dockerRunningStyle.Render(c.Status)
@@ -45,11 +45,11 @@ func RenderDockerModal(m *model.UIState) string {
 				c.ID, c.Names, c.Image, statusFormatted,
 			)
 
-			if len(rowText) > m.WindowWidth-6 {
-				rowText = rowText[:m.WindowWidth-9] + "..."
+			if len(rowText) > ui.WindowWidth-6 {
+				rowText = rowText[:ui.WindowWidth-9] + "..."
 			}
 
-			if i == m.SelectedDockerRow {
+			if i == ui.SelectedDockerRow {
 				body.WriteString(decorator.Selected.Render("> "+rowText) + "\n")
 			} else {
 				body.WriteString(decorator.Inactive.Render(rowText) + "\n")
@@ -57,7 +57,7 @@ func RenderDockerModal(m *model.UIState) string {
 		}
 	}
 
-	body.WriteString("\n" + strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n")
+	body.WriteString("\n" + strings.Repeat("─", max(ui.WindowWidth-8, 20)) + "\n")
 	body.WriteString(dockerHintStyle.Render(fmt.Sprintf(
 		"[%s] Start | [%s] Stop | [%s] Restart | [%s] Dashboard",
 		dockerKeyHint.Render("s"),
@@ -67,9 +67,9 @@ func RenderDockerModal(m *model.UIState) string {
 	)) + "\n")
 
 	return lipgloss.Place(
-		m.WindowWidth, m.WindowHeight,
+		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.ModalBox.Width(ui.WindowWidth-4).Render(body.String()),
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)

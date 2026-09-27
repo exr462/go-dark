@@ -21,7 +21,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case lsp.FileLoadedMsg:
-		m.state.Editor.SetValue(msg.Content)
+		m.ui.Editor.SetValue(msg.Content)
 		return m, nil
 	case task.PipelineTaskStartedMsg:
 		return m.pipelineTaskStarted(msg)
@@ -79,9 +79,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case preflightMsg:
 		// 1. If we finished the last precheck, complete and quit
-		if m.state.Index >= len(m.state.Prechecks)-1 {
-			m.state.Done = true
-			m.state.ViewState = model.StateDashboard
+		if m.ui.Index >= len(m.ui.Prechecks)-1 {
+			m.ui.Done = true
+			m.ui.ViewState = model.StateDashboard
 			return m, nil
 		}
 
@@ -92,11 +92,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// 3. Advance to the next precheck index
-		m.state.Index++
+		m.ui.Index++
 
 		// 4. Queue up the NEXT precheck tick & update the progress bar
 		nextTickCmd := m.preflight()
-		progressCmd := m.state.Progress.SetPercent(float64(m.state.Index) / float64(len(m.state.Prechecks)))
+		progressCmd := m.ui.Progress.SetPercent(float64(m.ui.Index) / float64(len(m.ui.Prechecks)))
 
 		return m, tea.Batch(
 			loadCmd,
@@ -106,26 +106,26 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
-		m.state.Spinner, cmd = m.state.Spinner.Update(msg)
+		m.ui.Spinner, cmd = m.ui.Spinner.Update(msg)
 		return m, cmd
 	case progress.FrameMsg:
 		var cmd tea.Cmd
-		updatedModel, cmd := m.state.Progress.Update(msg)
+		updatedModel, cmd := m.ui.Progress.Update(msg)
 
 		// Explicitly cast tea.Model back to progress.Model
 		if pModel, ok := updatedModel.(progress.Model); ok {
-			m.state.Progress = pModel
+			m.ui.Progress = pModel
 		}
 		return m, cmd
 
 	case tea.KeyMsg:
 		// Global quit shortcuts
-		if msg.String() == action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.QuitApplication) {
+		if msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.QuitApplication) {
 			return m, tea.Quit
 		}
 
 		// Route explicitly to active modal handler
-		switch m.state.ViewState {
+		switch m.ui.ViewState {
 		case model.StateHelpModal:
 			return m.updateHelpModal(msg)
 		case model.StateGitConfigurationModal:
@@ -152,9 +152,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateEditorModal(msg)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
-			projIdx := m.state.DepScreen.ActiveProjectIndex
-			if projIdx < 0 || projIdx >= len(m.state.Config.Projects) {
-				m.state.ViewState = model.StateDashboard
+			projIdx := m.ui.DepScreen.ActiveProjectIndex
+			if projIdx < 0 || projIdx >= len(m.ui.Config.Projects) {
+				m.ui.ViewState = model.StateDashboard
 				return m, nil
 			}
 			return m.updateDependencyScreen(msg)
@@ -166,15 +166,15 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Viewport event dispatching
-	if m.state.ViewState == model.StateDashboard {
+	if m.ui.ViewState == model.StateDashboard {
 		var viewCmd tea.Cmd
-		m.state.FileViewer, viewCmd = m.state.FileViewer.Update(msg)
+		m.ui.FileViewer, viewCmd = m.ui.FileViewer.Update(msg)
 		cmds = append(cmds, viewCmd)
 	}
 
-	if m.state.ViewState == model.StateFuzzyModal {
+	if m.ui.ViewState == model.StateFuzzyModal {
 		var fuzzyCmd tea.Cmd
-		m.state.FuzzyViewer, fuzzyCmd = m.state.FuzzyViewer.Update(msg)
+		m.ui.FuzzyViewer, fuzzyCmd = m.ui.FuzzyViewer.Update(msg)
 		cmds = append(cmds, fuzzyCmd)
 	}
 

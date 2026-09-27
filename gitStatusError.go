@@ -8,6 +8,6 @@ import (
 )
 
 func (m *appModel) gitStatusError(msg config.GitStatusErrorMsg) (tea.Model, tea.Cmd) {
-	m.state.GitStatusOutput = fmt.Sprintf("❌ Error: %v", msg)
+	m.ui.GitStatusOutput = fmt.Sprintf("❌ Error: %v", msg)
 	return m, nil
 }

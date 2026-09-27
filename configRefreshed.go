@@ -7,7 +7,7 @@ import (
 )
 
 func (m *appModel) configRefreshed(msg model.ConfigRefreshedMsg, cmds []tea.Cmd) []tea.Cmd {
-	m.state.Config = config.Config(msg)
+	m.ui.Config = config.Config(msg)
 	cmds = append(cmds, m.updateWorkspaceFiles())
 	return cmds
 }

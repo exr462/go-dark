@@ -9,7 +9,7 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) renderDependencyView() string {
-	projIdx := m.state.DepScreen.ActiveProjectIndex
+	projIdx := m.ui.DepScreen.ActiveProjectIndex
 	proj := config.AvailableProjects[projIdx]
 
 	var b strings.Builder
@@ -22,10 +22,10 @@ func (m *appModel) renderDependencyView() string {
 		activeDeps[d] = true
 	}
 
-	for i, option := range m.state.DepScreen.AvailableOptions {
+	for i, option := range m.ui.DepScreen.AvailableOptions {
 		// Draw cursor point indicator
 		cursor := " "
-		if m.state.DepScreen.Cursor == i {
+		if m.ui.DepScreen.Cursor == i {
 			cursor = "❯"
 		}
 
@@ -38,7 +38,7 @@ func (m *appModel) renderDependencyView() string {
 		}
 
 		// Format output row
-		if m.state.DepScreen.Cursor == i {
+		if m.ui.DepScreen.Cursor == i {
 			b.WriteString(fmt.Sprintf("%s [%s] \033[1;33m%s\033[0m\n", cursor, checked, option))
 		} else {
 			b.WriteString(fmt.Sprintf("%s [%s] %s\n", cursor, checked, option))

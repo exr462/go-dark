@@ -10,14 +10,14 @@ import (
 func (m *appModel) settingWelcomePanel() tea.Cmd {
 	inputs := initializer.MakeInputs()
 	initialState := model.StateSystemCheckModal
-	if m.isFirstRun || m.state.GitMissing {
+	if m.isFirstRun || m.ui.GitMissing {
 		initialState = model.StateGitConfigurationModal
-		if !m.state.GitMissing {
+		if !m.ui.GitMissing {
 			inputs[0].Focus()
 		}
 	}
-	m.state.ViewState = initialState
-	m.state.Inputs = inputs
+	m.ui.ViewState = initialState
+	m.ui.Inputs = inputs
 	return func() tea.Msg {
 		return config.VoidMsg{}
 	}

@@ -13,18 +13,18 @@ import (
 
 func (m *appModel) gitCheckoutComplete(msg config.GitCheckoutCompleteMsg) (tea.Model, tea.Cmd) {
 	if msg.Err != nil {
-		m.state.StatusMsg = fmt.Sprintf("❌ %v", msg.Err)
+		m.ui.StatusMsg = fmt.Sprintf("❌ %v", msg.Err)
 	} else {
-		m.state.StatusMsg = fmt.Sprintf("✅ %s", strings.TrimSpace(msg.Output))
+		m.ui.StatusMsg = fmt.Sprintf("✅ %s", strings.TrimSpace(msg.Output))
 		// Refresh fetched status across projects
-		for i := range m.state.Config.Projects {
-			gitDir := filepath.Join(m.state.Config.Projects[i].Path, ".git")
+		for i := range m.ui.Config.Projects {
+			gitDir := filepath.Join(m.ui.Config.Projects[i].Path, ".git")
 			if _, err := os.Stat(gitDir); err == nil {
-				m.state.Config.Projects[i].Fetched = true
+				m.ui.Config.Projects[i].Fetched = true
 			}
 		}
-		_ = config.SaveConfig(m.state.Config)
+		_ = config.SaveConfig(m.ui.Config)
 	}
-	m.state.ViewState = model.StateDashboard
+	m.ui.ViewState = model.StateDashboard
 	return m, m.updateWorkspaceFiles()
 }

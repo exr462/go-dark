@@ -19,13 +19,13 @@ func main() {
 	defer func(f *os.File) {
 		_ = f.Close()
 	}(f)
-	uiState.ViewState = model.StateSystemCheckModal
+	ui.ViewState = model.StateSystemCheckModal
 	m := &appModel{
-		state:         uiState,
+		ui:            ui,
 		contentLoader: storage.NewLocalLoader(),
 	}
-	m.state.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
-	m.state.FuzzyQueryInput.CharLimit = 50
+	m.ui.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
+	m.ui.FuzzyQueryInput.CharLimit = 50
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
