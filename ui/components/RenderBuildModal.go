@@ -81,8 +81,8 @@ func RenderBuildModal(m *model.UIState) string {
 		body.WriteString(buildHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate Choices | [%s] Initialize Pipeline | [%s] Dashboard",
 			buildKeyHint.Render("←/→"),
-			buildKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			buildKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			buildKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			buildKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)) + "\n")
 	} else {
 		body.WriteString(buildAlertStyle.Render(fmt.Sprintf("⏳ Running in background process pool... Assigned Session ID: %d", currentSessionID)) + "\n\n")

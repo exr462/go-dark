@@ -102,8 +102,8 @@ func RenderFuzzyModal(m *model.UIState) string {
 	body.WriteString(fuzzyHintStyle.Render(fmt.Sprintf(
 		"[%s] Navigate | [%s] Open Selection in Workspace | [%s] Dashboard",
 		fuzzyKeyHint.Render("↑/↓"),
-		fuzzyKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-		fuzzyKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+		fuzzyKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+		fuzzyKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 	)))
 
 	return lipgloss.Place(

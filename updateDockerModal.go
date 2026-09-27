@@ -9,7 +9,7 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateDockerModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 	case "up", "k":

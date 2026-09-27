@@ -93,11 +93,12 @@ var DefaultShortcuts = []Shortcut{
 	},
 }
 
-func GetKeyBinding(shortcuts []Shortcut, action ShortcutAction) string {
-	for _, shortCut := range shortcuts {
-		if shortCut.Action == action {
-			return shortCut.KeyBinding
+func GetShortcutKeyBinding(shortcuts []Shortcut, action ShortcutAction) string {
+	for _, shortcut := range shortcuts {
+		if shortcut.Action == action {
+			return shortcut.KeyBinding
 		}
 	}
+
 	return ""
 }

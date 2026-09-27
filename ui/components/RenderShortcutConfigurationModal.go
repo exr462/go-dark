@@ -85,8 +85,8 @@ func RenderShortcutConfigurationModal(uiState *model.UIState) string {
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),
-			installerKey.Render(config.GetKeyBinding(uiState.Config.ShortCuts, config.SubmitKeyBind)),
-			installerKey.Render(config.GetKeyBinding(uiState.Config.ShortCuts, config.CancelKeyBind)),
+			installerKey.Render(config.GetShortcutKeyBinding(uiState.Config.ShortCuts, config.SubmitKeyBind)),
+			installerKey.Render(config.GetShortcutKeyBinding(uiState.Config.ShortCuts, config.CancelKeyBind)),
 		)),
 	)
 

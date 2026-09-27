@@ -31,8 +31,8 @@ func RenderGitConfiguration(m *model.UIState) string {
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),
-			installerKey.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			installerKey.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			installerKey.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			installerKey.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)),
 	)
 

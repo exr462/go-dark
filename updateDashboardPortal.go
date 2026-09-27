@@ -30,10 +30,10 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg.String() {
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind):
 		return m, tea.Quit
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.GitOperationsKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.GitOperationsKeyBind):
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateGitOperationsModal
 			m.state.GitOperationStep = model.StepSelectGitProject
@@ -68,12 +68,12 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
 		return m, m.TriggerPipelineCmd(4)
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.EditShortcutsKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.EditShortcutsKeyBind):
 		m.state.PreviousViewState = model.StateDashboard
 		m.loadShortcutsOnInputs()
 		m.state.ViewState = model.StateShortcutConfigurationModal
 		return m, nil
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.FuzzyKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.FuzzyKeyBind):
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateFuzzyModal
 			m.state.FuzzyMode = model.FuzzyModeFiles
@@ -85,25 +85,25 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.DockerKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.DockerKeyBind):
 		m.state.ViewState = model.StateDockerModal
 		m.state.SelectedDockerRow = 0
 		return m, m.fetchDockerContainersCmd()
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.JdkKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.JdkKeyBind):
 		m.state.PreviousViewState = model.StateDashboard
 		return m.prepareProfileScreen(model.StateJDKConfigModal, model.JdkName, model.JdkPath)
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.MvnKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.MvnKeyBind):
 		m.state.PreviousViewState = model.StateDashboard
 		return m.prepareProfileScreen(model.StateMavenConfigModal, model.MvnName, model.MvnPath)
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.ProfileKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.ProfileKeyBind):
 		m.state.ViewState = model.StateConfigDeckModal
 		m.state.SelectedConfigOption = 0
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.BuildKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.BuildKeyBind):
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateBuildModal
 			m.state.SelectedBuildOption = 0
@@ -113,12 +113,12 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SessionKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SessionKeyBind):
 		m.state.ViewState = model.StateSessionLogsModal
 		m.state.ViewingSessionID = 0
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.HelpKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.HelpKeyBind):
 		m.state.ViewState = model.StateHelpModal
 		return m, nil
 
@@ -146,7 +146,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.readFileContentCmd())
 		}
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind), "right", "l":
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind), "right", "l":
 		if m.state.ActiveFocus == model.FocusMenu {
 			cmds = append(cmds, m.executeActiveMenuAction())
 		} else if m.state.ActiveFocus == model.FocusTree && len(m.state.TreeNodes) > 0 {
@@ -172,7 +172,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.EditKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.EditKeyBind):
 		if len(m.state.TreeNodes) == 0 || m.state.SelectedFile < 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
 			return m, nil
 		}

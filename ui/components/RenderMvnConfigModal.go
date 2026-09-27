@@ -35,8 +35,8 @@ func RenderMvnConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Select | [%s] Close Menu",
 			mvnKeyHint.Render("↑/↓/j/k"),
-			mvnKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			mvnKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			mvnKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			mvnKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case model.StepAddNewMvnVersion:
@@ -59,8 +59,8 @@ func RenderMvnConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",
 			mvnKeyHint.Render("Tab"),
-			mvnKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			mvnKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			mvnKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			mvnKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case model.StepAssignMvnToProject:
@@ -75,8 +75,8 @@ func RenderMvnConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
 			"[%s] Browse Maven Installations | [%s] Confirm Binding | [%s] Back",
 			mvnKeyHint.Render("↑/↓/j/k"),
-			mvnKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			mvnKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			mvnKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			mvnKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 	}
 

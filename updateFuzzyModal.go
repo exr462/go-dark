@@ -9,11 +9,11 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.ToggleKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.ToggleKeyBind):
 		if m.state.FuzzyMode == model.FuzzyModeFiles {
 			m.state.FuzzyMode = model.FuzzyModeContent
 		} else {
@@ -38,7 +38,7 @@ func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		if len(m.state.FuzzyResults) > 0 && m.state.SelectedFuzzy < len(m.state.FuzzyResults) {
 			target := m.state.FuzzyResults[m.state.SelectedFuzzy]
 			m.state.ViewState = model.StateDashboard

@@ -12,7 +12,7 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 		if m.state.GitOperationStep == model.StepSelectGitBranch {
 			m.state.GitOperationStep = model.StepSelectGitCommand
 		} else if m.state.GitOperationStep == model.StepSelectGitCommand {
@@ -58,7 +58,7 @@ func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		switch m.state.GitOperationStep {
 		case model.StepSelectGitProject:
 			m.state.GitOperationStep = model.StepSelectGitCommand

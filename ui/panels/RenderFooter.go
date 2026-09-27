@@ -50,11 +50,11 @@ func RenderFooter(state *model.UIState) string {
 	}
 
 	footerText := fmt.Sprintf(" %s Help | %s Git Ops | %s Fuzzy | %s Config | %s Shortcuts | SDK: %s | Build: %s | %s%s | Debug: %s",
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetKeyBinding(state.Config.ShortCuts, config.HelpKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetKeyBinding(state.Config.ShortCuts, config.GitOperationsKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetKeyBinding(state.Config.ShortCuts, config.FuzzyKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetKeyBinding(state.Config.ShortCuts, config.ProfileKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetKeyBinding(state.Config.ShortCuts, config.EditShortcutsKeyBind))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.HelpKeyBind))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.GitOperationsKeyBind))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.FuzzyKeyBind))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.ProfileKeyBind))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.EditShortcutsKeyBind))),
 		footerBoundStyle.Render(boundJDK),
 		footerBoundStyle.Render(boundMaven),
 		sessionStatusStr,

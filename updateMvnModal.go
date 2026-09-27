@@ -14,7 +14,7 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.MavenStep {
 	case model.StepSelectMvnAction:
 		switch msg.String() {
-		case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 			m.state.ViewState = m.state.PreviousViewState
 			return m, nil
 		case "up", "k":
@@ -25,7 +25,7 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.state.SelectedMenuIndex < 1 {
 				m.state.SelectedMenuIndex++
 			}
-		case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 			if m.state.SelectedMenuIndex == 0 {
 				m.state.MavenStep = model.StepAddNewMvnVersion
 				m.initFields(model.MvnName, model.MvnPath)
@@ -36,14 +36,14 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case model.StepAddNewMvnVersion:
 		switch msg.String() {
-		case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 			m.state.MavenStep = model.StepSelectMvnAction
 			return m, nil
 		case "tab", "down":
 			m.switcheroo(model.MvnName, model.MvnPath)
 		case "shift+tab", "up":
 			m.switcheroo(model.MvnName, model.MvnPath)
-		case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 			mVnName, mVnPath := m.getValues(model.MvnName, model.MvnPath)
 			if mVnName != "" && mVnPath != "" {
 				m.state.Config.Mavens = append(m.state.Config.Mavens, config.Profile{Name: mVnName, Path: mVnPath})
@@ -58,7 +58,7 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case model.StepAssignMvnToProject:
 		switch msg.String() {
-		case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 			m.state.MavenStep = model.StepSelectMvnAction
 			return m, nil
 		case "up", "k":
@@ -69,7 +69,7 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.state.SelectedMavenIndex < len(m.state.Config.Mavens)-1 {
 				m.state.SelectedMavenIndex++
 			}
-		case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 			if len(m.state.Config.Mavens) > 0 && len(m.state.Config.Projects) > 0 {
 				chosenMvn := m.state.Config.Mavens[m.state.SelectedMavenIndex]
 				m.state.Config.Projects[m.state.SelectedProject].MavenName = chosenMvn.Name

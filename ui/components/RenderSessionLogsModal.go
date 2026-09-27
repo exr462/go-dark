@@ -79,7 +79,7 @@ func RenderSessionLogsModal(m *model.UIState) string {
 		}
 	}
 
-	body.WriteString(sessHintStyle.Render(fmt.Sprintf("[%s] Return to Dashboard", sessKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)))))
+	body.WriteString(sessHintStyle.Render(fmt.Sprintf("[%s] Return to Dashboard", sessKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)))))
 
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,

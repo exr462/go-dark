@@ -35,8 +35,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Select | [%s] Close Menu",
 			jdkKeyHint.Render("↑/↓/j/k"),
-			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case model.StepAddNewJDKVersion:
@@ -59,8 +59,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",
 			jdkKeyHint.Render("Tab"),
-			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case model.StepAssignJDKToProject:
@@ -79,8 +79,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Browse SDKs | [%s] Confirm Binding | [%s] Back",
 			jdkKeyHint.Render("↑/↓/j/k"),
-			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 	}
 

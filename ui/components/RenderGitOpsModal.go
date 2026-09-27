@@ -66,8 +66,8 @@ func RenderGitOpsModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Select Project & Continue | [%s] Close",
 			gitKeyHint.Render("↑/↓/j/k"),
-			gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case 1:
@@ -113,8 +113,8 @@ func RenderGitOpsModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Execute / Proceed | [%s] Back to Projects",
 			gitKeyHint.Render("↑/↓/j/k"),
-			gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case 2:
@@ -154,8 +154,8 @@ func RenderGitOpsModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Confirm Checkout | [%s] Back to Operations",
 			gitKeyHint.Render("↑/↓/j/k"),
-			gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case 3:
@@ -185,7 +185,7 @@ func RenderGitOpsModal(m *model.UIState) string {
 			}
 		}
 
-		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf("[%s] Back to Operations", gitKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)))))
+		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf("[%s] Back to Operations", gitKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)))))
 	}
 
 	return lipgloss.Place(

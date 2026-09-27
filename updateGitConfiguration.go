@@ -13,7 +13,7 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 		log.Printf("updateGitConfiguration Previous View State: %v", m.state.PreviousViewState)
 		m.state.ViewState = m.state.PreviousViewState
 		return m, nil
@@ -33,7 +33,7 @@ func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.Inputs[m.state.FocusedInput].Focus()
 		return m, nil
 
-	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		m.state.Config.BasePath = m.state.Inputs[model.GitWorkspace].Value()
 		m.state.Config.GitUsername = m.state.Inputs[model.GitUsername].Value()
 		m.state.Config.GitEmail = m.state.Inputs[model.GitEmail].Value()

@@ -69,7 +69,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Global quit shortcuts
-		if msg.String() == config.GetKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind) {
+		if msg.String() == config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind) {
 			return m, tea.Quit
 		}
 
