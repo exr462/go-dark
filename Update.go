@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -80,8 +78,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.editFile(msg)
 
 	case preflightMsg:
-		log.Printf("preflight: %s index: %d", msg, m.state.Index)
-
 		// 1. If we finished the last precheck, complete and quit
 		if m.state.Index >= len(m.state.Prechecks)-1 {
 			m.state.Done = true

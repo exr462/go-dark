@@ -4,11 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/exr462/go-dark/config"
-	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/storage"
 )
@@ -22,24 +19,7 @@ func main() {
 	defer func(f *os.File) {
 		_ = f.Close()
 	}(f)
-
-	cfg, isFirstRun := config.LoadConfig()
-	_, gitErr := exec.LookPath("git")
-	gitMissing := gitErr != nil
-	inputs := initializer.MakeInputs()
-	initialState := model.StateSystemCheckModal
-	if isFirstRun || gitMissing {
-		initialState = model.StateGitConfigurationModal
-		if !gitMissing {
-			inputs[0].Focus()
-		}
-	}
-
-	uiState.Config = cfg
-	uiState.ViewState = initialState
-	uiState.Inputs = inputs
-	uiState.GitMissing = gitMissing
-
+	uiState.ViewState = model.StateSystemCheckModal
 	m := &appModel{
 		state:         uiState,
 		contentLoader: storage.NewLocalLoader(),

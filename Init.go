@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/components"
 )
 
 type preflightMsg struct {
@@ -26,15 +27,23 @@ func (m *appModel) Init() tea.Cmd {
 	m.maxParallelism = 4
 	m.state.Prechecks = []model.Precheck{
 		{
-			Name: lipgloss.NewStyle().Render("Updating Workspace"),
+			Name: lipgloss.NewStyle().Render("🛎 Profile "),
+			Load: m.loadingProfile,
+		},
+		{
+			Name: lipgloss.NewStyle().Render("👷 Load env"),
+			Load: m.settingWelcomePanel,
+		},
+		{
+			Name: lipgloss.NewStyle().Render("⛵ Updating env"),
 			Load: m.updateWorkspaceFiles,
 		},
 		{
-			Name: lipgloss.NewStyle().Render("Polling Docker Telemetry"),
+			Name: lipgloss.NewStyle().Render("🐳 Docker"),
 			Load: m.pollDockerTelemetryCmd,
 		},
 		{
-			Name: lipgloss.NewStyle().Render("Starting Pipeline in the background"),
+			Name: lipgloss.NewStyle().Render("🪁 Async"),
 			Load: m.TriggerPipelineCmd,
 		},
 	}
@@ -49,7 +58,7 @@ func (m *appModel) Init() tea.Cmd {
 	})
 	m.state.Progress = progress.New(
 		progress.WithDefaultGradient(),
-		progress.WithWidth(40),
+		progress.WithSolidFill(components.MochaGreen),
 		progress.WithoutPercentage())
 	m.state.Spinner = spinner.New()
 	m.state.Editor = ta
