@@ -45,6 +45,7 @@ You can choose between configuring a new mvn or assigning a configured one\
 ![mvn_386](images/mvn_386.png)
 ![assign_mvn](images/assign_mvn.png)
 ![select_mvn](images/select_mvn.png)
+
 ### Building project
 Shortcut: ctrl+b\
 ![build_project](images/build_project.png)\
@@ -58,6 +59,14 @@ ctrl+s to call the screen\
 Shortcut: ctrl+y\
 ![edit_git](images/edit_git.png)
 ![profile](images/profile.png)
+
+### Edit Shortcuts
+Shortcut: ctrl+y\
+![edit_shortcuts](images/edit_shortcuts.png)
+or using shortcut to go direct to the modal: ctrl+k\
+![edit_shortcuts_modal](images/edit_shortcuts_modal.png)
+![edited_shortcut](images/edited_shortcut.png)
+![shortcut_applied](images/shortcut_applied.png)
 
 ## Tech Stack
 
