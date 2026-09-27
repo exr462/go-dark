@@ -20,12 +20,12 @@ type preflightMsg struct {
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) Init() tea.Cmd {
-	if m.state.ViewState == model.StateGitConfigurationModal {
-		m.state.PreviousViewState = model.StateDashboard
+	if m.ui.ViewState == model.StateGitConfigurationModal {
+		m.ui.PreviousViewState = model.StateDashboard
 		return textinput.Blink
 	}
 	m.maxParallelism = 4
-	m.state.Prechecks = []model.Precheck{
+	m.ui.Prechecks = []model.Precheck{
 		{
 			Name: lipgloss.NewStyle().Render("🛎 Profile "),
 			Load: m.loadingProfile,
@@ -56,19 +56,19 @@ func (m *appModel) Init() tea.Cmd {
 		lsp.KotlinProvider{},
 		lsp.JavaProvider{},
 	})
-	m.state.Progress = progress.New(
+	m.ui.Progress = progress.New(
 		progress.WithDefaultGradient(),
 		progress.WithSolidFill(components.MochaGreen),
 		progress.WithoutPercentage())
-	m.state.Spinner = spinner.New()
-	m.state.Editor = ta
+	m.ui.Spinner = spinner.New()
+	m.ui.Editor = ta
 	return tea.Batch(m.preflight())
 }
 
 func (m *appModel) preflight() tea.Cmd {
 	d := time.Millisecond * time.Duration(500)
 	return tea.Tick(d, func(time time.Time) tea.Msg {
-		precheck := m.state.Prechecks[m.state.Index]
+		precheck := m.ui.Prechecks[m.ui.Index]
 		return preflightMsg{
 			Function: precheck.Load,
 		}

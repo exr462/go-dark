@@ -10,9 +10,9 @@ import (
 func (m *appModel) loadingProfile() tea.Cmd {
 	var cfg config.Config
 	cfg, m.isFirstRun = config.LoadConfig()
-	m.state.Config = cfg
+	m.ui.Config = cfg
 	_, gitErr := exec.LookPath("git")
-	m.state.GitMissing = gitErr != nil
+	m.ui.GitMissing = gitErr != nil
 	return func() tea.Msg {
 		return config.VoidMsg{}
 	}

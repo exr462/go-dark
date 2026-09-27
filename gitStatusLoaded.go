@@ -6,9 +6,9 @@ import (
 )
 
 func (m *appModel) gitStatusLoaded(msg config.GitStatusLoadedMsg) (tea.Model, tea.Cmd) {
-	m.state.GitStatusOutput = string(msg)
-	if m.state.GitStatusOutput == "" {
-		m.state.GitStatusOutput = "✨ Working tree clean."
+	m.ui.GitStatusOutput = string(msg)
+	if m.ui.GitStatusOutput == "" {
+		m.ui.GitStatusOutput = "✨ Working tree clean."
 	}
 	return m, nil
 }

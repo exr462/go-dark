@@ -9,10 +9,10 @@ import (
 )
 
 func (m *appModel) workspaceRefreshed(msg config.WorkspaceRefreshedMsg) (tea.Model, tea.Cmd) {
-	m.state.Files = msg.Files
-	if m.state.SelectedProject >= 0 && m.state.SelectedProject < len(m.state.Config.Projects) {
-		proj := m.state.Config.Projects[m.state.SelectedProject]
-		m.state.TreeNodes = []model.FileNode{}
+	m.ui.Files = msg.Files
+	if m.ui.SelectedProject >= 0 && m.ui.SelectedProject < len(m.ui.Config.Projects) {
+		proj := m.ui.Config.Projects[m.ui.SelectedProject]
+		m.ui.TreeNodes = []model.FileNode{}
 		if _, err := os.Stat(proj.Path); err == nil {
 			m.buildTreeNodes(proj.Path, 0)
 		}

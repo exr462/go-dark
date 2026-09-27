@@ -59,10 +59,10 @@ func (m *appModel) runGitCommand(proj config.Project, operation string) tea.Cmd 
 			isTag := false
 			log.Print("IsCheckout")
 
-			if len(m.state.AvailableBranches) > 0 {
-				idx := m.state.SelectedGitBranch
-				if idx >= 0 && idx < len(m.state.AvailableBranches) {
-					rawRef := m.state.AvailableBranches[idx]
+			if len(m.ui.AvailableBranches) > 0 {
+				idx := m.ui.SelectedGitBranch
+				if idx >= 0 && idx < len(m.ui.AvailableBranches) {
+					rawRef := m.ui.AvailableBranches[idx]
 
 					// 🎯 STEP A: Instantly strip hidden line-end breaks (\r or \n) and trailing spaces
 					cleanedRef := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(rawRef, "\r", ""), "\n", ""))

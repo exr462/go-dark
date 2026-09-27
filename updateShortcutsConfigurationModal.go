@@ -10,39 +10,39 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateShortcutsConfigurationModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape):
 		// returning to modal
-		m.state.ViewState = m.state.PreviousViewState
+		m.ui.ViewState = m.ui.PreviousViewState
 		return m, nil
 
 	case "tab", "down":
-		m.state.Inputs[m.state.FocusedInput].Blur()
+		m.ui.Inputs[m.ui.FocusedInput].Blur()
 		// prevents us to trigger the blinker out of screen
-		if m.state.FocusedInput > model.ToggleKey {
-			m.state.FocusedInput = model.ToggleKey
+		if m.ui.FocusedInput > model.ToggleKey {
+			m.ui.FocusedInput = model.ToggleKey
 		}
-		m.state.FocusedInput = m.state.FocusedInput + 1
-		m.state.Inputs[m.state.FocusedInput].Focus()
+		m.ui.FocusedInput = m.ui.FocusedInput + 1
+		m.ui.Inputs[m.ui.FocusedInput].Focus()
 		return m, nil
 
 	case "shift+tab", "up":
-		m.state.Inputs[m.state.FocusedInput].Blur()
-		m.state.FocusedInput--
+		m.ui.Inputs[m.ui.FocusedInput].Blur()
+		m.ui.FocusedInput--
 		// prevents us to trigger the blinker out of screen
-		if m.state.FocusedInput < model.FuzzyKey {
-			m.state.FocusedInput = model.FuzzyKey
+		if m.ui.FocusedInput < model.FuzzyKey {
+			m.ui.FocusedInput = model.FuzzyKey
 		}
 
-		m.state.Inputs[m.state.FocusedInput].Focus()
+		m.ui.Inputs[m.ui.FocusedInput].Focus()
 		return m, nil
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Save):
 		m.loadShortcutsOnConfig()
-		_ = config.SaveConfig(m.state.Config)
-		m.state.ViewState = m.state.PreviousViewState
+		_ = config.SaveConfig(m.ui.Config)
+		m.ui.ViewState = m.ui.PreviousViewState
 		return m, nil
 	}
 	var cmd tea.Cmd
-	m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
+	m.ui.Inputs[m.ui.FocusedInput], cmd = m.ui.Inputs[m.ui.FocusedInput].Update(msg)
 	return m, cmd
 }

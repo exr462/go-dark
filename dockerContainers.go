@@ -6,6 +6,6 @@ import (
 )
 
 func (m *appModel) dockerContainers(msg model.DockerContainersMsg) (tea.Model, tea.Cmd) {
-	m.state.DockerContainers = msg
+	m.ui.DockerContainers = msg
 	return m, nil
 }

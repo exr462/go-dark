@@ -6,7 +6,7 @@ import (
 )
 
 func (m *appModel) gitBranchesLoaded(msg config.GitBranchesLoadedMsg) (tea.Model, tea.Cmd) {
-	m.state.AvailableBranches = msg
-	m.state.SelectedGitBranch = 0
+	m.ui.AvailableBranches = msg
+	m.ui.SelectedGitBranch = 0
 	return m, nil
 }

@@ -12,60 +12,60 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateConfigDeckModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
-		m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape):
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 
 	case "up", "k":
-		if m.state.SelectedConfigOption > 0 {
-			m.state.SelectedConfigOption--
+		if m.ui.SelectedConfigOption > 0 {
+			m.ui.SelectedConfigOption--
 		}
 		return m, nil
 
 	case "down", "j":
-		if m.state.SelectedConfigOption < 3 {
-			m.state.SelectedConfigOption++
+		if m.ui.SelectedConfigOption < 3 {
+			m.ui.SelectedConfigOption++
 		}
 		return m, nil
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
-		m.state.PreviousViewState = model.StateConfigDeckModal
-		switch m.state.SelectedConfigOption {
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Save):
+		m.ui.PreviousViewState = model.StateConfigDeckModal
+		switch m.ui.SelectedConfigOption {
 		case 0:
-			m.state.ViewState = model.StateGitConfigurationModal
-			m.state.FocusedInput = model.GitWorkspace
-			m.state.Inputs[model.GitWorkspace].SetValue(m.state.Config.BasePath)
-			m.state.Inputs[model.GitUsername].SetValue(m.state.Config.GitUsername)
-			m.state.Inputs[model.GitEmail].SetValue(m.state.Config.GitEmail)
-			m.state.Inputs[model.GitMaxTagListSize].SetValue(strconv.Itoa(m.state.Config.MaxListTag))
-			m.state.Inputs[model.GitWorkspace].Focus()
+			m.ui.ViewState = model.StateGitConfigurationModal
+			m.ui.FocusedInput = model.GitWorkspace
+			m.ui.Inputs[model.GitWorkspace].SetValue(m.ui.Config.BasePath)
+			m.ui.Inputs[model.GitUsername].SetValue(m.ui.Config.GitUsername)
+			m.ui.Inputs[model.GitEmail].SetValue(m.ui.Config.GitEmail)
+			m.ui.Inputs[model.GitMaxTagListSize].SetValue(strconv.Itoa(m.ui.Config.MaxListTag))
+			m.ui.Inputs[model.GitWorkspace].Focus()
 			return m, textinput.Blink
 
 		case 1:
-			m.state.ViewState = model.StateJDKConfigModal
-			m.state.FocusedInput = model.JdkName
-			m.state.JDKStep = model.StepSelectJDKAction
-			m.state.Inputs[model.JdkName].SetValue("")
-			m.state.Inputs[model.JdkPath].SetValue("")
-			m.state.SelectedMenuIndex = 0
+			m.ui.ViewState = model.StateJDKConfigModal
+			m.ui.FocusedInput = model.JdkName
+			m.ui.JDKStep = model.StepSelectJDKAction
+			m.ui.Inputs[model.JdkName].SetValue("")
+			m.ui.Inputs[model.JdkPath].SetValue("")
+			m.ui.SelectedMenuIndex = 0
 			return m, nil
 
 		case 2:
-			m.state.ViewState = model.StateMavenConfigModal
-			m.state.FocusedInput = model.MvnName
-			m.state.MavenStep = model.StepSelectMvnAction
-			m.state.Inputs[model.MvnName].SetValue("")
-			m.state.Inputs[model.MvnPath].SetValue("")
-			m.state.SelectedMenuIndex = 0
+			m.ui.ViewState = model.StateMavenConfigModal
+			m.ui.FocusedInput = model.MvnName
+			m.ui.MavenStep = model.StepSelectMvnAction
+			m.ui.Inputs[model.MvnName].SetValue("")
+			m.ui.Inputs[model.MvnPath].SetValue("")
+			m.ui.SelectedMenuIndex = 0
 			return m, nil
 
 		case 3:
-			m.state.ViewState = model.StateShortcutConfigurationModal
-			m.state.FocusedInput = model.FuzzyKey
+			m.ui.ViewState = model.StateShortcutConfigurationModal
+			m.ui.FocusedInput = model.FuzzyKey
 			m.loadShortcutsOnInputs()
-			m.state.Inputs[model.FuzzyKey].Focus()
+			m.ui.Inputs[model.FuzzyKey].Focus()
 			// Save dynamic values safely across memory pointers
-			m.state.SelectedMenuIndex = 0
+			m.ui.SelectedMenuIndex = 0
 			return m, nil
 		}
 	}

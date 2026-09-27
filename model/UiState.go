@@ -150,8 +150,8 @@ const (
 	StepAssignMvnToProject
 )
 
-// UIState holds the shared application global model
-type UIState struct {
+// UI holds the shared application global model
+type UI struct {
 	// !!! GLOBAL VARIABLES MAPPINGS !!!
 	Config                 config.Config
 	ViewState              ApplicationViewState

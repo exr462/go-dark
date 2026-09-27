@@ -21,23 +21,23 @@ var (
 	deckKeyHint   = lipgloss.NewStyle().Foreground(color.Yellow)
 )
 
-func RenderConfigDeckModal(m *model.UIState) string {
+func RenderConfigDeckModal(ui *model.UI) string {
 	var body strings.Builder
 
-	body.WriteString(decorator.Title.Render(fmt.Sprintf("⚙️ Master Configuration & Environment Deck (%s)", action.GetShortcutKeyBinding(m.Config.ShortCuts, action.OpenConfiguration))) + "\n")
+	body.WriteString(decorator.Title.Render(fmt.Sprintf("⚙️ Master Configuration & Environment Deck (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenConfiguration))) + "\n")
 	body.WriteString(decorator.Description.Render("Review, expand, or adjust your system parameters across all modules below.") + "\n")
-	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
+	body.WriteString(strings.Repeat("─", max(ui.WindowWidth-8, 20)) + "\n\n")
 
 	// 1. DYNAMICALLY DISPLAY CURRENT ACTIVE CONFIG RECORD VALUES
 	body.WriteString(decorator.Section.Render("📊 ACTIVE GLOBAL CONFIGURATION SETTINGS SUMMARY:") + "\n")
-	body.WriteString(fmt.Sprintf("  • Global Workspace Base Path : %s\n", deckPathVal.Render(m.Config.BasePath)))
-	body.WriteString(fmt.Sprintf("  • Global Git Committer User  : %s\n", m.Config.GitUsername))
-	body.WriteString(fmt.Sprintf("  • Global Git Committer Email : %s\n", m.Config.GitEmail))
-	body.WriteString(fmt.Sprintf("  • Max Tag			    	: %s\n\n", deckProjVal.Render(strconv.Itoa(m.Config.MaxListTag))))
+	body.WriteString(fmt.Sprintf("  • Global Workspace Base Path : %s\n", deckPathVal.Render(ui.Config.BasePath)))
+	body.WriteString(fmt.Sprintf("  • Global Git Committer User  : %s\n", ui.Config.GitUsername))
+	body.WriteString(fmt.Sprintf("  • Global Git Committer Email : %s\n", ui.Config.GitEmail))
+	body.WriteString(fmt.Sprintf("  • Max Tag			    	: %s\n\n", deckProjVal.Render(strconv.Itoa(ui.Config.MaxListTag))))
 
-	body.WriteString(fmt.Sprintf("  • Registered Java SDK Pools  : %s\n", deckJDKVal.Render(fmt.Sprintf("%d profiles loaded", len(m.Config.JDKs)))))
-	body.WriteString(fmt.Sprintf("  • Registered Maven Engines   : %s\n", deckMvnVal.Render(fmt.Sprintf("%d profiles loaded", len(m.Config.Mavens)))))
-	body.WriteString(fmt.Sprintf("  • Total Tracked Workspaces   : %s\n\n", deckProjVal.Render(fmt.Sprintf("%d projects configured", len(m.Config.Projects)))))
+	body.WriteString(fmt.Sprintf("  • Registered Java SDK Pools  : %s\n", deckJDKVal.Render(fmt.Sprintf("%d profiles loaded", len(ui.Config.JDKs)))))
+	body.WriteString(fmt.Sprintf("  • Registered Maven Engines   : %s\n", deckMvnVal.Render(fmt.Sprintf("%d profiles loaded", len(ui.Config.Mavens)))))
+	body.WriteString(fmt.Sprintf("  • Total Tracked Workspaces   : %s\n\n", deckProjVal.Render(fmt.Sprintf("%d projects configured", len(ui.Config.Projects)))))
 
 	body.WriteString(decorator.Section.Render("👉 Choose Category Option to Modify / Add Entries:") + "\n\n")
 
@@ -49,25 +49,25 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	}
 
 	for i, opt := range options {
-		if i == m.SelectedConfigOption {
+		if i == ui.SelectedConfigOption {
 			body.WriteString(decorator.Selected.Render("> "+opt) + "\n")
 		} else {
 			body.WriteString(decorator.Inactive.Render("  "+opt) + "\n")
 		}
 	}
 
-	body.WriteString("\n" + strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n")
+	body.WriteString("\n" + strings.Repeat("─", max(ui.WindowWidth-8, 20)) + "\n")
 	body.WriteString(deckHintStyle.Render(fmt.Sprintf(
 		"[%s] Navigate Options | [%s] Open Selected Management Modal | [%s] Close Deck",
 		deckKeyHint.Render("↑/↓/j/k"),
-		deckKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
-		deckKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
+		deckKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
+		deckKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 	)) + "\n")
 
 	return lipgloss.Place(
-		m.WindowWidth, m.WindowHeight,
+		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(m.WindowWidth-4).Render(body.String()),
+		decorator.ModalBox.Width(ui.WindowWidth-4).Render(body.String()),
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)

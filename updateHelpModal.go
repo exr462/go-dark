@@ -9,11 +9,11 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateHelpModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape),
-		action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.OpenHelp),
-		action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.QuitApplication),
-		action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
-		m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape),
+		action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.OpenHelp),
+		action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.QuitApplication),
+		action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Save):
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 	}
 	return m, nil

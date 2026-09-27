@@ -9,9 +9,9 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateDependencyScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	projIdx := m.state.DepScreen.ActiveProjectIndex
-	if projIdx < 0 || projIdx >= len(m.state.Config.Projects) {
-		m.state.ViewState = model.StateDashboard
+	projIdx := m.ui.DepScreen.ActiveProjectIndex
+	if projIdx < 0 || projIdx >= len(m.ui.Config.Projects) {
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 	}
 
@@ -21,17 +21,17 @@ func (m *appModel) updateDependencyScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch msg.String() {
 	case "up", "k":
-		if m.state.DepScreen.Cursor > 0 {
-			m.state.DepScreen.Cursor--
+		if m.ui.DepScreen.Cursor > 0 {
+			m.ui.DepScreen.Cursor--
 		}
 
 	case "down", "j":
-		if m.state.DepScreen.Cursor < len(m.state.DepScreen.AvailableOptions)-1 {
-			m.state.DepScreen.Cursor++
+		if m.ui.DepScreen.Cursor < len(m.ui.DepScreen.AvailableOptions)-1 {
+			m.ui.DepScreen.Cursor++
 		}
 
 	case "space":
-		selectedTarget := m.state.DepScreen.AvailableOptions[m.state.DepScreen.Cursor]
+		selectedTarget := m.ui.DepScreen.AvailableOptions[m.ui.DepScreen.Cursor]
 
 		// Find if dependency exists in our absolute index target
 		foundIdx := -1
@@ -56,13 +56,13 @@ func (m *appModel) updateDependencyScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
-		_ = config.SaveConfig(m.state.Config)
-		m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Save):
+		_ = config.SaveConfig(m.ui.Config)
+		m.ui.ViewState = model.StateDashboard
 		return m, m.updateWorkspaceFiles()
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape), action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.QuitApplication):
-		m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape), action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.QuitApplication):
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 	}
 

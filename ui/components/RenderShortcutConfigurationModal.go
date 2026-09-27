@@ -10,7 +10,7 @@ import (
 	"github.com/exr462/go-dark/ui/decorator"
 )
 
-func RenderShortcutConfigurationModal(uiState *model.UIState) string {
+func RenderShortcutConfigurationModal(ui *model.UI) string {
 	var boxContent string
 	boxContent = fmt.Sprintf(
 		// Title
@@ -51,49 +51,49 @@ func RenderShortcutConfigurationModal(uiState *model.UIState) string {
 			"%s\n",
 		decorator.Title.Render("🔏 Shortcut configuration screen"),
 		decorator.Bold.Render("Open Fuzzy Finder"),
-		uiState.Inputs[model.FuzzyKey].View(),
+		ui.Inputs[model.FuzzyKey].View(),
 		decorator.Bold.Render("Open Git Operation  Management"),
-		uiState.Inputs[model.GitOperationsKey].View(),
+		ui.Inputs[model.GitOperationsKey].View(),
 		decorator.Bold.Render("Open Profile"),
-		uiState.Inputs[model.ProfileKey].View(),
+		ui.Inputs[model.ProfileKey].View(),
 		decorator.Bold.Render("Open Session Management"),
-		uiState.Inputs[model.SessionKey].View(),
+		ui.Inputs[model.SessionKey].View(),
 		decorator.Bold.Render("Open Docker Management"),
-		uiState.Inputs[model.DockerKey].View(),
+		ui.Inputs[model.DockerKey].View(),
 		decorator.Bold.Render("Open Maven Management"),
-		uiState.Inputs[model.MvnKey].View(),
+		ui.Inputs[model.MvnKey].View(),
 		decorator.Bold.Render("Open Jdk Management"),
-		uiState.Inputs[model.JdkKey].View(),
+		ui.Inputs[model.JdkKey].View(),
 		decorator.Bold.Render("Open Build Screen"),
-		uiState.Inputs[model.BuildKey].View(),
+		ui.Inputs[model.BuildKey].View(),
 		decorator.Bold.Render("Quit application"),
-		uiState.Inputs[model.QuitKey].View(),
+		ui.Inputs[model.QuitKey].View(),
 		decorator.Bold.Render("Edit"),
-		uiState.Inputs[model.EditKey].View(),
+		ui.Inputs[model.EditKey].View(),
 		decorator.Bold.Render("New Project"),
-		uiState.Inputs[model.NewProjectKey].View(),
+		ui.Inputs[model.NewProjectKey].View(),
 		decorator.Bold.Render("Submit action"),
-		uiState.Inputs[model.SubmitKey].View(),
+		ui.Inputs[model.SubmitKey].View(),
 		decorator.Bold.Render("Cancel"),
-		uiState.Inputs[model.CancelKey].View(),
+		ui.Inputs[model.CancelKey].View(),
 		decorator.Bold.Render("Open Help Menu"),
-		uiState.Inputs[model.HelpKey].View(),
+		ui.Inputs[model.HelpKey].View(),
 		decorator.Bold.Render("Toggle action"),
-		uiState.Inputs[model.ToggleKey].View(),
+		ui.Inputs[model.ToggleKey].View(),
 		decorator.Bold.Render("Edit shortcuts"),
-		uiState.Inputs[model.EditShortcutsKey].View(),
+		ui.Inputs[model.EditShortcutsKey].View(),
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),
-			installerKey.Render(action.GetShortcutKeyBinding(uiState.Config.ShortCuts, action.Save)),
-			installerKey.Render(action.GetShortcutKeyBinding(uiState.Config.ShortCuts, action.Escape)),
+			installerKey.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
+			installerKey.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 		)),
 	)
 
 	return lipgloss.Place(
-		uiState.WindowWidth, uiState.WindowHeight,
+		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(min(uiState.WindowWidth-4, 85)).Render(boxContent),
+		decorator.ModalBox.Width(min(ui.WindowWidth-4, 85)).Render(boxContent),
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)

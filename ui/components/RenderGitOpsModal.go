@@ -20,58 +20,58 @@ var (
 	gitKeyHint    = lipgloss.NewStyle().Foreground(color.Yellow)
 )
 
-func RenderGitOpsModal(m *model.UIState) string {
+func RenderGitOpsModal(ui *model.UI) string {
 	var modalBody strings.Builder
 
 	modalBody.WriteString(decorator.Title.Render("⚡ Git Hub Central Control (Ctrl+G)") + "\n\n")
 
-	switch m.GitOperationStep {
+	switch ui.GitOperationStep {
 	case 0:
 		modalBody.WriteString(decorator.Section.Render("👉 Step 1: Select Target Project Repository:") + "\n\n")
 
-		maxVisible := max(m.WindowHeight-14, 6)
+		maxVisible := max(ui.WindowHeight-14, 6)
 		startIdx := 0
-		if m.SelectedGitProject >= maxVisible {
-			startIdx = m.SelectedGitProject - maxVisible + 1
+		if ui.SelectedGitProject >= maxVisible {
+			startIdx = ui.SelectedGitProject - maxVisible + 1
 		}
-		endIdx := min(startIdx+maxVisible, len(m.Config.Projects))
+		endIdx := min(startIdx+maxVisible, len(ui.Config.Projects))
 
 		if startIdx > 0 {
 			modalBody.WriteString(gitHintStyle.Render(fmt.Sprintf("  ↑ ... (%d more above)", startIdx)) + "\n")
 		}
 
 		for i := startIdx; i < endIdx; i++ {
-			p := m.Config.Projects[i]
+			p := ui.Config.Projects[i]
 			statusBadge := gitLocalTag.Render("[local]")
 			if !p.Fetched {
 				statusBadge = gitRemoteTag.Render("[remote]")
 			}
 
 			lineText := fmt.Sprintf("%s %s (%s)", p.Name, statusBadge, p.GitURL)
-			if len(lineText) > m.WindowWidth-14 {
-				lineText = lineText[:m.WindowWidth-17] + "..."
+			if len(lineText) > ui.WindowWidth-14 {
+				lineText = lineText[:ui.WindowWidth-17] + "..."
 			}
 
-			if i == m.SelectedGitProject {
+			if i == ui.SelectedGitProject {
 				modalBody.WriteString(decorator.Selected.Render("> "+lineText) + "\n")
 			} else {
 				modalBody.WriteString(decorator.Inactive.Render("  "+lineText) + "\n")
 			}
 		}
 
-		if endIdx < len(m.Config.Projects) {
-			modalBody.WriteString(gitHintStyle.Render(fmt.Sprintf("  ↓ ... (%d more below)", len(m.Config.Projects)-endIdx)) + "\n")
+		if endIdx < len(ui.Config.Projects) {
+			modalBody.WriteString(gitHintStyle.Render(fmt.Sprintf("  ↓ ... (%d more below)", len(ui.Config.Projects)-endIdx)) + "\n")
 		}
 
 		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Select Project & Continue | [%s] Close",
 			gitKeyHint.Render("↑/↓/j/k"),
-			gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
-			gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
+			gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
+			gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 		)))
 
 	case 1:
-		targetProj := m.Config.Projects[m.SelectedGitProject]
+		targetProj := ui.Config.Projects[ui.SelectedGitProject]
 		statusDesc := gitLocalTag.Render("Cloned locally")
 		if !targetProj.Fetched {
 			statusDesc = gitRemoteTag.Render("Remote repository (will clone to local workspace on checkout)")
@@ -81,7 +81,7 @@ func RenderGitOpsModal(m *model.UIState) string {
 		modalBody.WriteString(fmt.Sprintf("📁 Local Path: %s\n\n", gitPathHeader.Render(targetProj.Path)))
 		modalBody.WriteString(decorator.Section.Render("👉 Step 2: Choose Git Operation to Execute:") + "\n\n")
 
-		for i, cmd := range m.GitCommands {
+		for i, cmd := range ui.GitCommands {
 			cmdDesc := ""
 			switch cmd {
 			case "checkout":
@@ -103,7 +103,7 @@ func RenderGitOpsModal(m *model.UIState) string {
 			}
 
 			lineText := fmt.Sprintf("git %s%s", cmd, cmdDesc)
-			if i == m.SelectedGitCommand {
+			if i == ui.SelectedGitCommand {
 				modalBody.WriteString(decorator.Selected.Render("> "+lineText) + "\n")
 			} else {
 				modalBody.WriteString(decorator.Inactive.Render("  "+lineText) + "\n")
@@ -113,57 +113,57 @@ func RenderGitOpsModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Execute / Proceed | [%s] Back to Projects",
 			gitKeyHint.Render("↑/↓/j/k"),
-			gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
-			gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
+			gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
+			gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 		)))
 
 	case 2:
-		targetProj := m.Config.Projects[m.SelectedGitProject]
+		targetProj := ui.Config.Projects[ui.SelectedGitProject]
 		modalBody.WriteString(fmt.Sprintf("📦 Project: %s\n", gitProjHeader.Render(targetProj.Name)))
 		modalBody.WriteString(fmt.Sprintf("📁 Destination: %s\n\n", gitPathHeader.Render(targetProj.Path)))
 		modalBody.WriteString(decorator.Section.Render("👉 Step 3: Select Branch to Checkout:") + "\n\n")
 
-		if len(m.AvailableBranches) == 0 {
+		if len(ui.AvailableBranches) == 0 {
 			modalBody.WriteString(decorator.Info.Render("  ⏳ Loading branch list from repository...") + "\n")
 		} else {
-			maxVisible := max(m.WindowHeight-14, 5)
+			maxVisible := max(ui.WindowHeight-14, 5)
 			startIdx := 0
-			if m.SelectedGitBranch >= maxVisible {
-				startIdx = m.SelectedGitBranch - maxVisible + 1
+			if ui.SelectedGitBranch >= maxVisible {
+				startIdx = ui.SelectedGitBranch - maxVisible + 1
 			}
-			endIdx := min(startIdx+maxVisible, len(m.AvailableBranches))
+			endIdx := min(startIdx+maxVisible, len(ui.AvailableBranches))
 
 			if startIdx > 0 {
 				modalBody.WriteString(gitHintStyle.Render(fmt.Sprintf("  ↑ ... (%d more above)", startIdx)) + "\n")
 			}
 
 			for i := startIdx; i < endIdx; i++ {
-				branch := m.AvailableBranches[i]
-				if i == m.SelectedGitBranch {
+				branch := ui.AvailableBranches[i]
+				if i == ui.SelectedGitBranch {
 					modalBody.WriteString(decorator.Selected.Render("> "+branch) + "\n")
 				} else {
 					modalBody.WriteString(decorator.Inactive.Render("  "+branch) + "\n")
 				}
 			}
 
-			if endIdx < len(m.AvailableBranches) {
-				modalBody.WriteString(gitHintStyle.Render(fmt.Sprintf("  ↓ ... (%d more below)", len(m.AvailableBranches)-endIdx)) + "\n")
+			if endIdx < len(ui.AvailableBranches) {
+				modalBody.WriteString(gitHintStyle.Render(fmt.Sprintf("  ↓ ... (%d more below)", len(ui.AvailableBranches)-endIdx)) + "\n")
 			}
 		}
 
 		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Confirm Checkout | [%s] Back to Operations",
 			gitKeyHint.Render("↑/↓/j/k"),
-			gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
-			gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
+			gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
+			gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 		)))
 
 	case 3:
-		targetProj := m.Config.Projects[m.SelectedGitProject]
+		targetProj := ui.Config.Projects[ui.SelectedGitProject]
 		modalBody.WriteString(fmt.Sprintf("📦 Project: %s\n", gitProjHeader.Render(targetProj.Name)))
 		modalBody.WriteString(decorator.Section.Render("📊 Current Working Tree Status:") + "\n\n")
 
-		lines := strings.Split(m.GitStatusOutput, "\n")
+		lines := strings.Split(ui.GitStatusOutput, "\n")
 		for _, line := range lines {
 			if len(line) < 3 {
 				modalBody.WriteString(decorator.Clean.Render(line) + "\n")
@@ -185,13 +185,13 @@ func RenderGitOpsModal(m *model.UIState) string {
 			}
 		}
 
-		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf("[%s] Back to Operations", gitKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)))))
+		modalBody.WriteString("\n" + gitHintStyle.Render(fmt.Sprintf("[%s] Back to Operations", gitKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)))))
 	}
 
 	return lipgloss.Place(
-		m.WindowWidth, m.WindowHeight,
+		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(min(m.WindowWidth-4, 100)).Render(modalBody.String()),
+		decorator.ModalBox.Width(min(ui.WindowWidth-4, 100)).Render(modalBody.String()),
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceForeground(color.Crust),
 	)

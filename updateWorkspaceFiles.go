@@ -9,16 +9,16 @@ import (
 )
 
 func (m *appModel) updateWorkspaceFiles() tea.Cmd {
-	if len(m.state.Config.Projects) == 0 {
+	if len(m.ui.Config.Projects) == 0 {
 		return nil
 	}
 
-	idx := m.state.SelectedProject
-	if idx < 0 || idx >= len(m.state.Config.Projects) {
+	idx := m.ui.SelectedProject
+	if idx < 0 || idx >= len(m.ui.Config.Projects) {
 		return nil
 	}
 
-	proj := m.state.Config.Projects[idx]
+	proj := m.ui.Config.Projects[idx]
 	fullPath := proj.Path
 
 	return func() tea.Msg {

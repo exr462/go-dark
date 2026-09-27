@@ -13,16 +13,16 @@ import (
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) loadGitBranchesCmd() tea.Cmd {
-	if len(m.state.Config.Projects) == 0 {
+	if len(m.ui.Config.Projects) == 0 {
 		return func() tea.Msg { return config.GitBranchesLoadedMsg{"develop"} }
 	}
 
-	idx := m.state.SelectedGitProject
-	if idx < 0 || idx >= len(m.state.Config.Projects) {
+	idx := m.ui.SelectedGitProject
+	if idx < 0 || idx >= len(m.ui.Config.Projects) {
 		return func() tea.Msg { return config.GitBranchesLoadedMsg{"develop"} }
 	}
 
-	proj := m.state.Config.Projects[idx]
+	proj := m.ui.Config.Projects[idx]
 	dir := proj.Path
 	if dir == "" {
 		dir = "."
@@ -125,7 +125,7 @@ func (m *appModel) loadGitBranchesCmd() tea.Cmd {
 
 			for _, tagLine := range tagLines {
 				// Stop parsing once we hit our cap limit to keep the UI clean
-				if tagCount >= m.state.Config.MaxListTag {
+				if tagCount >= m.ui.Config.MaxListTag {
 					break
 				}
 

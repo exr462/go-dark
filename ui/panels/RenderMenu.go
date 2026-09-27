@@ -19,20 +19,20 @@ var (
 	sessionAlert = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
 )
 
-func RenderMenu(m *model.UIState) string {
+func RenderMenu(ui *model.UI) string {
 	var activeSessionTracker string
-	for id, sess := range m.Sessions {
-		if m.SelectedProject < len(m.Config.Projects) && sess.ProjectName == m.Config.Projects[m.SelectedProject].Name && sess.IsRunning {
+	for id, sess := range ui.Sessions {
+		if ui.SelectedProject < len(ui.Config.Projects) && sess.ProjectName == ui.Config.Projects[ui.SelectedProject].Name && sess.IsRunning {
 			activeSessionTracker = sessionAlert.Render(fmt.Sprintf("  ⚡ [Session %d: COMPILING]", id))
 			break
 		}
 	}
 
-	cpuVal := m.DockerTelemetry.CPU
+	cpuVal := ui.DockerTelemetry.CPU
 	if cpuVal == "" {
 		cpuVal = "0.0%"
 	}
-	memVal := m.DockerTelemetry.Memory
+	memVal := ui.DockerTelemetry.Memory
 	if memVal == "" {
 		memVal = "0B / 0B"
 	}
@@ -40,23 +40,23 @@ func RenderMenu(m *model.UIState) string {
 	leftContent := fmt.Sprintf(
 		" %s ➜ Active: %s | CPU: %s | Mem: %s",
 		dockerLabel.Render("🐳 Docker"),
-		activeVal.Render(fmt.Sprintf("%d", m.DockerTelemetry.Running)),
+		activeVal.Render(fmt.Sprintf("%d", ui.DockerTelemetry.Running)),
 		cpuValStyle.Render(cpuVal),
 		memValStyle.Render(memVal),
 	)
 
-	rightContent := menuLabel.Render("Git Username: ") + m.Config.GitUsername + " " + menuLabel.Render("Git Email: ") + m.Config.GitEmail + " " + menuLabel.Render("Active Sessions: ") + activeSessionTracker
+	rightContent := menuLabel.Render("Git Username: ") + ui.Config.GitUsername + " " + menuLabel.Render("Git Email: ") + ui.Config.GitEmail + " " + menuLabel.Render("Active Sessions: ") + activeSessionTracker
 
 	leftWidth := lipgloss.Width(leftContent)
 	rightWidth := lipgloss.Width(rightContent)
-	spaceLen := max(m.WindowWidth-leftWidth-rightWidth-6, 2)
+	spaceLen := max(ui.WindowWidth-leftWidth-rightWidth-6, 2)
 
 	unifiedTopBarText := leftContent + strings.Repeat(" ", spaceLen) + rightContent
 
 	topMenuStyle := decorator.UnfocusedBorder.Background(color.Base)
-	if m.ActiveFocus == model.FocusMenu && m.ViewState == model.StateDashboard {
+	if ui.ActiveFocus == model.FocusMenu && ui.ViewState == model.StateDashboard {
 		topMenuStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 
-	return topMenuStyle.Width(m.WindowWidth - 2).Render(unifiedTopBarText)
+	return topMenuStyle.Width(ui.WindowWidth - 2).Render(unifiedTopBarText)
 }

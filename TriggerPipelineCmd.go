@@ -33,14 +33,14 @@ type BuildTask struct {
 func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 	return func() tea.Msg {
 		// Resolve the exact build queue order based on your registry
-		sortedQueue, err := model.ResolveBuildOrder(m.state.Config.Projects, config.AvailableProjects)
+		sortedQueue, err := model.ResolveBuildOrder(m.ui.Config.Projects, config.AvailableProjects)
 
 		if err != nil {
 			return PipelineCompleteMsg{Success: false, Log: err.Error()}
 		}
 		// Map to coordinate lookups of current paths inside Config.Projects
 		pathMap := make(map[string]string)
-		for _, p := range m.state.Config.Projects {
+		for _, p := range m.ui.Config.Projects {
 			pathMap[p.Name] = p.Path
 		}
 

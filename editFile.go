@@ -9,12 +9,12 @@ import (
 )
 
 func (m *appModel) editFile(msg components.EditFileMsg) (tea.Model, tea.Cmd) {
-	m.state.ViewState = model.StateDashboard
+	m.ui.ViewState = model.StateDashboard
 	if msg.Err != nil {
-		m.state.LastError = msg.Err
-		m.state.StatusMsg = fmt.Sprintf("❌ Editor: %v", msg.Err)
+		m.ui.LastError = msg.Err
+		m.ui.StatusMsg = fmt.Sprintf("❌ Editor: %v", msg.Err)
 		return m, nil
 	}
-	m.state.ActiveCodeBuffer = msg.Content
+	m.ui.ActiveCodeBuffer = msg.Content
 	return m, nil
 }

@@ -16,8 +16,8 @@ import (
 var sessionChannels = make(map[int]chan string)
 
 func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string) tea.Cmd {
-	m.state.NextSessionID++
-	sID := m.state.NextSessionID
+	m.ui.NextSessionID++
+	sID := m.ui.NextSessionID
 
 	var mvnBin = "mvn"
 	if proj.Type != "java" {
@@ -48,8 +48,8 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 		IsRunning:   true,
 		Logs:        []string{fmt.Sprintf("🚀 [Session %d] Initializing background execution...", sID)},
 	}
-	m.state.Sessions[sID] = session
-	m.state.ActiveSessionID = sID
+	m.ui.Sessions[sID] = session
+	m.ui.ActiveSessionID = sID
 
 	localCh := make(chan string, 500)
 
@@ -57,7 +57,7 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 		fullProjPath := proj.Path
 
 		var targetMvnPath string
-		for _, mvn := range m.state.Config.Mavens {
+		for _, mvn := range m.ui.Config.Mavens {
 			if mvn.Name == proj.MavenName {
 				targetMvnPath = mvn.Path
 				break
@@ -81,7 +81,7 @@ func (m *appModel) spawnBackgroundSession(proj config.Project, targetStep string
 		cmd.Dir = fullProjPath
 
 		var targetJDKPath string
-		for _, jdk := range m.state.Config.JDKs {
+		for _, jdk := range m.ui.Config.JDKs {
 			if jdk.Name == proj.JDKName {
 				targetJDKPath = jdk.Path
 				break

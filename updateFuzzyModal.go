@@ -9,60 +9,60 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
-		m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape):
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Toggle):
-		if m.state.FuzzyMode == model.FuzzyModeFiles {
-			m.state.FuzzyMode = model.FuzzyModeContent
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Toggle):
+		if m.ui.FuzzyMode == model.FuzzyModeFiles {
+			m.ui.FuzzyMode = model.FuzzyModeContent
 		} else {
-			m.state.FuzzyMode = model.FuzzyModeFiles
+			m.ui.FuzzyMode = model.FuzzyModeFiles
 		}
-		m.state.SelectedFuzzy = 0
+		m.ui.SelectedFuzzy = 0
 		m.runFuzzySearchEngine()
 		m.syncFuzzyPreviewPane()
 		return m, nil
 
 	case "up", "k":
-		if m.state.SelectedFuzzy > 0 {
-			m.state.SelectedFuzzy--
+		if m.ui.SelectedFuzzy > 0 {
+			m.ui.SelectedFuzzy--
 			m.syncFuzzyPreviewPane()
 		}
 		return m, nil
 
 	case "down", "j":
-		if m.state.SelectedFuzzy < len(m.state.FuzzyResults)-1 {
-			m.state.SelectedFuzzy++
+		if m.ui.SelectedFuzzy < len(m.ui.FuzzyResults)-1 {
+			m.ui.SelectedFuzzy++
 			m.syncFuzzyPreviewPane()
 		}
 		return m, nil
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
-		if len(m.state.FuzzyResults) > 0 && m.state.SelectedFuzzy < len(m.state.FuzzyResults) {
-			target := m.state.FuzzyResults[m.state.SelectedFuzzy]
-			m.state.ViewState = model.StateDashboard
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Save):
+		if len(m.ui.FuzzyResults) > 0 && m.ui.SelectedFuzzy < len(m.ui.FuzzyResults) {
+			target := m.ui.FuzzyResults[m.ui.SelectedFuzzy]
+			m.ui.ViewState = model.StateDashboard
 
-			for idx, node := range m.state.TreeNodes {
+			for idx, node := range m.ui.TreeNodes {
 				if node.FullPath == target.FullPath {
-					m.state.SelectedFile = idx
-					m.state.ActiveFocus = model.FocusTree
+					m.ui.SelectedFile = idx
+					m.ui.ActiveFocus = model.FocusTree
 					break
 				}
 			}
 			return m, m.readFileContentCmd()
 		}
-		m.state.ViewState = model.StateDashboard
+		m.ui.ViewState = model.StateDashboard
 		return m, nil
 	}
 
 	var cmd tea.Cmd
-	oldVal := m.state.FuzzyQueryInput.Value()
+	oldVal := m.ui.FuzzyQueryInput.Value()
 	var genericMsg tea.Msg = msg
-	m.state.FuzzyQueryInput, cmd = m.state.FuzzyQueryInput.Update(genericMsg)
+	m.ui.FuzzyQueryInput, cmd = m.ui.FuzzyQueryInput.Update(genericMsg)
 
-	if m.state.FuzzyQueryInput.Value() != oldVal {
-		m.state.SelectedFuzzy = 0
+	if m.ui.FuzzyQueryInput.Value() != oldVal {
+		m.ui.SelectedFuzzy = 0
 		m.runFuzzySearchEngine()
 		m.syncFuzzyPreviewPane()
 	}

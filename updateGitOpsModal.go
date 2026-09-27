@@ -12,77 +12,77 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
-		if m.state.GitOperationStep == model.StepSelectGitBranch {
-			m.state.GitOperationStep = model.StepSelectGitCommand
-		} else if m.state.GitOperationStep == model.StepSelectGitCommand {
-			m.state.GitOperationStep = model.StepSelectGitProject
-		} else if m.state.GitOperationStep == 3 {
-			m.state.GitOperationStep = model.StepSelectGitCommand
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Escape):
+		if m.ui.GitOperationStep == model.StepSelectGitBranch {
+			m.ui.GitOperationStep = model.StepSelectGitCommand
+		} else if m.ui.GitOperationStep == model.StepSelectGitCommand {
+			m.ui.GitOperationStep = model.StepSelectGitProject
+		} else if m.ui.GitOperationStep == 3 {
+			m.ui.GitOperationStep = model.StepSelectGitCommand
 		} else {
-			m.state.ViewState = model.StateDashboard
+			m.ui.ViewState = model.StateDashboard
 		}
 		return m, nil
 
 	case "up", "k":
-		switch m.state.GitOperationStep {
+		switch m.ui.GitOperationStep {
 		case model.StepSelectGitProject:
-			if m.state.SelectedGitProject > 0 {
-				m.state.SelectedGitProject--
+			if m.ui.SelectedGitProject > 0 {
+				m.ui.SelectedGitProject--
 			}
 		case model.StepSelectGitCommand:
-			if m.state.SelectedGitCommand > 0 {
-				m.state.SelectedGitCommand--
+			if m.ui.SelectedGitCommand > 0 {
+				m.ui.SelectedGitCommand--
 			}
 		case model.StepSelectGitBranch:
-			if m.state.SelectedGitBranch > 0 {
-				m.state.SelectedGitBranch--
+			if m.ui.SelectedGitBranch > 0 {
+				m.ui.SelectedGitBranch--
 			}
 		}
 		return m, nil
 
 	case "down", "j":
-		switch m.state.GitOperationStep {
+		switch m.ui.GitOperationStep {
 		case model.StepSelectGitProject:
-			if m.state.SelectedGitProject < len(m.state.Config.Projects)-1 {
-				m.state.SelectedGitProject++
+			if m.ui.SelectedGitProject < len(m.ui.Config.Projects)-1 {
+				m.ui.SelectedGitProject++
 			}
 		case model.StepSelectGitCommand:
-			if m.state.SelectedGitCommand < len(m.state.GitCommands)-1 {
-				m.state.SelectedGitCommand++
+			if m.ui.SelectedGitCommand < len(m.ui.GitCommands)-1 {
+				m.ui.SelectedGitCommand++
 			}
 		case model.StepSelectGitBranch:
-			if m.state.SelectedGitBranch < len(m.state.AvailableBranches)-1 {
-				m.state.SelectedGitBranch++
+			if m.ui.SelectedGitBranch < len(m.ui.AvailableBranches)-1 {
+				m.ui.SelectedGitBranch++
 			}
 		}
 		return m, nil
 
-	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
-		switch m.state.GitOperationStep {
+	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.Save):
+		switch m.ui.GitOperationStep {
 		case model.StepSelectGitProject:
-			m.state.GitOperationStep = model.StepSelectGitCommand
-			m.state.SelectedGitCommand = 0
+			m.ui.GitOperationStep = model.StepSelectGitCommand
+			m.ui.SelectedGitCommand = 0
 			return m, m.loadGitBranchesCmd()
 
 		case model.StepSelectGitCommand:
-			chosenCmd := m.state.GitCommands[m.state.SelectedGitCommand]
-			targetProj := m.state.Config.Projects[m.state.SelectedGitProject]
+			chosenCmd := m.ui.GitCommands[m.ui.SelectedGitCommand]
+			targetProj := m.ui.Config.Projects[m.ui.SelectedGitProject]
 
 			if strings.HasPrefix(chosenCmd, "checkout") {
-				m.state.GitOperationStep = model.StepSelectGitBranch
-				m.state.AvailableBranches = []string{}
-				m.state.SelectedGitBranch = 0
+				m.ui.GitOperationStep = model.StepSelectGitBranch
+				m.ui.AvailableBranches = []string{}
+				m.ui.SelectedGitBranch = 0
 				return m, m.loadGitBranchesCmd()
 			}
 
 			if chosenCmd == "status" {
 				if !targetProj.Fetched {
-					m.state.StatusMsg = fmt.Sprintf("⚠️ %s is not cloned yet.", targetProj.Name)
+					m.ui.StatusMsg = fmt.Sprintf("⚠️ %s is not cloned yet.", targetProj.Name)
 					return m, nil
 				}
-				m.state.GitOperationStep = 3
-				m.state.GitStatusOutput = "⏳ Querying workspace parameters..."
+				m.ui.GitOperationStep = 3
+				m.ui.GitStatusOutput = "⏳ Querying workspace parameters..."
 				return m, m.runGitCommand(targetProj, "status")
 			}
 
@@ -91,19 +91,19 @@ func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 
 			if !targetProj.Fetched && (chosenCmd == "pull" || chosenCmd == "fetch" || strings.HasPrefix(chosenCmd, "reset")) {
-				m.state.StatusMsg = fmt.Sprintf("⚠️ %s is not cloned yet. Use checkout or clone first.", targetProj.Name)
+				m.ui.StatusMsg = fmt.Sprintf("⚠️ %s is not cloned yet. Use checkout or clone first.", targetProj.Name)
 				return m, nil
 			}
 
-			m.state.ViewState = model.StateDashboard
-			m.state.StatusMsg = fmt.Sprintf("🔄 Executing git %s on %s...", chosenCmd, targetProj.Name)
+			m.ui.ViewState = model.StateDashboard
+			m.ui.StatusMsg = fmt.Sprintf("🔄 Executing git %s on %s...", chosenCmd, targetProj.Name)
 			return m, m.runGitCommand(targetProj, chosenCmd)
 
 		case model.StepSelectGitBranch:
-			if len(m.state.AvailableBranches) > 0 && m.state.SelectedGitBranch < len(m.state.AvailableBranches) {
-				targetProj := m.state.Config.Projects[m.state.SelectedGitProject]
-				targetBranch := m.state.AvailableBranches[m.state.SelectedGitBranch]
-				m.state.StatusMsg = fmt.Sprintf("🔄 Checking out %s on %s...", targetBranch, targetProj.Name)
+			if len(m.ui.AvailableBranches) > 0 && m.ui.SelectedGitBranch < len(m.ui.AvailableBranches) {
+				targetProj := m.ui.Config.Projects[m.ui.SelectedGitProject]
+				targetBranch := m.ui.AvailableBranches[m.ui.SelectedGitBranch]
+				m.ui.StatusMsg = fmt.Sprintf("🔄 Checking out %s on %s...", targetBranch, targetProj.Name)
 				return m, m.executeGitCheckoutCmd(targetProj, targetBranch)
 			}
 			return m, nil
