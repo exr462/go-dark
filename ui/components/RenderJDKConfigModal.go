@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -35,8 +35,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Select | [%s] Close Menu",
 			jdkKeyHint.Render("↑/↓/j/k"),
-			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			jdkKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
+			jdkKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
 		)))
 
 	case model.StepAddNewJDKVersion:
@@ -59,8 +59,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",
 			jdkKeyHint.Render("Tab"),
-			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			jdkKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
+			jdkKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
 		)))
 
 	case model.StepAssignJDKToProject:
@@ -79,8 +79,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Browse SDKs | [%s] Confirm Binding | [%s] Back",
 			jdkKeyHint.Render("↑/↓/j/k"),
-			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			jdkKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			jdkKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
+			jdkKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
 		)))
 	}
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -24,7 +24,7 @@ var (
 func RenderConfigDeckModal(m *model.UIState) string {
 	var body strings.Builder
 
-	body.WriteString(decorator.Title.Render(fmt.Sprintf("⚙️ Master Configuration & Environment Deck (%s)", config.GetShortcutKeyBinding(m.Config.ShortCuts, config.ProfileKeyBind))) + "\n")
+	body.WriteString(decorator.Title.Render(fmt.Sprintf("⚙️ Master Configuration & Environment Deck (%s)", action.GetShortcutKeyBinding(m.Config.ShortCuts, action.OpenConfiguration))) + "\n")
 	body.WriteString(decorator.Description.Render("Review, expand, or adjust your system parameters across all modules below.") + "\n")
 	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 
@@ -60,8 +60,8 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	body.WriteString(deckHintStyle.Render(fmt.Sprintf(
 		"[%s] Navigate Options | [%s] Open Selected Management Modal | [%s] Close Deck",
 		deckKeyHint.Render("↑/↓/j/k"),
-		deckKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-		deckKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+		deckKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
+		deckKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
 	)) + "\n")
 
 	return lipgloss.Place(

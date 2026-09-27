@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/exr462/go-dark/action"
 )
 
 const (
@@ -44,14 +46,14 @@ var (
 )
 
 type Config struct {
-	BasePath    string     `json:"base_path"`
-	GitUsername string     `json:"git_username"`
-	GitEmail    string     `json:"git_email"`
-	Projects    []Project  `json:"projects"`
-	JDKs        []Profile  `json:"jdks"`
-	Mavens      []Profile  `json:"mavens"`
-	MaxListTag  int        `json:"max_list_tag"`
-	ShortCuts   []Shortcut `json:"short_cuts"`
+	BasePath    string            `json:"base_path"`
+	GitUsername string            `json:"git_username"`
+	GitEmail    string            `json:"git_email"`
+	Projects    []Project         `json:"projects"`
+	JDKs        []Profile         `json:"jdks"`
+	Mavens      []Profile         `json:"mavens"`
+	MaxListTag  int               `json:"max_list_tag"`
+	ShortCuts   []action.Shortcut `json:"short_cuts"`
 }
 
 func GetConfigPath() (string, error) {
@@ -117,7 +119,7 @@ func LoadConfig() (Config, bool) {
 	}
 
 	if cfg.ShortCuts == nil || len(cfg.ShortCuts) == 0 {
-		for _, ap := range DefaultShortcuts {
+		for _, ap := range action.DefaultShortcuts {
 			cfg.ShortCuts = append(cfg.ShortCuts, ap)
 		}
 		err := SaveConfig(cfg)
@@ -127,7 +129,7 @@ func LoadConfig() (Config, bool) {
 		}
 	} else {
 		// we are going to add the missing shortcuts
-		for _, ap := range DefaultShortcuts {
+		for _, ap := range action.DefaultShortcuts {
 			toAdd := true
 			for _, key := range cfg.ShortCuts {
 				if key.Action == ap.Action {

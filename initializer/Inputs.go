@@ -23,6 +23,7 @@ func MakeInputs() []textinput.Model {
 	inputs[model.JdkPath].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
 	inputs[model.MvnName].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
 	inputs[model.MvnPath].Placeholder = "MAVEN_HOME directory path"
+	inputs[model.EditContent].Placeholder = "Opening editor... please wait 😘"
 
 	return inputs
 }

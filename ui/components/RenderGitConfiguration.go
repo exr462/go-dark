@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -31,8 +31,8 @@ func RenderGitConfiguration(m *model.UIState) string {
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),
-			installerKey.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-			installerKey.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+			installerKey.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
+			installerKey.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
 		)),
 	)
 

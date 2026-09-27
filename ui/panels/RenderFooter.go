@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 )
@@ -49,17 +49,16 @@ func RenderFooter(state *model.UIState) string {
 		statusDisplay = fmt.Sprintf(" | %s", footerStatusStyle.Render(state.StatusMsg))
 	}
 
-	footerText := fmt.Sprintf(" %s Help | %s Git Ops | %s Fuzzy | %s Config | %s Shortcuts | SDK: %s | Build: %s | %s%s | Debug: %s",
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.HelpKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.GitOperationsKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.FuzzyKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.ProfileKeyBind))),
-		footerKeyStyle.Render(fmt.Sprintf("[%s]", config.GetShortcutKeyBinding(state.Config.ShortCuts, config.EditShortcutsKeyBind))),
+	footerText := fmt.Sprintf(" %s Help | %s Git Ops | %s Fuzzy | %s Config | %s Shortcuts | SDK: %s | Build: %s | %s%s",
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(state.Config.ShortCuts, action.OpenHelp))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(state.Config.ShortCuts, action.OpenGitOperations))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(state.Config.ShortCuts, action.OpenFuzzy))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(state.Config.ShortCuts, action.OpenConfiguration))),
+		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(state.Config.ShortCuts, action.OpenEditShortcuts))),
 		footerBoundStyle.Render(boundJDK),
 		footerBoundStyle.Render(boundMaven),
 		sessionStatusStr,
 		statusDisplay,
-		state.StatusMsg,
 	)
 
 	return lipgloss.NewStyle().

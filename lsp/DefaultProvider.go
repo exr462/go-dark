@@ -12,5 +12,9 @@ func (d DefaultProvider) Extensions() []string { return []string{".txt"} }
 func (d DefaultProvider) GetLSPConfig() LspConfig {
 	return LspConfig{ServerBinary: "", Args: []string{}} // No LSP support
 }
-func (d DefaultProvider) GetBuildCommand(filePath string) *exec.Cmd { return nil }
-func (d DefaultProvider) GetRunCommand(filePath string) *exec.Cmd   { return nil }
+func (d DefaultProvider) GetBuildCommand(filePath string) *exec.Cmd {
+	return exec.Command("cat", filePath)
+}
+func (d DefaultProvider) GetRunCommand(filePath string) *exec.Cmd {
+	return exec.Command("cat", filePath)
+}

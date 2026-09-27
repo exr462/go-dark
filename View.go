@@ -35,7 +35,7 @@ func (m *appModel) View() string {
 	case model.StateShortcutConfigurationModal:
 		return components.RenderShortcutConfigurationModal(m.state)
 	case model.StateEditorModal:
-		return "Opening external editor..."
+		return components.RenderOpenEditor(m.state)
 	case model.StateDashboard:
 		fallthrough
 	default:

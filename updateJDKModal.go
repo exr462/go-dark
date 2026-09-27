@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
@@ -13,7 +14,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.JDKStep {
 	case model.StepSelectJDKAction:
 		switch msg.String() {
-		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
 			m.state.ViewState = m.state.PreviousViewState
 			return m, nil
 		case "up", "k":
@@ -24,7 +25,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.state.SelectedMenuIndex < 1 {
 				m.state.SelectedMenuIndex++
 			}
-		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+		case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
 			if m.state.SelectedMenuIndex == 0 {
 				m.state.JDKStep = model.StepAddNewJDKVersion
 				m.initFields(model.JdkName, model.JdkPath)
@@ -35,14 +36,14 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case model.StepAddNewJDKVersion:
 		switch msg.String() {
-		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
 		case "tab", "down":
 			m.switcheroo(model.JdkName, model.JdkPath)
 		case "shift+tab", "up":
 			m.switcheroo(model.JdkName, model.JdkPath)
-		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+		case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
 			jName, jPath := m.getValues(model.JdkName, model.JdkPath)
 			if jName != "" && jPath != "" {
 				m.state.Config.JDKs = append(m.state.Config.JDKs, config.Profile{Name: jName, Path: jPath})
@@ -57,7 +58,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case model.StepAssignJDKToProject:
 		switch msg.String() {
-		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
 		case "up", "k":
@@ -68,7 +69,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.state.SelectedJDKIndex < len(m.state.Config.JDKs)-1 {
 				m.state.SelectedJDKIndex++
 			}
-		case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+		case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
 			if len(m.state.Config.JDKs) > 0 && len(m.state.Config.Projects) > 0 {
 				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIndex]
 				m.state.Config.Projects[m.state.SelectedProject].JDKName = chosenJDK.Name

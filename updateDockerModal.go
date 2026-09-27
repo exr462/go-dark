@@ -2,14 +2,14 @@ package main
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 )
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateDockerModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 	case "up", "k":

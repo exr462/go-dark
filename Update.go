@@ -2,7 +2,9 @@ package main
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/ui/components"
@@ -13,6 +15,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case lsp.FileLoadedMsg:
+		m.state.Editor.SetValue(msg.Content)
+		return m, nil
 	case task.PipelineTaskStartedMsg:
 		return m.pipelineTaskStarted(msg)
 
@@ -69,7 +74,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Global quit shortcuts
-		if msg.String() == config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind) {
+		if msg.String() == action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.QuitApplication) {
 			return m, tea.Quit
 		}
 
@@ -98,7 +103,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateShortcutConfigurationModal:
 			return m.updateShortcutsConfigurationModal(msg)
 		case model.StateEditorModal:
-			return m, nil
+			return m.updateEditorModal(msg)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
 			projIdx := m.state.DepScreen.ActiveProjectIndex

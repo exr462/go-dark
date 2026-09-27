@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
@@ -13,7 +14,7 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape):
 		log.Printf("updateGitConfiguration Previous View State: %v", m.state.PreviousViewState)
 		m.state.ViewState = m.state.PreviousViewState
 		return m, nil
@@ -33,7 +34,7 @@ func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state.Inputs[m.state.FocusedInput].Focus()
 		return m, nil
 
-	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
 		m.state.Config.BasePath = m.state.Inputs[model.GitWorkspace].Value()
 		m.state.Config.GitUsername = m.state.Inputs[model.GitUsername].Value()
 		m.state.Config.GitEmail = m.state.Inputs[model.GitEmail].Value()

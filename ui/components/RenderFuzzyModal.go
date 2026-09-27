@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -102,8 +102,8 @@ func RenderFuzzyModal(m *model.UIState) string {
 	body.WriteString(fuzzyHintStyle.Render(fmt.Sprintf(
 		"[%s] Navigate | [%s] Open Selection in Workspace | [%s] Dashboard",
 		fuzzyKeyHint.Render("↑/↓"),
-		fuzzyKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
-		fuzzyKeyHint.Render(config.GetShortcutKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
+		fuzzyKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Save)),
+		fuzzyKeyHint.Render(action.GetShortcutKeyBinding(m.Config.ShortCuts, action.Escape)),
 	)))
 
 	return lipgloss.Place(

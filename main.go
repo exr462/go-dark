@@ -10,6 +10,7 @@ import (
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/storage"
 )
 
 func main() {
@@ -40,7 +41,8 @@ func main() {
 	uiState.GitMissing = gitMissing
 
 	m := &appModel{
-		state: uiState,
+		state:         uiState,
+		contentLoader: storage.NewLocalLoader(),
 	}
 	m.state.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
 	m.state.FuzzyQueryInput.CharLimit = 50

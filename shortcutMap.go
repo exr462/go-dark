@@ -1,25 +1,25 @@
 package main
 
 import (
-	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 )
 
-var shortcutsMap = map[model.InputField]config.ShortcutAction{
-	model.FuzzyKey:         config.FuzzyKeyBind,
-	model.GitOperationsKey: config.GitOperationsKeyBind,
-	model.ProfileKey:       config.ProfileKeyBind,
-	model.SessionKey:       config.SessionKeyBind,
-	model.DockerKey:        config.DockerKeyBind,
-	model.MvnKey:           config.MvnKeyBind,
-	model.JdkKey:           config.JdkKeyBind,
-	model.BuildKey:         config.BuildKeyBind,
-	model.QuitKey:          config.QuitKeyBind,
-	model.EditShortcutsKey: config.EditShortcutsKeyBind,
-	model.EditKey:          config.EditKeyBind,
-	model.NewProjectKey:    config.NewProjectKeyBind,
-	model.SubmitKey:        config.SubmitKeyBind,
-	model.CancelKey:        config.CancelKeyBind,
-	model.HelpKey:          config.HelpKeyBind,
-	model.ToggleKey:        config.ToggleKeyBind,
+var shortcutsMap = map[model.InputField]action.Action{
+	model.FuzzyKey:         action.OpenFuzzy,
+	model.GitOperationsKey: action.OpenGitOperations,
+	model.ProfileKey:       action.OpenConfiguration,
+	model.SessionKey:       action.OpenSession,
+	model.DockerKey:        action.OpenDocker,
+	model.MvnKey:           action.OpenMvn,
+	model.JdkKey:           action.OpenJdk,
+	model.BuildKey:         action.OpenBuild,
+	model.QuitKey:          action.QuitApplication,
+	model.EditShortcutsKey: action.OpenEditShortcuts,
+	model.EditKey:          action.OpenEditFile,
+	model.NewProjectKey:    action.OpenNewProject,
+	model.SubmitKey:        action.Save,
+	model.CancelKey:        action.Escape,
+	model.HelpKey:          action.OpenHelp,
+	model.ToggleKey:        action.Toggle,
 }

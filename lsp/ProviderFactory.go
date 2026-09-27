@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"log"
 	"path/filepath"
 	"strings"
 )
@@ -24,7 +25,7 @@ func NewProviderFactory(available []LanguageProvider) *ProviderFactory {
 			registry[normalizedExt] = provider
 		}
 	}
-
+	log.Printf("Found %d providers: %v", len(registry), registry)
 	return &ProviderFactory{providers: registry}
 }
 

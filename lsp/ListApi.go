@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -93,23 +95,45 @@ func (c *Client) Call(method string, params interface{}) (int, error) {
 func (c *Client) Listen(incoming chan<- []byte) {
 	reader := bufio.NewReader(c.stdout)
 	for {
-		// Real LSP engines send Content-Length headers first.
-		// For brevity, your parser looks for the double newline before payload blocks.
-		line, err := reader.ReadString('\n')
+		var contentLength int
+
+		// 1. Read headers until we hit the blank line (\r\n) separating headers from payload
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return // Stream closed or process exited
+			}
+
+			// Clean line endings for uniform parsing
+			line = strings.TrimRight(line, "\r\n")
+
+			// Blank line means we reached the end of headers
+			if line == "" {
+				break
+			}
+
+			// Extract the Content-Length value
+			if after, ok := strings.CutPrefix(line, "Content-Length:"); ok {
+				sizeStr := strings.TrimSpace(after)
+				if size, err := strconv.Atoi(sizeStr); err == nil {
+					contentLength = size
+				}
+			}
+		}
+
+		if contentLength <= 0 {
+			continue // Safeguard against malformed or missing headers
+		}
+
+		// 2. Read exactly the specified number of bytes for the JSON payload
+		payload := make([]byte, contentLength)
+		_, err := io.ReadFull(reader, payload)
 		if err != nil {
 			return
 		}
 
-		if line == "\r\n" {
-			// This signals the start of the JSON payload.
-			// In production, parse Content-Length to read exactly X bytes.
-			var jsonBytes []byte
-			// Basic reader fallback illustration:
-			jsonBytes, _, err = reader.ReadLine()
-			if err == nil {
-				incoming <- jsonBytes
-			}
-		}
+		// 3. Dispatch raw payload safely to the Bubble Tea channel listener
+		incoming <- payload
 	}
 }
 

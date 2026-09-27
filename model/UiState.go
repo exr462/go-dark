@@ -1,6 +1,7 @@
 package model
 
 import (
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/exr462/go-dark/config"
@@ -111,6 +112,7 @@ const (
 	HelpKey
 	ToggleKey
 	EditShortcutsKey
+	EditContent
 	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
 	Ceiling
 )
@@ -142,11 +144,14 @@ const (
 // UIState holds the shared application global model
 type UIState struct {
 	// !!! GLOBAL VARIABLES MAPPINGS !!!
-	Config            config.Config
-	ViewState         ApplicationViewState
-	PreviousViewState ApplicationViewState
-	WindowWidth       int
-	WindowHeight      int
+	Config                 config.Config
+	ViewState              ApplicationViewState
+	PreviousViewState      ApplicationViewState
+	WindowWidth            int
+	WindowHeight           int
+	Editor                 textarea.Model
+	EditorCol              int
+	ActiveLanguageProvider lsp.LanguageProvider
 
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea

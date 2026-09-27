@@ -2,6 +2,7 @@ package main
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
@@ -55,12 +56,12 @@ func (m *appModel) updateDependencyScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
+	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Save):
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
 		return m, m.updateWorkspaceFiles()
 
-	case config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind), config.GetShortcutKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind):
+	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.Escape), action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.QuitApplication):
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 	}
