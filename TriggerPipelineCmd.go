@@ -30,7 +30,7 @@ type BuildTask struct {
 // TriggerPipelineCmd spins up the concurrency workers
 //
 //goland:noinspection GoMixedReceiverTypes
-func (m *appModel) TriggerPipelineCmd(maxParallelism int) tea.Cmd {
+func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 	return func() tea.Msg {
 		// Resolve the exact build queue order based on your registry
 		sortedQueue, err := model.ResolveBuildOrder(m.state.Config.Projects, config.AvailableProjects)
@@ -62,7 +62,7 @@ func (m *appModel) TriggerPipelineCmd(maxParallelism int) tea.Cmd {
 		defer cancel()
 
 		var mu sync.Mutex
-		sem := make(chan struct{}, maxParallelism)
+		sem := make(chan struct{}, m.maxParallelism)
 		taskDoneChan := make(chan string, len(tasks))
 
 		for {

@@ -3,7 +3,7 @@ package color
 import "github.com/charmbracelet/lipgloss"
 
 // Catppuccin Mocha Color Palette
-const (
+var (
 	// Base Accents
 	Rosewater = lipgloss.Color("#f5e0dc")
 	Flamingo  = lipgloss.Color("#f2cdcd")

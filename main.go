@@ -27,7 +27,7 @@ func main() {
 	_, gitErr := exec.LookPath("git")
 	gitMissing := gitErr != nil
 	inputs := initializer.MakeInputs()
-	initialState := model.StateDashboard
+	initialState := model.StateSystemCheckModal
 	if isFirstRun || gitMissing {
 		initialState = model.StateGitConfigurationModal
 		if !gitMissing {

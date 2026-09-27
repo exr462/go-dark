@@ -36,6 +36,8 @@ func (m *appModel) View() string {
 		return components.RenderShortcutConfigurationModal(m.state)
 	case model.StateEditorModal:
 		return components.RenderOpenEditor(m.state)
+	case model.StateSystemCheckModal:
+		return components.RenderSystemCheck(m.state)
 	case model.StateDashboard:
 		fallthrough
 	default:

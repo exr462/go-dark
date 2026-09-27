@@ -1,9 +1,12 @@
 package model
 
 import (
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
@@ -52,6 +55,7 @@ const (
 	StateDependencyConfigModal
 	StateGitConfigurationModal
 	StateShortcutConfigurationModal
+	StateSystemCheckModal
 )
 
 type DockerStats struct {
@@ -133,6 +137,11 @@ const (
 	StepAssignJDKToProject
 )
 
+type Precheck struct {
+	Name string
+	Load func() tea.Cmd
+}
+
 type MavenOperationStep int
 
 const (
@@ -152,6 +161,12 @@ type UIState struct {
 	Editor                 textarea.Model
 	EditorCol              int
 	ActiveLanguageProvider lsp.LanguageProvider
+
+	Index     int
+	Spinner   spinner.Model
+	Progress  progress.Model
+	Prechecks []Precheck
+	Done      bool
 
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea

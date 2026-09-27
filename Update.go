@@ -1,7 +1,12 @@
 package main
 
 import (
+	"log"
+
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/lsp"
@@ -9,6 +14,8 @@ import (
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/ui/components"
 )
+
+var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -71,6 +78,49 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case components.EditFileMsg:
 		return m.editFile(msg)
+
+	case preflightMsg:
+		log.Printf("preflight: %s index: %d", msg, m.state.Index)
+
+		// 1. If we finished the last precheck, complete and quit
+		if m.state.Index >= len(m.state.Prechecks)-1 {
+			m.state.Done = true
+			m.state.ViewState = model.StateDashboard
+			return m, nil
+		}
+
+		// 2. Run the payload for the CURRENT index step first
+		var loadCmd tea.Cmd
+		if msg.Function != nil {
+			loadCmd = msg.Function() // Execute precheck.Load
+		}
+
+		// 3. Advance to the next precheck index
+		m.state.Index++
+
+		// 4. Queue up the NEXT precheck tick & update the progress bar
+		nextTickCmd := m.preflight()
+		progressCmd := m.state.Progress.SetPercent(float64(m.state.Index) / float64(len(m.state.Prechecks)))
+
+		return m, tea.Batch(
+			loadCmd,
+			nextTickCmd, // This wakes up the loop again for the next item!
+			progressCmd,
+			tea.Printf("%s Step completed", checkMark),
+		)
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.state.Spinner, cmd = m.state.Spinner.Update(msg)
+		return m, cmd
+	case progress.FrameMsg:
+		var cmd tea.Cmd
+		updatedModel, cmd := m.state.Progress.Update(msg)
+
+		// Explicitly cast tea.Model back to progress.Model
+		if pModel, ok := updatedModel.(progress.Model); ok {
+			m.state.Progress = pModel
+		}
+		return m, cmd
 
 	case tea.KeyMsg:
 		// Global quit shortcuts

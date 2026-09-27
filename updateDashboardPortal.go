@@ -57,14 +57,14 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Fire off the background compilation using your exact AvailableProjects layout
 		// Limits the machine execution block to a safe ceiling of 4 concurrent threads
-		return m, m.TriggerPipelineCmd(4)
+		return m, m.TriggerPipelineCmd()
 
 	case "B": // 👈 Capital 'B' triggers the full parallel build pipeline
 		m.state.StatusMsg = "🏗️ Initializing parallel build graph..."
 		m.state.ViewState = model.StateBuildModal // Optional: switch to a loading/progress view
 
 		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
-		return m, m.TriggerPipelineCmd(4)
+		return m, m.TriggerPipelineCmd()
 	case action.GetShortcutKeyBinding(m.state.Config.ShortCuts, action.OpenEditShortcuts):
 		m.state.PreviousViewState = model.StateDashboard
 		m.loadShortcutsOnInputs()

@@ -10,4 +10,5 @@ type appModel struct {
 	state           *model.UIState
 	contentLoader   storage.ContentLoader
 	providerFactory *lsp.ProviderFactory
+	maxParallelism  int
 }
