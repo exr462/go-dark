@@ -9,6 +9,7 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) Init() tea.Cmd {
 	if m.state.ViewState == model.StateGitConfigurationModal {
+		m.state.PreviousViewState = model.StateDashboard
 		return textinput.Blink
 	}
 	return tea.Batch(m.updateWorkspaceFiles(), m.pollDockerTelemetryCmd(), m.TriggerPipelineCmd(4))

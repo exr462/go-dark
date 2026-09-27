@@ -32,6 +32,8 @@ func (m *appModel) View() string {
 		return components.RenderDockerModal(m.state)
 	case model.StateDependencyConfigModal: // 👈 ADD THIS CASE
 		return components.RenderDependencyModal(m.state)
+	case model.StateShortcutConfigurationModal:
+		return components.RenderShortcutConfigurationModal(m.state)
 	case model.StateEditorModal:
 		return "Opening external editor..."
 	case model.StateDashboard:

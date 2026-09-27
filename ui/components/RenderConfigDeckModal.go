@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -23,7 +24,7 @@ var (
 func RenderConfigDeckModal(m *model.UIState) string {
 	var body strings.Builder
 
-	body.WriteString(decorator.Title.Render("⚙️ Master Configuration & Environment Deck (Ctrl+Y)") + "\n")
+	body.WriteString(decorator.Title.Render(fmt.Sprintf("⚙️ Master Configuration & Environment Deck (%s)", config.GetKeyBinding(m.Config.ShortCuts, config.ProfileKeyBind))) + "\n")
 	body.WriteString(decorator.Description.Render("Review, expand, or adjust your system parameters across all modules below.") + "\n")
 	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 
@@ -44,7 +45,7 @@ func RenderConfigDeckModal(m *model.UIState) string {
 		"[1] Edit Global Core Credentials (BasePath, Git Profile Parameters)",
 		"[2] Manage Java SDK Pools (Add / Register JAVA_HOME Paths)",
 		"[3] Manage Apache Maven Engines (Add / Register MAVEN_HOME Paths)",
-		"[4] Add New Tracked Project Workspace Environment",
+		"[4] Edit your shortcuts",
 	}
 
 	for i, opt := range options {
@@ -59,8 +60,8 @@ func RenderConfigDeckModal(m *model.UIState) string {
 	body.WriteString(deckHintStyle.Render(fmt.Sprintf(
 		"[%s] Navigate Options | [%s] Open Selected Management Modal | [%s] Close Deck",
 		deckKeyHint.Render("↑/↓/j/k"),
-		deckKeyHint.Render("Enter"),
-		deckKeyHint.Render("Esc"),
+		deckKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+		deckKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 	)) + "\n")
 
 	return lipgloss.Place(

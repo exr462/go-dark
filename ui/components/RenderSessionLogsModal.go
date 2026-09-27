@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -78,7 +79,7 @@ func RenderSessionLogsModal(m *model.UIState) string {
 		}
 	}
 
-	body.WriteString(sessHintStyle.Render(fmt.Sprintf("[%s] Return to Dashboard", sessKeyHint.Render("Esc"))))
+	body.WriteString(sessHintStyle.Render(fmt.Sprintf("[%s] Return to Dashboard", sessKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)))))
 
 	return lipgloss.Place(
 		m.WindowWidth, m.WindowHeight,

@@ -55,12 +55,12 @@ func (m *appModel) updateDependencyScreen(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-	case "enter":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		_ = config.SaveConfig(m.state.Config)
 		m.state.ViewState = model.StateDashboard
 		return m, m.updateWorkspaceFiles()
 
-	case "esc", "q":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind), config.GetKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind):
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 	}

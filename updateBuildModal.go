@@ -2,6 +2,7 @@ package main
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
 
@@ -39,7 +40,7 @@ func (m *appModel) updateBuildModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.state.SelectedBuildOption < len(m.state.BuildOptions)-1 {
 			m.state.SelectedBuildOption++
 		}
-	case "enter":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		m.state.IsBuilding = true
 		chosenOpt := m.state.BuildOptions[m.state.SelectedBuildOption]
 		return m, m.spawnBackgroundSession(targetProj, chosenOpt)

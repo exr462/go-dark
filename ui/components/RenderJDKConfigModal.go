@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -34,8 +35,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate | [%s] Select | [%s] Close Menu",
 			jdkKeyHint.Render("↑/↓/j/k"),
-			jdkKeyHint.Render("Enter"),
-			jdkKeyHint.Render("Esc"),
+			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case model.StepAddNewJDKVersion:
@@ -58,8 +59,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",
 			jdkKeyHint.Render("Tab"),
-			jdkKeyHint.Render("Enter"),
-			jdkKeyHint.Render("Esc"),
+			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 
 	case model.StepAssignJDKToProject:
@@ -69,7 +70,7 @@ func RenderJDKConfigModal(m *model.UIState) string {
 			currentProj := m.Config.Projects[m.SelectedProject]
 			currentBound := currentProj.JDKName
 			if currentBound == "" {
-				currentBound = "System Default"
+				currentBound = "N/A"
 			}
 			modalBody.WriteString(fmt.Sprintf("📦 Target Workspace: %s (Current Bound JDK: %s)\n\n", currentProj.Name, currentBound))
 			modalBody.WriteString(decorator.Section.Render("👉 Step 2: Select Profile to Bind to Workspace Environment:") + "\n\n")
@@ -78,8 +79,8 @@ func RenderJDKConfigModal(m *model.UIState) string {
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Browse SDKs | [%s] Confirm Binding | [%s] Back",
 			jdkKeyHint.Render("↑/↓/j/k"),
-			jdkKeyHint.Render("Enter"),
-			jdkKeyHint.Render("Esc"),
+			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			jdkKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)))
 	}
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -80,8 +81,8 @@ func RenderBuildModal(m *model.UIState) string {
 		body.WriteString(buildHintStyle.Render(fmt.Sprintf(
 			"[%s] Navigate Choices | [%s] Initialize Pipeline | [%s] Dashboard",
 			buildKeyHint.Render("←/→"),
-			buildKeyHint.Render("Enter"),
-			buildKeyHint.Render("Esc"),
+			buildKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.SubmitKeyBind)),
+			buildKeyHint.Render(config.GetKeyBinding(m.Config.ShortCuts, config.CancelKeyBind)),
 		)) + "\n")
 	} else {
 		body.WriteString(buildAlertStyle.Render(fmt.Sprintf("⏳ Running in background process pool... Assigned Session ID: %d", currentSessionID)) + "\n\n")

@@ -2,17 +2,18 @@ package main
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 		m.state.ViewState = model.StateDashboard
 		return m, nil
 
-	case "ctrl+t":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.ToggleKeyBind):
 		if m.state.FuzzyMode == model.FuzzyModeFiles {
 			m.state.FuzzyMode = model.FuzzyModeContent
 		} else {
@@ -37,7 +38,7 @@ func (m *appModel) updateFuzzyModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "enter":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		if len(m.state.FuzzyResults) > 0 && m.state.SelectedFuzzy < len(m.state.FuzzyResults) {
 			target := m.state.FuzzyResults[m.state.SelectedFuzzy]
 			m.state.ViewState = model.StateDashboard

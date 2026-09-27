@@ -5,13 +5,14 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 		if m.state.GitOperationStep == model.StepSelectGitBranch {
 			m.state.GitOperationStep = model.StepSelectGitCommand
 		} else if m.state.GitOperationStep == model.StepSelectGitCommand {
@@ -57,7 +58,7 @@ func (m *appModel) updateGitOpsModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "enter":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		switch m.state.GitOperationStep {
 		case model.StepSelectGitProject:
 			m.state.GitOperationStep = model.StepSelectGitCommand

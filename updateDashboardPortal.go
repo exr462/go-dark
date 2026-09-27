@@ -6,18 +6,34 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 )
+
+func (m *appModel) prepareProfileScreen(viewState model.ApplicationViewState, name model.InputField, path model.InputField) (tea.Model, tea.Cmd) {
+	if viewState == model.StateJDKConfigModal {
+		m.state.JDKStep = model.StepSelectJDKAction
+	} else {
+		m.state.MavenStep = model.StepSelectMvnAction
+	}
+	m.state.ViewState = viewState
+	m.state.Inputs[name].SetValue("")
+	m.state.Inputs[path].SetValue("")
+	m.state.SelectedMenuIndex = 0
+	m.state.SelectedJDKIndex = 0
+	return m, nil
+}
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg.String() {
-	case "q":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind):
 		return m, tea.Quit
 
-	case "ctrl+g":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.GitOperationsKeyBind):
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateGitOperationsModal
 			m.state.GitOperationStep = model.StepSelectGitProject
@@ -52,7 +68,12 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
 		return m, m.TriggerPipelineCmd(4)
-	case "ctrl+f":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.EditShortcutsKeyBind):
+		m.state.PreviousViewState = model.StateDashboard
+		m.loadShortcutsOnInputs()
+		m.state.ViewState = model.StateShortcutConfigurationModal
+		return m, nil
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.FuzzyKeyBind):
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateFuzzyModal
 			m.state.FuzzyMode = model.FuzzyModeFiles
@@ -64,35 +85,25 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "ctrl+d":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.DockerKeyBind):
 		m.state.ViewState = model.StateDockerModal
 		m.state.SelectedDockerRow = 0
 		return m, m.fetchDockerContainersCmd()
 
-	case "ctrl+j":
-		m.state.ViewState = model.StateJDKConfigModal
-		m.state.JDKStep = model.StepSelectJDKAction
-		m.state.Inputs[model.JdkName].SetValue("")
-		m.state.Inputs[model.JdkPath].SetValue("")
-		m.state.SelectedMenuIndex = 0
-		m.state.SelectedJDKIndex = 0
-		return m, nil
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.JdkKeyBind):
+		m.state.PreviousViewState = model.StateDashboard
+		return m.prepareProfileScreen(model.StateJDKConfigModal, model.JdkName, model.JdkPath)
 
-	case "ctrl+u":
-		m.state.ViewState = model.StateMavenConfigModal
-		m.state.MavenStep = model.StepSelectMvnAction
-		m.state.Inputs[model.MvnName].SetValue("")
-		m.state.Inputs[model.MvnPath].SetValue("")
-		m.state.SelectedMenuIndex = 0
-		m.state.SelectedMavenIndex = 0
-		return m, nil
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.MvnKeyBind):
+		m.state.PreviousViewState = model.StateDashboard
+		return m.prepareProfileScreen(model.StateMavenConfigModal, model.MvnName, model.MvnPath)
 
-	case "ctrl+y":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.ProfileKeyBind):
 		m.state.ViewState = model.StateConfigDeckModal
 		m.state.SelectedConfigOption = 0
 		return m, nil
 
-	case "ctrl+b":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.BuildKeyBind):
 		if len(m.state.Config.Projects) > 0 {
 			m.state.ViewState = model.StateBuildModal
 			m.state.SelectedBuildOption = 0
@@ -102,16 +113,16 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "ctrl+s":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SessionKeyBind):
 		m.state.ViewState = model.StateSessionLogsModal
 		m.state.ViewingSessionID = 0
 		return m, nil
 
-	case "?", "h":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.HelpKeyBind):
 		m.state.ViewState = model.StateHelpModal
 		return m, nil
 
-	case "tab":
+	case kbd.Tab:
 		m.state.ActiveFocus = model.FocusArea((int(m.state.ActiveFocus) + 1) % 3)
 		return m, nil
 
@@ -135,7 +146,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.readFileContentCmd())
 		}
 
-	case "enter", "right", "l":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind), "right", "l":
 		if m.state.ActiveFocus == model.FocusMenu {
 			cmds = append(cmds, m.executeActiveMenuAction())
 		} else if m.state.ActiveFocus == model.FocusTree && len(m.state.TreeNodes) > 0 {
@@ -161,7 +172,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case "ctrl+e":
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.EditKeyBind):
 		if len(m.state.TreeNodes) == 0 || m.state.SelectedFile < 0 || m.state.SelectedFile >= len(m.state.TreeNodes) {
 			return m, nil
 		}

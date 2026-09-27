@@ -50,6 +50,7 @@ const (
 	StateEditorModal
 	StateDependencyConfigModal
 	StateGitConfigurationModal
+	StateShortcutConfigurationModal
 )
 
 type DockerStats struct {
@@ -94,6 +95,22 @@ const (
 	JdkPath
 	MvnName
 	MvnPath
+	FuzzyKey
+	GitOperationsKey
+	ProfileKey
+	SessionKey
+	DockerKey
+	MvnKey
+	JdkKey
+	BuildKey
+	QuitKey
+	EditKey
+	NewProjectKey
+	SubmitKey
+	CancelKey
+	HelpKey
+	ToggleKey
+	EditShortcutsKey
 	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
 	Ceiling
 )
@@ -125,10 +142,11 @@ const (
 // UIState holds the shared application global model
 type UIState struct {
 	// !!! GLOBAL VARIABLES MAPPINGS !!!
-	Config       config.Config
-	ViewState    ApplicationViewState
-	WindowWidth  int
-	WindowHeight int
+	Config            config.Config
+	ViewState         ApplicationViewState
+	PreviousViewState ApplicationViewState
+	WindowWidth       int
+	WindowHeight      int
 
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,23 +13,27 @@ import (
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc":
-		m.state.ViewState = model.StateDashboard
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+		log.Printf("updateGitConfiguration Previous View State: %v", m.state.PreviousViewState)
+		m.state.ViewState = m.state.PreviousViewState
 		return m, nil
+
 	case "tab", "down":
 		m.state.Inputs[m.state.FocusedInput].Blur()
 		m.state.FocusedInput = (m.state.FocusedInput + 1) % 4
 		m.state.Inputs[m.state.FocusedInput].Focus()
 		return m, nil
+
 	case "shift+tab", "up":
 		m.state.Inputs[m.state.FocusedInput].Blur()
 		m.state.FocusedInput--
 		if m.state.FocusedInput < 0 {
-			m.state.FocusedInput = 2
+			m.state.FocusedInput = 3 // 🎯 FIX: Wrap cleanly to index 3 (matching your 4 total inputs)
 		}
 		m.state.Inputs[m.state.FocusedInput].Focus()
 		return m, nil
-	case "enter":
+
+	case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 		m.state.Config.BasePath = m.state.Inputs[model.GitWorkspace].Value()
 		m.state.Config.GitUsername = m.state.Inputs[model.GitUsername].Value()
 		m.state.Config.GitEmail = m.state.Inputs[model.GitEmail].Value()
@@ -50,9 +55,10 @@ func (m *appModel) updateGitConfiguration(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		_ = config.SaveConfig(m.state.Config)
-		m.state.ViewState = model.StateDashboard
+		m.state.ViewState = m.state.PreviousViewState
 		return m, nil
 	}
+
 	var cmd tea.Cmd
 	m.state.Inputs[m.state.FocusedInput], cmd = m.state.Inputs[m.state.FocusedInput].Update(msg)
 	return m, cmd

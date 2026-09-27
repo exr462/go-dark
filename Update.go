@@ -69,7 +69,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Global quit shortcuts
-		if msg.String() == "ctrl+c" || msg.String() == "ctrl+q" {
+		if msg.String() == config.GetKeyBinding(m.state.Config.ShortCuts, config.QuitKeyBind) {
 			return m, tea.Quit
 		}
 
@@ -95,6 +95,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfigDeckModal(msg)
 		case model.StateDockerModal:
 			return m.updateDockerModal(msg)
+		case model.StateShortcutConfigurationModal:
+			return m.updateShortcutsConfigurationModal(msg)
 		case model.StateEditorModal:
 			return m, nil
 		case model.StateDependencyConfigModal:

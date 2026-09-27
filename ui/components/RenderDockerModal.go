@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -19,7 +20,7 @@ var (
 
 func RenderDockerModal(m *model.UIState) string {
 	var body strings.Builder
-	body.WriteString(decorator.Title.Render("🐳 Docker Infrastructure Control Center (Ctrl+D)") + "\n")
+	body.WriteString(decorator.Title.Render(fmt.Sprintf("🐳 Docker Infrastructure Control Center (%s)", config.GetKeyBinding(m.Config.ShortCuts, config.DockerKeyBind))) + "\n")
 	body.WriteString(decorator.Description.Render("Monitor and orchestrate local microservice containers across your daemon runtime layers.") + "\n")
 	body.WriteString(strings.Repeat("─", max(m.WindowWidth-8, 20)) + "\n\n")
 

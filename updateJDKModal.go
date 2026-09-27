@@ -13,8 +13,8 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.state.JDKStep {
 	case model.StepSelectJDKAction:
 		switch msg.String() {
-		case "esc":
-			m.state.ViewState = model.StateConfigDeckModal
+		case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
+			m.state.ViewState = m.state.PreviousViewState
 			return m, nil
 		case "up", "k":
 			if m.state.SelectedMenuIndex > 0 {
@@ -24,7 +24,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.state.SelectedMenuIndex < 1 {
 				m.state.SelectedMenuIndex++
 			}
-		case "enter":
+		case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 			if m.state.SelectedMenuIndex == 0 {
 				m.state.JDKStep = model.StepAddNewJDKVersion
 				m.initFields(model.JdkName, model.JdkPath)
@@ -35,14 +35,14 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case model.StepAddNewJDKVersion:
 		switch msg.String() {
-		case "esc":
+		case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
 		case "tab", "down":
 			m.switcheroo(model.JdkName, model.JdkPath)
 		case "shift+tab", "up":
 			m.switcheroo(model.JdkName, model.JdkPath)
-		case "enter":
+		case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 			jName, jPath := m.getValues(model.JdkName, model.JdkPath)
 			if jName != "" && jPath != "" {
 				m.state.Config.JDKs = append(m.state.Config.JDKs, config.Profile{Name: jName, Path: jPath})
@@ -57,7 +57,7 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case model.StepAssignJDKToProject:
 		switch msg.String() {
-		case "esc":
+		case config.GetKeyBinding(m.state.Config.ShortCuts, config.CancelKeyBind):
 			m.state.JDKStep = model.StepSelectJDKAction
 			return m, nil
 		case "up", "k":
@@ -68,14 +68,14 @@ func (m *appModel) updateJDKModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.state.SelectedJDKIndex < len(m.state.Config.JDKs)-1 {
 				m.state.SelectedJDKIndex++
 			}
-		case "enter":
+		case config.GetKeyBinding(m.state.Config.ShortCuts, config.SubmitKeyBind):
 			if len(m.state.Config.JDKs) > 0 && len(m.state.Config.Projects) > 0 {
 				chosenJDK := m.state.Config.JDKs[m.state.SelectedJDKIndex]
 				m.state.Config.Projects[m.state.SelectedProject].JDKName = chosenJDK.Name
 				_ = config.SaveConfig(m.state.Config)
 				m.state.StatusMsg = fmt.Sprintf("✅ Assigned JDK Environment: %s", chosenJDK.Name)
 			}
-			m.state.ViewState = model.StateDashboard
+			m.state.ViewState = m.state.PreviousViewState
 			return m, m.updateWorkspaceFiles()
 		}
 	}
