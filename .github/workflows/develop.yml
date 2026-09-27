@@ -1,13 +1,13 @@
-name: Build And Test Binaries on Amin Branch
+name: Build And Test Binaries on Develop Branch
 
 # This configuration restricts the workflow execution exclusively to the main branch
 on:
   push:
     branches:
-      - main
+      - develop
   pull_request:
     branches:
-      - main
+      - develop
 
 jobs:
   build:
