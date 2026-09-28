@@ -24,7 +24,7 @@ func (l *localFileLoader) GetContent(path string) (string, error) {
 	return string(bytes), nil
 }
 
-// NewLocalLoader initializes and returns the loader.
-func NewLocalLoader() ContentLoader {
+// NewContentLoader initializes and returns the loader.
+func NewContentLoader() ContentLoader {
 	return &localFileLoader{}
 }

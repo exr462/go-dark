@@ -10,6 +10,4 @@ type appModel struct {
 	ui              *model.UI
 	contentLoader   storage.ContentLoader
 	providerFactory *lsp.ProviderFactory
-	maxParallelism  int
-	isFirstRun      bool
 }

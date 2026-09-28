@@ -1,4 +1,4 @@
-package main
+package initializer
 
 import (
 	"context"
@@ -9,34 +9,20 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/task"
 )
 
-type TaskState int
-
-const (
-	StatePending TaskState = iota
-	StateBuilding
-	StateSuccess
-	StateFailed
-)
-
-type BuildTask struct {
-	Meta  config.AvailableProject
-	Path  string
-	State TaskState
-	Err   error
+type initializerTriggerPipeline struct {
+	ui *model.UI
 }
 
-// TriggerPipelineCmd spins up the concurrency workers
-//
-//goland:noinspection GoMixedReceiverTypes
-func (m *appModel) TriggerPipelineCmd() tea.Cmd {
+func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 	return func() tea.Msg {
 		// Resolve the exact build queue order based on your registry
 		sortedQueue, err := model.ResolveBuildOrder(m.ui.Config.Projects, config.AvailableProjects)
 
 		if err != nil {
-			return PipelineCompleteMsg{Success: false, Log: err.Error()}
+			return task.PipelineCompleteMsg{Success: false, Log: err.Error()}
 		}
 		// Map to coordinate lookups of current paths inside Config.Projects
 		pathMap := make(map[string]string)
@@ -45,13 +31,13 @@ func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 		}
 
 		// Initialize structural runtime build trackers
-		var tasks []*BuildTask
-		taskMap := make(map[string]*BuildTask)
+		var tasks []*task.BuildTask
+		taskMap := make(map[string]*task.BuildTask)
 		for _, sq := range sortedQueue {
-			t := &BuildTask{
+			t := &task.BuildTask{
 				Meta:  sq,
 				Path:  pathMap[sq.Name],
-				State: StatePending,
+				State: task.StatePending,
 			}
 			tasks = append(tasks, t)
 			taskMap[sq.Name] = t
@@ -62,7 +48,7 @@ func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 		defer cancel()
 
 		var mu sync.Mutex
-		sem := make(chan struct{}, m.maxParallelism)
+		sem := make(chan struct{}, m.ui.MaxParallelism)
 		taskDoneChan := make(chan string, len(tasks))
 
 		for {
@@ -72,15 +58,15 @@ func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 			pipelineFailed := false
 
 			for _, t := range tasks {
-				if t.State == StateBuilding {
+				if t.State == task.StateBuilding {
 					activeCount++
 					continue
 				}
-				if t.State == StateFailed {
+				if t.State == task.StateFailed {
 					pipelineFailed = true
 					continue
 				}
-				if t.State != StatePending {
+				if t.State != task.StatePending {
 					continue
 				}
 
@@ -91,36 +77,36 @@ func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 				for _, depName := range t.Meta.Dependencies {
 					depTask, exists := taskMap[depName]
 					// If the dependency exists in our build tree but hasn't finished, wait.
-					if exists && depTask.State != StateSuccess {
+					if exists && depTask.State != task.StateSuccess {
 						depsMet = false
 						break
 					}
 				}
 
 				if depsMet {
-					t.State = StateBuilding
+					t.State = task.StateBuilding
 					activeCount++
 					pendingCount--
 					wg.Add(1)
 
-					go func(task *BuildTask) {
+					go func(buildTask *task.BuildTask) {
 						defer wg.Done()
 						sem <- struct{}{}
 						defer func() { <-sem }()
 
 						// Execute compilation step
-						buildErr := runMavenBuild(ctx, task.Path)
+						buildErr := runMavenBuild(ctx, buildTask.Path)
 
 						mu.Lock()
 						if buildErr != nil {
-							task.State = StateFailed
-							task.Err = buildErr
+							buildTask.State = task.StateFailed
+							buildTask.Error = buildErr
 						} else {
-							task.State = StateSuccess
+							buildTask.State = task.StateSuccess
 						}
 						mu.Unlock()
 
-						taskDoneChan <- task.Meta.Name
+						taskDoneChan <- buildTask.Meta.Name
 					}(t)
 				}
 			}
@@ -129,7 +115,7 @@ func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 			if pipelineFailed {
 				cancel()
 				wg.Wait()
-				return PipelineCompleteMsg{Success: false, Log: "Pipeline aborted due to module build error."}
+				return task.PipelineCompleteMsg{Success: false, Log: "Pipeline aborted due to module build error."}
 			}
 
 			if pendingCount == 0 && activeCount == 0 {
@@ -142,7 +128,7 @@ func (m *appModel) TriggerPipelineCmd() tea.Cmd {
 		}
 
 		wg.Wait()
-		return PipelineCompleteMsg{Success: true, Log: "All buildable modules completed!"}
+		return task.PipelineCompleteMsg{Success: true, Log: "All buildable modules completed!"}
 	}
 }
 
@@ -154,7 +140,6 @@ func runMavenBuild(ctx context.Context, directory string) error {
 	return cmd.Run()
 }
 
-type PipelineCompleteMsg struct {
-	Success bool
-	Log     string
+func InitializeTriggerPipeline(ui *model.UI) Initializer {
+	return &initializerTriggerPipeline{ui}
 }

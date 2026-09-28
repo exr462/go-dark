@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
-	"github.com/exr462/go-dark/ui/components"
+	"github.com/exr462/go-dark/ui/component"
 	"github.com/exr462/go-dark/ui/panels"
 )
 
@@ -11,33 +11,33 @@ import (
 func (m *appModel) View() string {
 	switch m.ui.ViewState {
 	case model.StateHelpModal:
-		return components.RenderHelpModal(m.ui)
+		return component.RenderHelpModal(m.ui)
 	case model.StateGitConfigurationModal:
-		return components.RenderGitConfiguration(m.ui)
+		return component.RenderGitConfiguration(m.ui)
 	case model.StateGitOperationsModal:
-		return components.RenderGitOpsModal(m.ui)
+		return component.RenderGitOpsModal(m.ui)
 	case model.StateJDKConfigModal:
-		return components.RenderJDKConfigModal(m.ui)
+		return component.RenderJDKConfigModal(m.ui)
 	case model.StateMavenConfigModal:
-		return components.RenderMvnConfigModal(m.ui)
+		return component.RenderMvnConfigModal(m.ui)
 	case model.StateBuildModal:
-		return components.RenderBuildModal(m.ui)
+		return component.RenderBuildModal(m.ui)
 	case model.StateSessionLogsModal:
-		return components.RenderSessionLogsModal(m.ui)
+		return component.RenderSessionLogsModal(m.ui)
 	case model.StateFuzzyModal:
-		return components.RenderFuzzyModal(m.ui)
+		return component.RenderFuzzyModal(m.ui)
 	case model.StateConfigDeckModal:
-		return components.RenderConfigDeckModal(m.ui)
+		return component.RenderConfigDeckModal(m.ui)
 	case model.StateDockerModal:
-		return components.RenderDockerModal(m.ui)
+		return component.RenderDockerModal(m.ui)
 	case model.StateDependencyConfigModal: // 👈 ADD THIS CASE
-		return components.RenderDependencyModal(m.ui)
+		return component.RenderDependencyModal(m.ui)
 	case model.StateShortcutConfigurationModal:
-		return components.RenderShortcutConfigurationModal(m.ui)
+		return component.RenderShortcutConfigurationModal(m.ui)
 	case model.StateEditorModal:
-		return components.RenderOpenEditor(m.ui)
+		return component.RenderOpenEditor(m.ui)
 	case model.StateSystemCheckModal:
-		return components.RenderSystemCheck(m.ui)
+		return component.RenderSystemCheck(m.ui)
 	case model.StateDashboard:
 		fallthrough
 	default:

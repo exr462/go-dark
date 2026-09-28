@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/storage"
 )
@@ -22,8 +23,9 @@ func main() {
 	ui.ViewState = model.StateSystemCheckModal
 	m := &appModel{
 		ui:            ui,
-		contentLoader: storage.NewLocalLoader(),
+		contentLoader: storage.NewContentLoader(),
 	}
+	m.ui.Inputs = initializer.MakeInputs()
 	m.ui.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
 	m.ui.FuzzyQueryInput.CharLimit = 50
 

@@ -1,4 +1,4 @@
-package components
+package component
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
 )
 
@@ -42,7 +43,7 @@ var (
 func RenderSystemCheck(ui *model.UI) string {
 	if ui.Done {
 		// In Bubble Tea v2, return views wrapped explicitly using tea.NewView
-		return doneStyle.Render(fmt.Sprintf("Done! Installed %d packages.\n", len(ui.Prechecks)))
+		return ""
 	}
 
 	// 1. Establish the fixed container modal width boundaries
@@ -63,14 +64,13 @@ func RenderSystemCheck(ui *model.UI) string {
 	modalBody.WriteString(view(ui, innerWidth) + "\n")
 
 	// 2. Build the final screen space layout string
-	renderedOutput := lipgloss.Place(
+	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
 		decorator.ModalBox.Width(modalWidth).Render(modalBody.String()),
+		decorator.WhiteSpace,
+		lipgloss.WithWhitespaceForeground(color.Crust),
 	)
-
-	// Return structural v2 view type
-	return renderedOutput
 }
 
 // Sub-components can still return a raw string to make string composition easy

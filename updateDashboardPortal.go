@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/action"
+	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 )
@@ -57,14 +58,14 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Fire off the background compilation using your exact AvailableProjects layout
 		// Limits the machine execution block to a safe ceiling of 4 concurrent threads
-		return m, m.TriggerPipelineCmd()
+		return m, initializer.InitializeTriggerPipeline(m.ui).OnAction()
 
 	case "B": // 👈 Capital 'B' triggers the full parallel build pipeline
 		m.ui.StatusMsg = "🏗️ Initializing parallel build graph..."
 		m.ui.ViewState = model.StateBuildModal // Optional: switch to a loading/progress view
 
 		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
-		return m, m.TriggerPipelineCmd()
+		return m, initializer.InitializeTriggerPipeline(m.ui).OnAction()
 	case action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.OpenEditShortcuts):
 		m.ui.PreviousViewState = model.StateDashboard
 		m.loadShortcutsOnInputs()
@@ -127,7 +128,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.ui.ActiveFocus == model.FocusProjects && m.ui.SelectedProject > 0 {
 			m.ui.SelectedProject--
 			m.refreshRightPaneFromSelectedProject()
-			cmds = append(cmds, m.updateWorkspaceFiles())
+			cmds = append(cmds, initializer.InitializeWorkspace(m.ui).OnAction())
 		} else if m.ui.ActiveFocus == model.FocusTree && m.ui.SelectedFile > 0 {
 			m.ui.SelectedFile--
 			cmds = append(cmds, m.readFileContentCmd())
@@ -137,7 +138,7 @@ func (m *appModel) updateDashboardPortal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.ui.ActiveFocus == model.FocusProjects && m.ui.SelectedProject < len(m.ui.Config.Projects)-1 {
 			m.ui.SelectedProject++
 			m.refreshRightPaneFromSelectedProject()
-			cmds = append(cmds, m.updateWorkspaceFiles())
+			cmds = append(cmds, initializer.InitializeWorkspace(m.ui).OnAction())
 		} else if m.ui.ActiveFocus == model.FocusTree && m.ui.SelectedFile < len(m.ui.TreeNodes)-1 {
 			m.ui.SelectedFile++
 			cmds = append(cmds, m.readFileContentCmd())

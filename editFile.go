@@ -5,10 +5,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/model"
-	"github.com/exr462/go-dark/ui/components"
+	"github.com/exr462/go-dark/ui/component"
 )
 
-func (m *appModel) editFile(msg components.EditFileMsg) (tea.Model, tea.Cmd) {
+func (m *appModel) editFile(msg component.EditFileMsg) (tea.Model, tea.Cmd) {
 	m.ui.ViewState = model.StateDashboard
 	if msg.Err != nil {
 		m.ui.LastError = msg.Err

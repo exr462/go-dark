@@ -161,12 +161,13 @@ type UI struct {
 	Editor                 textarea.Model
 	EditorCol              int
 	ActiveLanguageProvider lsp.LanguageProvider
-
-	Index     int
-	Spinner   spinner.Model
-	Progress  progress.Model
-	Prechecks []Precheck
-	Done      bool
+	IsFirstRun             bool
+	Index                  int
+	Spinner                spinner.Model
+	Progress               progress.Model
+	Prechecks              []Precheck
+	Done                   bool
+	MaxParallelism         int
 
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea

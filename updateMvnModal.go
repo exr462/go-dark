@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 )
 
@@ -78,7 +79,7 @@ func (m *appModel) updateMvnModal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.ui.StatusMsg = fmt.Sprintf("✅ Assigned Maven Profile: %s", chosenMvn.Name)
 			}
 			m.ui.ViewState = m.ui.PreviousViewState
-			return m, m.updateWorkspaceFiles()
+			return m, initializer.InitializeWorkspace(m.ui).OnAction()
 		}
 	}
 	return m, nil

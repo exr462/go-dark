@@ -1,4 +1,4 @@
-package main
+package initializer
 
 import (
 	"os"
@@ -6,9 +6,14 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/model"
 )
 
-func (m *appModel) updateWorkspaceFiles() tea.Cmd {
+type initializerWorkspace struct {
+	ui *model.UI
+}
+
+func (m *initializerWorkspace) OnAction() tea.Cmd {
 	if len(m.ui.Config.Projects) == 0 {
 		return nil
 	}
@@ -38,4 +43,8 @@ func (m *appModel) updateWorkspaceFiles() tea.Cmd {
 			Files: projectFiles,
 		}
 	}
+}
+
+func InitializeWorkspace(ui *model.UI) Initializer {
+	return &initializerWorkspace{ui}
 }

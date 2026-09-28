@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log"
+
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,8 +11,9 @@ import (
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
-	"github.com/exr462/go-dark/ui/components"
+	"github.com/exr462/go-dark/ui/component"
 )
 
 var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
@@ -35,8 +38,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case config.GitStatusLoadedMsg:
 		return m.gitStatusLoaded(msg)
 
-	case config.WorkspaceRefreshedMsg:
-		return m.workspaceRefreshed(msg)
+	case component.WorkspaceRefreshedMsg:
+		return m, component.WorkspaceRefreshed(m.ui, msg)
 
 	case config.GitStatusErrorMsg:
 		return m.gitStatusError(msg)
@@ -74,36 +77,54 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case model.BuildCompleteMsg:
 		return m.buildComplete(msg)
 
-	case components.EditFileMsg:
+	case component.EditFileMsg:
 		return m.editFile(msg)
 
 	case preflightMsg:
-		// 1. If we finished the last precheck, complete and quit
-		if m.ui.Index >= len(m.ui.Prechecks)-1 {
-			m.ui.Done = true
-			m.ui.ViewState = model.StateDashboard
-			return m, nil
-		}
-
-		// 2. Run the payload for the CURRENT index step first
+		log.Printf("preflight: %s index: %d", msg, m.ui.Index)
+		// 1. Run the payload for the current index step if safe
 		var loadCmd tea.Cmd
 		if msg.Function != nil {
-			loadCmd = msg.Function() // Execute precheck.Load
+			loadCmd = msg.Function()
 		}
-
-		// 3. Advance to the next precheck index
+		// 2. Advance to the next precheck index
 		m.ui.Index++
 
-		// 4. Queue up the NEXT precheck tick & update the progress bar
-		nextTickCmd := m.preflight()
+		// 3. CRITICAL CHECK: Intercept failures or first-run blocks immediately
+		//    Replace 'msg.Err != nil' with whatever field your preflightMsg carries for errors
+		if m.ui.IsFirstRun {
+			m.ui.IsFirstRun = false
+			// Halt the process by shifting the active layout screen state
+			m.ui.ViewState = model.StateGitConfigurationModal
+
+			// Return immediately with optional clean visual logs.
+			// Do NOT append m.preflight() here. The loop stops completely!
+			return m, tea.Printf("%s [ HALT ] Setup interrupted. Redirection to Git Configuration...", checkMark)
+		}
+
+		// 4. Check if EVERYTHING is completed successfully
+		if m.ui.Index >= len(m.ui.Prechecks) {
+			m.ui.Done = true
+			progressCmd := m.ui.Progress.SetPercent(1.0)
+
+			return m, tea.Sequence(
+				loadCmd,
+				progressCmd,
+				tea.Printf("%s [ OK ] Go-Dark Subsystems Primed.", checkMark),
+				func() tea.Msg { return state.PreflightCompleteMsg{} },
+			)
+		}
+
+		// 5. Continue processing remaining tasks smoothly
+		nextTickCmd := preflight(m.ui)
 		progressCmd := m.ui.Progress.SetPercent(float64(m.ui.Index) / float64(len(m.ui.Prechecks)))
 
 		return m, tea.Batch(
 			loadCmd,
-			nextTickCmd, // This wakes up the loop again for the next item!
+			nextTickCmd,
 			progressCmd,
-			tea.Printf("%s Step completed", checkMark),
 		)
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.ui.Spinner, cmd = m.ui.Spinner.Update(msg)
@@ -118,6 +139,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 
+	case state.PreflightCompleteMsg:
+		m.ui.ViewState = model.StateDashboard
+		log.Printf("PreflightCompleteMsg: %v", m.ui.ViewState)
+		return m, nil
+
 	case tea.KeyMsg:
 		// Global quit shortcuts
 		if msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.QuitApplication) {
@@ -129,7 +155,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateHelpModal:
 			return m.updateHelpModal(msg)
 		case model.StateGitConfigurationModal:
-			return m.updateGitConfiguration(msg)
+			return m, component.UpdateGitConfiguration(msg, m.ui)
 		case model.StateGitOperationsModal:
 			return m.updateGitOpsModal(msg)
 		case model.StateJDKConfigModal:

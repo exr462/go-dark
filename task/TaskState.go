@@ -1,5 +1,7 @@
 package task
 
+import "github.com/exr462/go-dark/config"
+
 // TaskState tracks the current progress of a specific project build
 type TaskState int
 
@@ -16,6 +18,7 @@ type BuildTask struct {
 	BuildArgs    string   // e.g., "install -DskipTests"
 	Dependencies []string // Names of projects that MUST build successfully first
 	State        TaskState
+	Meta         config.AvailableProject
 	Error        error
 }
 
@@ -27,4 +30,5 @@ type PipelineTaskFinishedMsg struct {
 }
 type PipelineCompleteMsg struct {
 	Success bool
+	Log     string
 }

@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 )
 
@@ -26,5 +27,5 @@ func (m *appModel) gitCheckoutComplete(msg config.GitCheckoutCompleteMsg) (tea.M
 		_ = config.SaveConfig(m.ui.Config)
 	}
 	m.ui.ViewState = model.StateDashboard
-	return m, m.updateWorkspaceFiles()
+	return m, initializer.InitializeWorkspace(m.ui).OnAction()
 }
