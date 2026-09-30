@@ -23,14 +23,14 @@ func BuildModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
 	}
 
 	if currentSessionID != 0 {
-		if msg.String() == "esc" {
+		if msg.String() == action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape) {
 			ui.ViewState = model.StateDashboard
 		}
 		return nil
 	}
 
 	switch msg.String() {
-	case "esc":
+	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		ui.ViewState = model.StateDashboard
 		return nil
 	case "left", "h":

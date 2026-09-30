@@ -11,6 +11,7 @@ import (
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
+	"github.com/exr462/go-dark/terminal"
 )
 
 type BuildSession struct {
@@ -57,6 +58,7 @@ const (
 	StateGitConfigurationModal
 	StateShortcutConfigurationModal
 	StateSystemCheckModal
+	StateTerminalCockpit
 )
 
 type FuzzyMode int
@@ -107,21 +109,24 @@ const (
 // UI holds the shared application global model
 type UI struct {
 	// !!! GLOBAL VARIABLES MAPPINGS !!!
-	Config                 config.Config
-	ViewState              ApplicationViewState
-	PreviousViewState      ApplicationViewState
-	WindowWidth            int
-	WindowHeight           int
-	Editor                 textarea.Model
-	EditorCol              int
-	ActiveLanguageProvider lsp.LanguageProvider
-	IsFirstRun             bool
-	Index                  int
-	Spinner                spinner.Model
-	Progress               progress.Model
-	Prechecks              []Precheck
-	Done                   bool
-	MaxParallelism         int
+	Config                  config.Config
+	ViewState               ApplicationViewState
+	PreviousViewState       ApplicationViewState
+	WindowWidth             int
+	WindowHeight            int
+	Editor                  textarea.Model
+	EditorCol               int
+	ActiveLanguageProvider  lsp.LanguageProvider
+	IsFirstRun              bool
+	Index                   int
+	Spinner                 spinner.Model
+	Progress                progress.Model
+	Prechecks               []Precheck
+	Done                    bool
+	MaxParallelism          int
+	ActiveTerminalSessionID int                           // Tracks current terminal channel handle
+	TerminalLogs            []terminal.LogLine            // Active console feed store
+	TerminalSessions        map[int]terminal.SessionState // Global ongoing background routines registry
 
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea

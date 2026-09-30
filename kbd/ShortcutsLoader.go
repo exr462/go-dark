@@ -8,7 +8,7 @@ import (
 func LoadShortcutsOnInputs(shortCuts []action.Shortcut, inputs []textinput.Model) {
 	for inputField, shortCutAction := range ShortcutsMap {
 		if int(shortCutAction) >= 0 && int(shortCutAction) < len(shortCuts) {
-			for i := 0; i < len(shortCuts); i++ {
+			for i := range shortCuts {
 				if shortCuts[i].Action == shortCutAction {
 					inputs[inputField].SetValue(shortCuts[i].KeyBinding)
 				}

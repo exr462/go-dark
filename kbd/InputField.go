@@ -28,6 +28,7 @@ const (
 	ToggleKey
 	EditShortcutsKey
 	EditContent
+	Terminal
 	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
 	Ceiling
 )

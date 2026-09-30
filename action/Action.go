@@ -19,6 +19,10 @@ const (
 	OpenHelp
 	Toggle
 	OpenEditShortcuts
+	Enter
+	Execute
+	Abort
+	OpenTerminal
 )
 
 const (
@@ -33,11 +37,13 @@ const (
 	QuitShortcut              = "ctrl+q"
 	OpenEditFileShortcut      = "ctrl+e"
 	OpenNewProjectShortcut    = "ctrl+n"
-	SaveShortcut              = "enter"
+	SaveShortcut              = "ctrl+s"
+	EnterShortcut             = "enter"
 	EscapeShortcut            = "esc"
 	OpenHelpShortcut          = "ctrl+h"
 	ToggleShortcut            = "ctrl+t"
 	OpenEditShortcutsShortcut = "ctrl+k"
+	TerminalShortcut          = "ctrl+shift+t"
 )
 
 type Shortcut struct {
@@ -109,6 +115,14 @@ var DefaultShortcuts = []Shortcut{
 	{
 		Action:     OpenEditShortcuts,
 		KeyBinding: OpenEditShortcutsShortcut,
+	},
+	{
+		Action:     Enter,
+		KeyBinding: EnterShortcut,
+	},
+	{
+		Action:     OpenTerminal,
+		KeyBinding: TerminalShortcut,
 	},
 }
 

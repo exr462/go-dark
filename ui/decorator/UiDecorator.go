@@ -44,6 +44,13 @@ var (
 	Untracked       = lipgloss.NewStyle().Foreground(color.Red).Bold(true)
 	Staged          = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
 	Clean           = lipgloss.NewStyle().Foreground(color.Teal)
+	Dim             = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+
+	// White colorizes plain-text output console data fields cleanly
+	White = lipgloss.NewStyle().Foreground(lipgloss.Color("#E4E4E4"))
+
+	// Red processes raw terminal error indicators safely inside constraints
+	Red = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F5F"))
 )
 
 // Row Helper wrapper function to draw unified lines
