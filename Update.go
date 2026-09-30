@@ -16,10 +16,13 @@ import (
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
+	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
+	"github.com/exr462/go-dark/terminal"
 	"github.com/exr462/go-dark/ui/component"
 	componentaction "github.com/exr462/go-dark/ui/component/action"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
@@ -70,6 +73,20 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case config.GitBranchesLoadedMsg:
 		m.ui.AvailableBranches = msg
 		m.ui.SelectedGitBranch = 0
+		return m, nil
+
+	case session.LogStreamMsg:
+		// 1. Thread-safely append the log message directly inside the main UI loop!
+		m.ui.TerminalLogs = append(m.ui.TerminalLogs, terminal.LogLine{
+			Text:  msg.Text,
+			IsErr: msg.IsErr,
+		})
+
+		// 2. CRITICAL: Continue listening for the NEXT log block line by re-calling the command loop!
+		return m, session.ListenForLogs()
+
+	case session.LogProcessFinishedMsg:
+		m.ui.IsBuilding = false
 		return m, nil
 
 	case config.GitBranchesErrorMsg:
@@ -226,6 +243,15 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, componentaction.ShortcutsConfigurationModal(m.ui, msg)
 		case model.StateEditorModal:
 			return m, componentaction.EditorModal(m.ui, msg)
+		case model.StateTerminalCockpit:
+			var cmd tea.Cmd
+
+			// 1. ALWAYS unconditionally forward EVERY message (blinks, ticks, etc.) to the input component
+			m.ui.Inputs[kbd.Terminal], cmd = m.ui.Inputs[kbd.Terminal].Update(msg)
+
+			// 2. Intercept keys explicitly for shortcuts and actions
+			actionCmd := componentaction.TerminalExecutionModal(m.ui, msg)
+			return m, tea.Batch(cmd, actionCmd)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
 			projIdx := m.ui.DepScreen.ActiveProjectIndex

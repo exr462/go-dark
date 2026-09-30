@@ -12,6 +12,7 @@ import (
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/state"
+	"github.com/exr462/go-dark/terminal"
 )
 
 func profileScreen(ui *model.UI, viewState model.ApplicationViewState, name kbd.InputField, path kbd.InputField) tea.Cmd {
@@ -184,6 +185,11 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 		ui.ViewState = model.StateEditorModal
 		ui.FocusedInput = kbd.EditContent
 		return commandfile.LoadFileCmd(ui, providerFactory)
+	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal):
+		ui.ViewState = model.StateTerminalCockpit
+		ui.TerminalLogs = make([]terminal.LogLine, 0)
+		ui.FocusedInput = kbd.Terminal
+		return TerminalExecutionModal(ui, msg)
 	}
 
 	return tea.Batch(cmds...)

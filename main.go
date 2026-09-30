@@ -12,11 +12,7 @@ import (
 )
 
 func main() {
-	f, err := initLogger()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize log file: %v\n", err)
-		os.Exit(1)
-	}
+	f := initLogger()
 	defer func(f *os.File) {
 		_ = f.Close()
 	}(f)
@@ -35,12 +31,13 @@ func main() {
 	}
 }
 
-func initLogger() (*os.File, error) {
+func initLogger() *os.File {
 	f, err := os.OpenFile("debug.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		return nil, err
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize log file: %v\n", err)
+		os.Exit(1)
 	}
 	log.SetOutput(f)
-	log.Println("--- TUI Engine Session Started ---")
-	return f, nil
+	log.Println("--- Go Dark Started ---")
+	return f
 }

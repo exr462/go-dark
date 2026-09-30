@@ -20,8 +20,6 @@ const (
 	Toggle
 	OpenEditShortcuts
 	Enter
-	Execute
-	Abort
 	OpenTerminal
 )
 
@@ -41,9 +39,9 @@ const (
 	EnterShortcut             = "enter"
 	EscapeShortcut            = "esc"
 	OpenHelpShortcut          = "ctrl+h"
-	ToggleShortcut            = "ctrl+t"
+	ToggleShortcut            = "ctrl+tab"
 	OpenEditShortcutsShortcut = "ctrl+k"
-	TerminalShortcut          = "ctrl+shift+t"
+	TerminalShortcut          = "ctrl+t"
 )
 
 type Shortcut struct {

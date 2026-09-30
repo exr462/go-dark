@@ -48,6 +48,8 @@ func RenderShortcutConfigurationModal(ui *model.UI) string {
 			"%s\n%s\n\n"+
 			// EditShortcutsKey
 			"%s\n%s\n\n"+
+			// Terminal
+			"%s\n%s\n\n"+
 			// Footer
 			"%s\n",
 		decorator.Title.Render("🔏 Shortcut configuration screen"),
@@ -83,6 +85,8 @@ func RenderShortcutConfigurationModal(ui *model.UI) string {
 		ui.Inputs[kbd.ToggleKey].View(),
 		decorator.Bold.Render("Edit shortcuts"),
 		ui.Inputs[kbd.EditShortcutsKey].View(),
+		decorator.Bold.Render("Open Terminal"),
+		ui.Inputs[kbd.Terminal].View(),
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),

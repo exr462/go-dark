@@ -15,6 +15,7 @@ import (
 // RenderTerminalExecution draws a cross-platform command entry and log monitoring workspace.
 func RenderTerminalExecution(ui *model.UI) string {
 	// 1. Setup specialized styling for terminal/log streams
+	ui.Inputs[kbd.Terminal].Focus()
 	logBoxStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("#1E1E2E")). // Deep dark terminal backing
 		Padding(0, 1).
@@ -28,10 +29,12 @@ func RenderTerminalExecution(ui *model.UI) string {
 		logContent.WriteString(decorator.Dim.Render("No active process logs. Enter a command above to begin..."))
 	} else {
 		for _, log := range ui.TerminalLogs {
-			if log.IsErr {
-				logContent.WriteString(decorator.Red.Render(log.Text) + "\n")
-			} else {
-				logContent.WriteString(decorator.White.Render(log.Text) + "\n")
+			if log.Text != "" {
+				if log.IsErr {
+					logContent.WriteString(decorator.Red.Render(log.Text) + "\n")
+				} else {
+					logContent.WriteString(decorator.White.Render(log.Text) + "\n")
+				}
 			}
 		}
 	}
@@ -46,9 +49,8 @@ func RenderTerminalExecution(ui *model.UI) string {
 		decorator.Bold.Render("2. Real-Time Output Console:"),
 		logBoxStyle.Render(logContent.String()),
 		installerHint.Render(fmt.Sprintf(
-			"[%s] Execute Code | [%s] Abort Process | [%s] Exit Screen",
-			installerKey.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Execute)),
-			installerKey.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Abort)),
+			"[%s] Execute Code | [%s] Exit Screen",
+			installerKey.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Enter)),
 			installerKey.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
 		)),
 	)
