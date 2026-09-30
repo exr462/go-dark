@@ -130,7 +130,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case preflightMsg:
-		log.Printf("preflight: %s index: %d", msg, m.ui.Index)
+		log.Printf("preflight: %v index: %d", msg, m.ui.Index)
 		// 1. Run the payload for the current index step if safe
 		var loadCmd tea.Cmd
 		if msg.Function != nil {
@@ -155,6 +155,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.ui.Index >= len(m.ui.Prechecks) {
 			m.ui.Done = true
 			progressCmd := m.ui.Progress.SetPercent(1.0)
+			m.ui.ViewState = model.StateDashboard
 
 			return m, tea.Sequence(
 				loadCmd,
