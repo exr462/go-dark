@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/component"
-	"github.com/exr462/go-dark/ui/panels"
+	"github.com/exr462/go-dark/ui/panel"
 )
 
 //goland:noinspection GoMixedReceiverTypes
@@ -43,9 +43,9 @@ func (m *appModel) View() string {
 	default:
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
-			panels.RenderMenu(m.ui),
-			panels.RenderMainBody(m.ui),
-			panels.RenderFooter(m.ui),
+			panel.RenderMenu(m.ui),
+			panel.RenderMainBody(m.ui),
+			panel.RenderFooter(m.ui),
 		)
 	}
 }

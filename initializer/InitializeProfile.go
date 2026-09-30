@@ -10,16 +10,16 @@ import (
 )
 
 type initializerProfile struct {
-	ui *model.UI
+	UI *model.UI
 }
 
 func (m *initializerProfile) OnAction() tea.Cmd {
-	m.ui.Config, m.ui.IsFirstRun = config.LoadConfig()
-	if m.ui.IsFirstRun {
-		m.ui.Config.ShortCuts = action.DefaultShortcuts
+	m.UI.Config, m.UI.IsFirstRun = config.LoadConfig()
+	if m.UI.IsFirstRun {
+		m.UI.Config.ShortCuts = action.DefaultShortcuts
 	}
 	_, gitErr := exec.LookPath("git")
-	m.ui.GitMissing = gitErr != nil
+	m.UI.GitMissing = gitErr != nil
 	return func() tea.Msg {
 		return config.VoidMsg{}
 	}

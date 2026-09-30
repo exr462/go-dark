@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/action"
+	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -21,13 +22,13 @@ func RenderGitConfiguration(ui *model.UI) string {
 		"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
 		decorator.Title.Render("🚀 Global Preferences Setup (Step 1 of 2)"),
 		decorator.Bold.Render("1. Global Workspace Base Path:"),
-		ui.Inputs[model.GitWorkspace].View(),
+		ui.Inputs[kbd.GitWorkspace].View(),
 		decorator.Bold.Render("2. Global Git Username (For your code commits):"),
-		ui.Inputs[model.GitUsername].View(),
+		ui.Inputs[kbd.GitUsername].View(),
 		decorator.Bold.Render("3. Global Git Email Address:"),
-		ui.Inputs[model.GitEmail].View(),
+		ui.Inputs[kbd.GitEmail].View(),
 		decorator.Bold.Render("4. Max Tag List Size:"),
-		ui.Inputs[model.GitMaxTagListSize].View(),
+		ui.Inputs[kbd.GitMaxTagListSize].View(),
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),

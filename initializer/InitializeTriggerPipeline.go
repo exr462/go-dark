@@ -13,20 +13,20 @@ import (
 )
 
 type initializerTriggerPipeline struct {
-	ui *model.UI
+	UI *model.UI
 }
 
 func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 	return func() tea.Msg {
 		// Resolve the exact build queue order based on your registry
-		sortedQueue, err := model.ResolveBuildOrder(m.ui.Config.Projects, config.AvailableProjects)
+		sortedQueue, err := model.ResolveBuildOrder(m.UI.Config.Projects, config.AvailableProjects)
 
 		if err != nil {
 			return task.PipelineCompleteMsg{Success: false, Log: err.Error()}
 		}
 		// Map to coordinate lookups of current paths inside Config.Projects
 		pathMap := make(map[string]string)
-		for _, p := range m.ui.Config.Projects {
+		for _, p := range m.UI.Config.Projects {
 			pathMap[p.Name] = p.Path
 		}
 
@@ -48,7 +48,7 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 		defer cancel()
 
 		var mu sync.Mutex
-		sem := make(chan struct{}, m.ui.MaxParallelism)
+		sem := make(chan struct{}, m.UI.MaxParallelism)
 		taskDoneChan := make(chan string, len(tasks))
 
 		for {

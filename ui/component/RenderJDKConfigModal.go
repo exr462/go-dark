@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/action"
+	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -43,18 +44,18 @@ func RenderJDKConfigModal(ui *model.UI) string {
 		modalBody.WriteString(decorator.Section.Render("➕ Step 2: Register a New Java Environment Build Context:") + "\n\n")
 
 		nameLabel := decorator.Bold.Render("  JDK Profile Logical Name (e.g. OpenJDK-17):")
-		if ui.FocusedInput == model.JdkName {
+		if ui.FocusedInput == kbd.JdkName {
 			nameLabel = decorator.ActiveLabel.Render("> JDK Profile Logical Name (e.g. OpenJDK-17):")
 		}
 		modalBody.WriteString(nameLabel + "\n")
-		modalBody.WriteString("  " + ui.Inputs[model.JdkName].View() + "\n\n")
+		modalBody.WriteString("  " + ui.Inputs[kbd.JdkName].View() + "\n\n")
 
 		pathLabel := decorator.Bold.Render("  JDK Home Absolute Path (JAVA_HOME):")
-		if ui.FocusedInput == model.JdkPath {
+		if ui.FocusedInput == kbd.JdkPath {
 			pathLabel = decorator.ActiveLabel.Render("> JDK Home Absolute Path (JAVA_HOME):")
 		}
 		modalBody.WriteString(pathLabel + "\n")
-		modalBody.WriteString("  " + ui.Inputs[model.JdkPath].View() + "\n")
+		modalBody.WriteString("  " + ui.Inputs[kbd.JdkPath].View() + "\n")
 
 		modalBody.WriteString("\n" + jdkHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",

@@ -5,25 +5,25 @@ import (
 	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/kbd"
 )
 
 func MakeInputs() []textinput.Model {
 	home, _ := os.UserHomeDir()
-	inputs := make([]textinput.Model, model.Ceiling)
+	inputs := make([]textinput.Model, kbd.Ceiling)
 	for i := range inputs {
 		inputs[i] = textinput.New()
 	}
 
-	inputs[model.GitWorkspace].Placeholder = "Global Workspace Base Path"
-	inputs[model.GitWorkspace].SetValue(filepath.Join(home, "workspace"))
-	inputs[model.GitUsername].Placeholder = "e.g. John Doe"
-	inputs[model.GitEmail].Placeholder = "e.g. john@example.com"
-	inputs[model.JdkName].Placeholder = "Profile Name (e.g. Java-17)"
-	inputs[model.JdkPath].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
-	inputs[model.MvnName].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
-	inputs[model.MvnPath].Placeholder = "MAVEN_HOME directory path"
-	inputs[model.EditContent].Placeholder = "Opening editor... please wait 😘"
+	inputs[kbd.GitWorkspace].Placeholder = "Global Workspace Base Path"
+	inputs[kbd.GitWorkspace].SetValue(filepath.Join(home, "workspace"))
+	inputs[kbd.GitUsername].Placeholder = "e.g. John Doe"
+	inputs[kbd.GitEmail].Placeholder = "e.g. john@example.com"
+	inputs[kbd.JdkName].Placeholder = "Profile Name (e.g. Java-17)"
+	inputs[kbd.JdkPath].Placeholder = "JAVA_HOME path (e.g. /usr/lib/jvm/...)"
+	inputs[kbd.MvnName].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
+	inputs[kbd.MvnPath].Placeholder = "MAVEN_HOME directory path"
+	inputs[kbd.EditContent].Placeholder = "Opening editor... please wait 😘"
 
 	return inputs
 }

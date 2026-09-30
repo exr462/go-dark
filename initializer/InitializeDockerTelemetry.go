@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/model"
 )
 
@@ -35,7 +36,7 @@ func (m *initializerDockerTelemetry) OnAction() tea.Cmd {
 			}
 		}
 
-		return model.DockerTelemetryMsg{
+		return docker.DockerTelemetryMsg{
 			CPU:     cpuStr,
 			Memory:  memStr,
 			Running: runningCount,

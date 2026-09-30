@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
 )
@@ -58,21 +59,6 @@ const (
 	StateSystemCheckModal
 )
 
-type DockerStats struct {
-	CPU      string // e.g. "12.4%"
-	Memory   string // e.g. "1.45GB / 16GB"
-	Running  int    // Number of active running containers
-	Services int    // Number of total configured containers
-}
-
-type DockerContainer struct {
-	ID     string
-	Names  string
-	Image  string
-	Status string
-	Ports  string
-}
-
 type FuzzyMode int
 
 const (
@@ -88,38 +74,6 @@ type FuzzyResult struct {
 	Snippet  string // Shows the matched text phrase context match
 }
 type ConfigurationField int
-
-type InputField int
-
-const (
-	GitWorkspace InputField = iota
-	GitUsername
-	GitEmail
-	GitMaxTagListSize
-	JdkName
-	JdkPath
-	MvnName
-	MvnPath
-	FuzzyKey
-	GitOperationsKey
-	ProfileKey
-	SessionKey
-	DockerKey
-	MvnKey
-	JdkKey
-	BuildKey
-	QuitKey
-	EditKey
-	NewProjectKey
-	SubmitKey
-	CancelKey
-	HelpKey
-	ToggleKey
-	EditShortcutsKey
-	EditContent
-	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
-	Ceiling
-)
 
 type GitOperationStep int
 
@@ -172,7 +126,7 @@ type UI struct {
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea
 	SelectedMenuIndex int
-	FocusedInput      InputField
+	FocusedInput      kbd.InputField
 	StatusMsg         string
 	Inputs            []textinput.Model
 
@@ -228,9 +182,9 @@ type UI struct {
 	SelectedConfigOption int
 
 	// !!! GLOBAL DOCKER MANAGEMENT STATE MAPPINGS !!!
-	DockerTelemetry   DockerStats       // Stores data displayed in top-right header
-	DockerContainers  []DockerContainer // Parsed rows for the Ctrl+D interaction table
-	SelectedDockerRow int               // Highlighted container index in the modal view
+	DockerTelemetry   docker.DockerStats       // Stores data displayed in top-right header
+	DockerContainers  []docker.DockerContainer // Parsed rows for the Ctrl+D interaction table
+	SelectedDockerRow int                      // Highlighted container index in the modal view
 
 	// !!! GLOBAL LSP STATE MAPPINGS !!!
 	Provider         lsp.LanguageProvider
@@ -243,17 +197,5 @@ type UI struct {
 	DepScreen DependencyScreenState
 }
 
-type StatusMsg string
 type FileLoadMsg string
 type ConfigRefreshedMsg config.Config
-type BuildLogLineMsg struct {
-	SessionID int
-	Line      string
-}
-type BuildCompleteMsg struct {
-	SessionID int
-	Err       error
-}
-
-type DockerTelemetryMsg DockerStats
-type DockerContainersMsg []DockerContainer

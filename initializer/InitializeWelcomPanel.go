@@ -3,22 +3,23 @@ package initializer
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 )
 
 type initializerWelcomePanel struct {
-	ui *model.UI
+	UI *model.UI
 }
 
 func (m *initializerWelcomePanel) OnAction() tea.Cmd {
 	inputs := MakeInputs()
 	initialState := model.StateSystemCheckModal
-	if m.ui.IsFirstRun || m.ui.GitMissing {
+	if m.UI.IsFirstRun || m.UI.GitMissing {
 		initialState = model.StateGitConfigurationModal
-		inputs[model.GitWorkspace].Focus()
+		inputs[kbd.GitWorkspace].Focus()
 	}
-	m.ui.ViewState = initialState
-	m.ui.Inputs = inputs
+	m.UI.ViewState = initialState
+	m.UI.Inputs = inputs
 	return func() tea.Msg {
 		return config.VoidMsg{}
 	}

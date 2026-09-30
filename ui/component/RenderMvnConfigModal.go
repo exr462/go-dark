@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/action"
+	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -43,18 +44,18 @@ func RenderMvnConfigModal(ui *model.UI) string {
 		modalBody.WriteString(decorator.Section.Render("➕ Step 2: Register a New Maven Environment Context:") + "\n\n")
 
 		nameLabel := decorator.Bold.Render("  Maven Profile Name (e.g., Maven-3.9.6):")
-		if ui.FocusedInput == model.MvnName {
+		if ui.FocusedInput == kbd.MvnName {
 			nameLabel = decorator.ActiveLabel.Render("> Maven Profile Name (e.g., Maven-3.9.6):")
 		}
 		modalBody.WriteString(nameLabel + "\n")
-		modalBody.WriteString("  " + ui.Inputs[model.MvnName].View() + "\n\n")
+		modalBody.WriteString("  " + ui.Inputs[kbd.MvnName].View() + "\n\n")
 
 		pathLabel := decorator.Bold.Render("  Maven Home Directory (MAVEN_HOME / M2_HOME):")
-		if ui.FocusedInput == model.MvnPath {
+		if ui.FocusedInput == kbd.MvnPath {
 			pathLabel = decorator.ActiveLabel.Render("> Maven Home Directory (MAVEN_HOME / M2_HOME):")
 		}
 		modalBody.WriteString(pathLabel + "\n")
-		modalBody.WriteString("  " + ui.Inputs[model.MvnPath].View() + "\n\n")
+		modalBody.WriteString("  " + ui.Inputs[kbd.MvnPath].View() + "\n\n")
 
 		modalBody.WriteString("\n" + mvnHintStyle.Render(fmt.Sprintf(
 			"[%s] Swap Fields | [%s] Save Profile | [%s] Cancel & Return",

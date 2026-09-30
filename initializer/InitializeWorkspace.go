@@ -10,20 +10,20 @@ import (
 )
 
 type initializerWorkspace struct {
-	ui *model.UI
+	UI *model.UI
 }
 
 func (m *initializerWorkspace) OnAction() tea.Cmd {
-	if len(m.ui.Config.Projects) == 0 {
+	if len(m.UI.Config.Projects) == 0 {
 		return nil
 	}
 
-	idx := m.ui.SelectedProject
-	if idx < 0 || idx >= len(m.ui.Config.Projects) {
+	idx := m.UI.SelectedProject
+	if idx < 0 || idx >= len(m.UI.Config.Projects) {
 		return nil
 	}
 
-	proj := m.ui.Config.Projects[idx]
+	proj := m.UI.Config.Projects[idx]
 	fullPath := proj.Path
 
 	return func() tea.Msg {

@@ -1,19 +1,29 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/action"
+	commandfile "github.com/exr462/go-dark/command/file"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/docker"
+	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/ui/component"
+	componentaction "github.com/exr462/go-dark/ui/component/action"
+	componentmessage "github.com/exr462/go-dark/ui/component/message"
+	"github.com/exr462/go-dark/window"
 )
 
 var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
@@ -27,58 +37,97 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.Editor.SetValue(msg.Content)
 		return m, nil
 	case task.PipelineTaskStartedMsg:
-		return m.pipelineTaskStarted(msg)
+		m.ui.StatusMsg = fmt.Sprintf("🏗️  Building: %s...", msg)
+		return m, nil
 
 	case task.PipelineTaskFinishedMsg:
-		return m.pipelineTaskFinished(msg)
+		if msg.Err != nil {
+			m.ui.StatusMsg = fmt.Sprintf("❌ Build Error on component: %s", msg.ProjectName)
+		} else {
+			m.ui.StatusMsg = fmt.Sprintf("✅ Component complete: %s", msg.ProjectName)
+		}
+		return m, nil
 
 	case task.PipelineCompleteMsg:
-		return m.pipelineComplete(msg)
+		if msg.Success {
+			m.ui.StatusMsg = "🎉 All workspace modules built successfully!"
+		} else {
+			m.ui.StatusMsg = "❌ Pipeline compilation aborted due to build errors."
+		}
+		m.ui.ViewState = model.StateDashboard
+		return m, initializer.InitializeWorkspace(m.ui).OnAction()
 
 	case config.GitStatusLoadedMsg:
-		return m.gitStatusLoaded(msg)
+		return m, componentaction.GitStatusLoaded(m.ui, msg)
 
-	case component.WorkspaceRefreshedMsg:
-		return m, component.WorkspaceRefreshed(m.ui, msg)
+	case componentmessage.WorkspaceRefreshedMsg:
+		return m, componentaction.WorkspaceRefreshed(m.ui, msg)
 
 	case config.GitStatusErrorMsg:
-		return m.gitStatusError(msg)
+		m.ui.GitStatusOutput = fmt.Sprintf("❌ Error: %v", msg)
+		return m, nil
 
 	case config.GitBranchesLoadedMsg:
-		return m.gitBranchesLoaded(msg)
+		m.ui.AvailableBranches = msg
+		m.ui.SelectedGitBranch = 0
+		return m, nil
 
 	case config.GitBranchesErrorMsg:
-		return m.gitBranchesError(msg)
+		m.ui.AvailableBranches = []string{"main"}
+		m.ui.SelectedGitBranch = 0
+		m.ui.StatusMsg = fmt.Sprintf("❌ Git: %v", msg)
+		return m, nil
 
 	case config.GitCheckoutCompleteMsg:
-		return m.gitCheckoutComplete(msg)
+		return m, componentaction.GitCheckoutComplete(m.ui, msg)
 
-	case model.DockerTelemetryMsg:
-		return m.dockerTelemetry(msg)
+	case docker.DockerTelemetryMsg:
+		m.ui.DockerTelemetry = docker.DockerStats(msg)
+		return m, initializer.InitializeDockerTelemetry(m.ui).OnAction()
 
-	case model.DockerContainersMsg:
-		return m.dockerContainers(msg)
+	case docker.DockerContainersMsg:
+		m.ui.DockerContainers = msg
+		return m, nil
 
 	case tea.WindowSizeMsg:
-		return m.windowSize(msg)
+		return m, window.Size(m.ui, msg)
 
 	case model.FileLoadMsg:
-		cmds = m.fileLoad(cmds)
+		cmds = commandfile.FileLoad(m.ui, cmds)
 
 	case model.ConfigRefreshedMsg:
-		cmds = m.configRefreshed(msg, cmds)
+		m.ui.Config = config.Config(msg)
+		cmds = append(cmds, initializer.InitializeWorkspace(m.ui).OnAction())
 
-	case model.StatusMsg:
-		return m.status(msg)
+	case state.StatusMsg:
+		m.ui.StatusMsg = string(msg)
+		if strings.Contains(m.ui.StatusMsg, "successfully completed") {
+			for i := range m.ui.Config.Projects {
+				gitDir := filepath.Join(m.ui.Config.Projects[i].Path, ".git")
+				if _, err := os.Stat(gitDir); err == nil {
+					m.ui.Config.Projects[i].Fetched = true
+				}
+			}
+			_ = config.SaveConfig(m.ui.Config)
+			return m, initializer.InitializeWorkspace(m.ui).OnAction()
+		}
+		return m, nil
 
-	case model.BuildLogLineMsg:
-		return m.buildLogLine(msg)
+	case componentmessage.BuildLogLineMsg:
+		return m, componentaction.BuildLogLine(m.ui, msg)
 
-	case model.BuildCompleteMsg:
-		return m.buildComplete(msg)
+	case componentmessage.BuildCompleteMsg:
+		return m, componentaction.BuildComplete(m.ui, msg)
 
 	case component.EditFileMsg:
-		return m.editFile(msg)
+		m.ui.ViewState = model.StateDashboard
+		if msg.Err != nil {
+			m.ui.LastError = msg.Err
+			m.ui.StatusMsg = fmt.Sprintf("❌ Editor: %v", msg.Err)
+			return m, nil
+		}
+		m.ui.ActiveCodeBuffer = msg.Content
+		return m, nil
 
 	case preflightMsg:
 		log.Printf("preflight: %s index: %d", msg, m.ui.Index)
@@ -153,29 +202,29 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Route explicitly to active modal handler
 		switch m.ui.ViewState {
 		case model.StateHelpModal:
-			return m.updateHelpModal(msg)
+			return m, componentaction.HelpModal(m.ui, msg)
 		case model.StateGitConfigurationModal:
-			return m, component.UpdateGitConfiguration(msg, m.ui)
+			return m, componentaction.UpdateGitConfiguration(m.ui, msg)
 		case model.StateGitOperationsModal:
-			return m.updateGitOpsModal(msg)
+			return m, componentaction.GitOpsModal(m.ui, msg)
 		case model.StateJDKConfigModal:
-			return m.updateJDKModal(msg)
+			return m, componentaction.JDKModal(m.ui, msg)
 		case model.StateMavenConfigModal:
-			return m.updateMvnModal(msg)
+			return m, componentaction.MvnModal(m.ui, msg)
 		case model.StateBuildModal:
-			return m.updateBuildModal(msg)
+			return m, componentaction.BuildModal(m.ui, msg)
 		case model.StateSessionLogsModal:
-			return m.updateSessionLogsModal(msg)
+			return m, componentaction.SessionLogsModal(m.ui, msg)
 		case model.StateFuzzyModal:
-			return m.updateFuzzyModal(msg)
+			return m, componentaction.FuzzyModal(m.ui, msg)
 		case model.StateConfigDeckModal:
-			return m.updateConfigDeckModal(msg)
+			return m, componentaction.ConfigDeckModal(m.ui, msg)
 		case model.StateDockerModal:
-			return m.updateDockerModal(msg)
+			return m, componentaction.DockerModal(m.ui, msg)
 		case model.StateShortcutConfigurationModal:
-			return m.updateShortcutsConfigurationModal(msg)
+			return m, componentaction.ShortcutsConfigurationModal(m.ui, msg)
 		case model.StateEditorModal:
-			return m.updateEditorModal(msg)
+			return m, componentaction.EditorModal(m.ui, msg)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
 			projIdx := m.ui.DepScreen.ActiveProjectIndex
@@ -183,11 +232,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ui.ViewState = model.StateDashboard
 				return m, nil
 			}
-			return m.updateDependencyScreen(msg)
+			return m, componentaction.DependencyScreen(m.ui, msg)
 		case model.StateDashboard:
 			fallthrough
 		default:
-			return m.updateDashboardPortal(msg)
+			return m, componentaction.DashboardPortal(m.ui, m.providerFactory, msg)
 		}
 	}
 
