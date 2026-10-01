@@ -38,12 +38,25 @@ var (
 
 	// Done success messages shine in Catppuccin's signature pastel Green
 	doneStyle = lipgloss.NewStyle().Margin(1, 2).Foreground(lipgloss.Color(MochaGreen)).Bold(true)
+
+	checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color(MochaGreen)).SetString("✓")
 )
 
 func RenderSystemCheck(ui *model.UI) string {
+	// NOTE: ui.Done flips to true and ui.ViewState switches away from
+	// StateSystemCheckModal in the very same Update() call, so this view
+	// should never actually be asked to render once Done. Returning "" used
+	// to cause a visible blank-frame flash whenever that invariant slipped
+	// (e.g. a stray re-render); render the completed state defensively
+	// instead of going blank.
 	if ui.Done {
-		// In Bubble Tea v2, return views wrapped explicitly using tea.NewView
-		return ""
+		return lipgloss.Place(
+			ui.WindowWidth, ui.WindowHeight,
+			lipgloss.Center, lipgloss.Center,
+			doneStyle.Render(checkMark.String()+" Go-Dark Subsystems Primed."),
+			decorator.WhiteSpace,
+			lipgloss.WithWhitespaceForeground(color.Crust),
+		)
 	}
 
 	// 1. Establish the fixed container modal width boundaries

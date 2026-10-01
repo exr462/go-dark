@@ -50,6 +50,41 @@ ctrl+s to call the screen\
 ![session](images/session.png)\
 ![session_footer](images/session_footer.png)
 
+### Deploying the workspace (simulated Rancher/Kubernetes)
+Shortcut: ctrl+p\
+Resolves the `Deployable` dependency graph for your cloned projects
+(`model.ResolveDeployOrder`) and streams a simulated rollout transcript -
+namespace, manifests, scheduling, rollout status, service exposure - with
+independent services rolling out in parallel waves, just like independent
+Kubernetes Deployments would.\
+ctrl+s to start the simulated rollout, esc to leave
+
+### Editing a file (Vim-style modal editor)
+Shortcut: ctrl+e (while a file is focused in the workspace tree)\
+Opens in **Normal mode** (shown as `-- NORMAL --` in the status line), just
+like real Vim:
+- `i` / `a` / `A` / `I` — enter **Insert mode** (before/after cursor, end/start of line)
+- `o` / `O` — open a new line below/above and enter Insert mode
+- `h` `j` `k` `l` — move left/down/up/right · `0` / `$` — line start/end
+- `gg` / `G` — jump to top/bottom of the file
+- `x` — delete character under cursor · `dd` — delete current line
+- `esc` — Insert → Normal mode; in Normal mode, cancels and discards changes
+- `:w` save · `:q` quit (refuses if there are unsaved changes) · `:wq` save & quit · `:q!` force quit, discarding changes
+
+`ctrl+s` remains available as a quick "save & quit" alias in any mode. The
+status line also doubles as the live `:` command prompt while typing a command,
+and the editor opens full-screen and scrolls automatically to keep the
+cursor's line in view.
+
+### Interactive terminal
+Shortcut: ctrl+t\
+Opens a full-size, real-terminal-style console (prompt, scrolling
+command/output history, dark "glass" window chrome) that runs shell
+commands inside the selected project's directory. Output streams in live
+underneath the command you just ran, and scrollback persists across
+reopens like a real shell session. Enter runs the command, esc exits
+(blocked while a command is still running).
+
 ### Profile
 Shortcut: ctrl+y\
 ![edit_git](images/edit_git.png)\
@@ -99,3 +134,12 @@ and then run it with Delve using the following command:
 ```bash
 dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./go-dark
 ```
+### Running tests
+```bash
+go test ./...
+```
+
+### Engineering notes
+See [docs/ENGINEERING_NOTES.md](docs/ENGINEERING_NOTES.md) for a running log
+of bugs found/fixed, the dependency & deploy engine design, and a test
+coverage map.

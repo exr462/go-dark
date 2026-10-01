@@ -47,11 +47,27 @@ func (m *appModel) Init() tea.Cmd {
 
 func initializeEditor(ui *model.UI) {
 	ta := textarea.New()
-	ta.SetHeight(10)
-	ta.SetWidth(10)
-	ta.ShowLineNumbers = true
+	ta.ShowLineNumbers = false
+
+	// RenderOpenEditor draws its own gutter/highlighting straight from
+	// ta.Value() and ta.LineInfo() - it never calls ta.View(). That means
+	// ta's own soft-wrapping must never kick in, or LineInfo().CharOffset
+	// (used to position the cursor overlay) ends up relative to a wrapped
+	// *segment* instead of the real line, silently misplacing every typed
+	// character and making keys like End/"$"/"A" look like they don't work.
+	// A generously large width guarantees no code line ever wraps.
+	ta.SetWidth(editorTextareaWidth)
+	ta.SetHeight(editorTextareaHeight)
 	ui.Editor = ta
 }
+
+// editorTextareaWidth/Height intentionally far exceed any realistic terminal
+// size so the embedded textarea's internal soft-wrap/viewport logic never
+// engages - RenderOpenEditor does all real scrolling/line-wrapping itself.
+const (
+	editorTextareaWidth  = 4096
+	editorTextareaHeight = 4096
+)
 
 func initializeProgress(ui *model.UI) {
 	ui.Progress = progress.New(
@@ -64,8 +80,9 @@ func initializeProgress(ui *model.UI) {
 func loadPrechecks(ui *model.UI) {
 	ui.Prechecks = []model.Precheck{
 		{Name: lipgloss.NewStyle().Render("🛎 Profile "), Load: initializer.InitializeProfile(ui).OnAction},
+		// NOTE: previously this ran twice ("Load env" + "Updating env") calling the
+		// exact same initializer with no behavioral difference - trimmed to one step.
 		{Name: lipgloss.NewStyle().Render("👷 Load env"), Load: initializer.InitializeWelcomePanel(ui).OnAction},
-		{Name: lipgloss.NewStyle().Render("⛵ Updating env"), Load: initializer.InitializeWelcomePanel(ui).OnAction},
 		{Name: lipgloss.NewStyle().Render("🐳 Docker"), Load: initializer.InitializeDockerTelemetry(ui).OnAction},
 		{Name: lipgloss.NewStyle().Render("🪁 Async"), Load: initializer.InitializeTriggerPipeline(ui).OnAction},
 	}

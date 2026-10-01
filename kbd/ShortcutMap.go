@@ -22,4 +22,5 @@ var ShortcutsMap = map[InputField]action.Action{
 	HelpKey:          action.OpenHelp,
 	ToggleKey:        action.Toggle,
 	Terminal:         action.OpenTerminal,
+	DeployKey:        action.OpenDeploy,
 }

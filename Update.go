@@ -13,7 +13,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
+	commandpanel "github.com/exr462/go-dark/command/panel"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/kbd"
@@ -23,7 +25,6 @@ import (
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/terminal"
-	"github.com/exr462/go-dark/ui/component"
 	componentaction "github.com/exr462/go-dark/ui/component/action"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 	"github.com/exr462/go-dark/window"
@@ -38,6 +39,20 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case lsp.FileLoadedMsg:
 		m.ui.Editor.SetValue(msg.Content)
+		// bubbles/textarea's SetValue leaves the cursor at the END of the
+		// inserted text; explicitly rewind it to the very start of the
+		// document so the editor opens where you'd expect.
+		for m.ui.Editor.Line() > 0 {
+			m.ui.Editor.CursorUp()
+		}
+		m.ui.Editor.CursorStart()
+		m.ui.ActiveFilePath = msg.Path
+		m.ui.EditorOriginalContent = msg.Content
+		m.ui.EditorDirty = false
+		// Vim-style editors always open in Normal mode.
+		m.ui.EditorMode = model.EditorModeNormal
+		m.ui.EditorCommandBuffer = ""
+		m.ui.EditorPendingKey = ""
 		return m, nil
 	case task.PipelineTaskStartedMsg:
 		m.ui.StatusMsg = fmt.Sprintf("🏗️  Building: %s...", msg)
@@ -106,6 +121,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.DockerContainers = msg
 		return m, nil
 
+	case deploy.TickMsg:
+		return m, componentaction.DeployTick(m.ui)
+
 	case tea.WindowSizeMsg:
 		return m, window.Size(m.ui, msg)
 
@@ -136,16 +154,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case componentmessage.BuildCompleteMsg:
 		return m, componentaction.BuildComplete(m.ui, msg)
 
-	case component.EditFileMsg:
-		m.ui.ViewState = model.StateDashboard
-		if msg.Err != nil {
-			m.ui.LastError = msg.Err
-			m.ui.StatusMsg = fmt.Sprintf("❌ Editor: %v", msg.Err)
-			return m, nil
-		}
-		m.ui.ActiveCodeBuffer = msg.Content
-		return m, nil
-
 	case preflightMsg:
 		log.Printf("preflight: %v index: %d", msg, m.ui.Index)
 		// 1. Run the payload for the current index step if safe
@@ -174,9 +182,21 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			progressCmd := m.ui.Progress.SetPercent(1.0)
 			m.ui.ViewState = model.StateDashboard
 
-			return m, tea.Sequence(
+			// Eagerly populate the project tree/file viewer for the currently
+			// selected project so the dashboard never renders as "empty"
+			// while the (potentially long-running) build pipeline from
+			// loadCmd keeps churning in the background.
+			commandpanel.RefreshSelectedProject(m.ui)
+
+			// NOTE: loadCmd (the heavy build pipeline) MUST run in parallel
+			// (tea.Batch), not sequentially (tea.Sequence). Sequencing it
+			// here would block every other message - including the
+			// dashboard-ready confirmation - behind a multi-minute build,
+			// which is exactly what produced the "blank screen" flash.
+			return m, tea.Batch(
 				loadCmd,
 				progressCmd,
+				initializer.InitializeWorkspace(m.ui).OnAction(),
 				tea.Printf("%s [ OK ] Go-Dark Subsystems Primed.", checkMark),
 				func() tea.Msg { return state.PreflightCompleteMsg{} },
 			)
@@ -242,7 +262,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateShortcutConfigurationModal:
 			return m, componentaction.ShortcutsConfigurationModal(m.ui, msg)
 		case model.StateEditorModal:
-			return m, componentaction.EditorModal(m.ui, msg)
+			return m, componentaction.EditorModal(m.ui, m.contentLoader, msg)
+		case model.StateDeployModal:
+			return m, componentaction.DeployModal(m.ui, msg)
 		case model.StateTerminalCockpit:
 			var cmd tea.Cmd
 

@@ -3,6 +3,7 @@ package session
 import (
 	"bufio"
 	"context"
+	"log"
 	"os/exec"
 	"runtime"
 	"sync"
@@ -64,6 +65,7 @@ func SpawnTerminalSession(workingDir string, rawCommand string) tea.Cmd {
 			defer wg.Done()
 			scanner := bufio.NewScanner(stderr)
 			for scanner.Scan() {
+				log.Printf("scanner: %s", terminal.ScrubAnsiNoise(scanner.Text()))
 				ActiveLogChannel <- LogStreamMsg{
 					Text:  terminal.ScrubAnsiNoise(scanner.Text()),
 					IsErr: true,

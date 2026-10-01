@@ -118,6 +118,23 @@ func LoadConfig() (Config, bool) {
 		}
 	}
 
+	// Drop any shortcut whose Action didn't survive JSON decoding as a known
+	// action (action.invalidAction) - these are either corrupted entries or
+	// leftovers from before Action gained stable string names, when the
+	// const block's iota ordering could silently drift and remap an old
+	// shortcut onto today's wrong action (e.g. a legacy "Enter" shortcut
+	// reinterpreting itself as "Save", making Enter save-and-quit the
+	// editor). The backfill loop right below re-adds the correct current
+	// default for whatever gets dropped here.
+	validShortCuts := cfg.ShortCuts[:0]
+	for _, sc := range cfg.ShortCuts {
+		if sc.Action.IsValid() {
+			validShortCuts = append(validShortCuts, sc)
+		}
+	}
+	droppedInvalid := len(cfg.ShortCuts) != len(validShortCuts)
+	cfg.ShortCuts = validShortCuts
+
 	if cfg.ShortCuts == nil || len(cfg.ShortCuts) == 0 {
 		for _, ap := range action.DefaultShortcuts {
 			cfg.ShortCuts = append(cfg.ShortCuts, ap)
@@ -129,6 +146,7 @@ func LoadConfig() (Config, bool) {
 		}
 	} else {
 		// we are going to add the missing shortcuts
+		added := false
 		for _, ap := range action.DefaultShortcuts {
 			toAdd := true
 			for _, key := range cfg.ShortCuts {
@@ -139,7 +157,16 @@ func LoadConfig() (Config, bool) {
 
 			if toAdd {
 				cfg.ShortCuts = append(cfg.ShortCuts, ap)
+				added = true
 			}
+		}
+
+		// Persist immediately if anything was dropped (invalid/legacy
+		// entries) or backfilled, so a corrupted config.json self-heals on
+		// disk right away instead of silently re-breaking on every run until
+		// something else happens to trigger a save.
+		if added || droppedInvalid {
+			_ = SaveConfig(cfg)
 		}
 	}
 

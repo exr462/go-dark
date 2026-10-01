@@ -59,6 +59,7 @@ const (
 	StateShortcutConfigurationModal
 	StateSystemCheckModal
 	StateTerminalCockpit
+	StateDeployModal
 )
 
 type FuzzyMode int
@@ -66,6 +67,17 @@ type FuzzyMode int
 const (
 	FuzzyModeFiles   FuzzyMode = iota // Finds matching file name titles
 	FuzzyModeContent                  // Scans deeply inside text strings
+)
+
+// EditorMode drives the Vim-style modal editing workflow of the in-app code
+// editor: Normal mode for navigation/commands, Insert mode for typing, and
+// Command mode for ":w" / ":q" / ":wq" / ":q!" style command-line input.
+type EditorMode int
+
+const (
+	EditorModeNormal EditorMode = iota
+	EditorModeInsert
+	EditorModeCommand
 )
 
 // FuzzyResult Add a tracking structure to hold fuzzy matching results rows
@@ -115,8 +127,13 @@ type UI struct {
 	WindowWidth             int
 	WindowHeight            int
 	Editor                  textarea.Model
-	EditorCol               int
 	ActiveLanguageProvider  lsp.LanguageProvider
+	ActiveFilePath          string     // Absolute path of the file currently loaded into Editor
+	EditorOriginalContent   string     // Snapshot used to detect unsaved edits and to revert on Cancel
+	EditorDirty             bool       // True once Editor.Value() diverges from EditorOriginalContent
+	EditorMode              EditorMode // Vim-style mode: Normal, Insert or Command
+	EditorCommandBuffer     string     // Characters typed after ":" while in Command mode (without the leading ":")
+	EditorPendingKey        string     // Holds a leading key of a two-key Normal-mode combo (e.g. "g" before "gg", "d" before "dd")
 	IsFirstRun              bool
 	Index                   int
 	Spinner                 spinner.Model
@@ -200,6 +217,14 @@ type UI struct {
 
 	// !!! GLOBAL DEPENDENCY SCREEN STATE MAPPINGS !!!
 	DepScreen DependencyScreenState
+
+	// !!! GLOBAL DEPLOY ENGINE STATE MAPPINGS (simulated Rancher/K8s rollout) !!!
+	DeployNamespace string
+	DeployScript    []string // Full pre-computed rollout transcript
+	DeployLogs      []string // Lines revealed so far (streamed for a live feel)
+	IsDeploying     bool
+	DeployDone      bool
+	DeployError     error
 }
 
 type FileLoadMsg string

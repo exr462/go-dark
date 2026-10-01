@@ -19,7 +19,7 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row(kbd.Tab, "Cycle active panel focus (Projects ➜ Tree ➜ Menu)"))
 	body.WriteString(decorator.Row("↑/↓/j/k", "Navigate items in the currently focused panel"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save), "In Tree: expand/collapse folder or preview file | In Menu: run action"))
-	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEditFile), "Open selected tree file in external editor (nvim)"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEditFile), "Open selected tree file in the built-in Vim-style editor"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenHelp), "Toggle this Help modal on/off"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.QuitApplication), "Quit application"))
 	body.WriteString("\n")
@@ -35,6 +35,7 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenJdk), "JDK Manager: Register JAVA_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenMvn), "Maven Manager: Register MAVEN_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Opens the terminal"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy), "Deploy Console: Simulate a dependency-ordered Rancher/Kubernetes rollout"))
 	body.WriteString("\n")
 
 	body.WriteString(decorator.Section.Render("✍️ DIALOGS & FORMS NAVIGATION") + "\n")
@@ -42,6 +43,16 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row("Shift+Tab / Up", "Move cursor focus backward to previous field"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save), "Confirm selection / submit form data"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape), "Go back one level / close active modal safely") + "\n\n")
+
+	body.WriteString(decorator.Section.Render("📝 VIM-STYLE FILE EDITOR") + "\n")
+	body.WriteString(decorator.Row("i / a / A / I", "Enter Insert mode (before/after cursor, end/start of line)"))
+	body.WriteString(decorator.Row("o / O", "Open a new line below / above and enter Insert mode"))
+	body.WriteString(decorator.Row("h j k l", "Move cursor left / down / up / right (Normal mode)"))
+	body.WriteString(decorator.Row("0 / $", "Jump to start / end of the current line"))
+	body.WriteString(decorator.Row("gg / G", "Jump to the top / bottom of the file"))
+	body.WriteString(decorator.Row("x / dd", "Delete character under cursor / delete current line"))
+	body.WriteString(decorator.Row("esc", "Insert mode -> Normal mode | Normal mode -> cancel & discard"))
+	body.WriteString(decorator.Row(":w / :q / :wq / :q!", "Save | Quit (blocked if unsaved) | Save & quit | Force quit") + "\n\n")
 
 	body.WriteString(decorator.Author.Render("🤖 Author: Daniel Noulet © 2026"))
 

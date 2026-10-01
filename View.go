@@ -40,6 +40,8 @@ func (m *appModel) View() string {
 		return component.RenderSystemCheck(m.ui)
 	case model.StateTerminalCockpit:
 		return component.RenderTerminalExecution(m.ui)
+	case model.StateDeployModal:
+		return component.RenderDeployModal(m.ui)
 	case model.StateDashboard:
 		fallthrough
 	default:
