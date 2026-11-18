@@ -254,6 +254,7 @@ type UI struct {
 	MinikubeStartID int                // Session running `minikube start` (0 when none)
 	ShipStage       ShipStage          // Where the full train (build -> images -> deploy) is
 	ShipDriftAck    bool               // The user saw the version drift warning and ships anyway
+	ScaledDown      []string           // Deployments go-dark scaled to 0 to make room (restorable)
 }
 
 type FileLoadMsg string
@@ -283,8 +284,9 @@ func (ui *UI) ActiveTerminalSession() int {
 
 // DeployPreflightMsg reports the local cluster state.
 type DeployPreflightMsg struct {
-	Running bool
-	Err     error // minikube missing, or the guard refused the context
+	Running    bool
+	Err        error    // minikube missing, or the guard refused the context
+	ScaledDown []string // deployments go-dark scaled to 0 earlier
 }
 
 // DeployFinishedMsg ends a deployment run.
@@ -303,3 +305,11 @@ const (
 
 // ShipStartMsg starts the train's build stage (sent once the checks pass).
 type ShipStartMsg struct{}
+
+// ScaledMsg reports a scale-down (z) or restore (u) on the ship screen.
+type ScaledMsg struct {
+	Restore bool
+	Names   []string // deployments scaled down / restored
+	Left    []string // deployments still scaled down by go-dark afterwards
+	Err     error
+}

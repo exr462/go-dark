@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/ui/component"
 )
@@ -159,4 +160,36 @@ func TestShip_StartupPipelineDoesNotAdvanceTrain(t *testing.T) {
 	if ShipBuilt(ui, task.PipelineCompleteMsg{Success: true}) != nil || ui.ShipStage != model.ShipIdle {
 		t.Fatal("a pipeline run that isn't the train's must not start a deployment")
 	}
+}
+
+func TestShip_WaitsForARunningPipeline(t *testing.T) {
+	ui, log := shipUI(t, "true")
+	// e.g. the startup pipeline is still building.
+	id, _ := ui.Shells.Start(shellOpts("sleep 30"))
+	defer ui.Shells.Close(id)
+
+	if DeployModal(ui, testKeyMsg("enter")) != nil || DeployModal(ui, testKeyMsg("d")) != nil {
+		t.Fatal("neither the train nor a deploy may start while a build is running")
+	}
+	if !strings.Contains(ui.StatusMsg, "still running") {
+		t.Fatalf("unexpected status %q", ui.StatusMsg)
+	}
+	if calls, _ := os.ReadFile(log); len(calls) > 0 {
+		t.Fatal("nothing may run")
+	}
+}
+
+func TestShip_JDKMismatchHint(t *testing.T) {
+	ui, _ := shipUI(t, "echo '[ERROR] Fatal error compiling: java.lang.ExceptionInInitializerError: com.sun.tools.javac.code.TypeTag :: UNKNOWN'; exit 1")
+
+	start := DeployModal(ui, testKeyMsg("enter"))
+	drive(t, ui, func() any { return start() })
+
+	if !strings.Contains(ui.StatusMsg, "til-order looks like a JDK mismatch - assign the project's JDK with ctrl+j") {
+		t.Fatalf("expected a JDK hint, got %q", ui.StatusMsg)
+	}
+}
+
+func shellOpts(script string) shell.StartOptions {
+	return shell.StartOptions{Argv: []string{"sh", "-c", script}, Tag: "pipeline", Dir: os.TempDir()}
 }

@@ -35,7 +35,9 @@ func RenderSessionLogsModal(ui *model.UI) string {
 	if ui.Shells != nil {
 		sessions = ui.Shells.List()
 	}
-	logWidth := max(ui.WindowWidth-8, 20)
+	// ModalBox: 1-cell border + 2-column padding on each side; the log
+	// window adds its own border.
+	logWidth := max(ui.WindowWidth-4-2-4-decorator.BorderFrame, 20)
 
 	if len(sessions) == 0 {
 		body.WriteString(decorator.Meta.Render("  (No sessions yet - builds, pipeline steps and terminal shells show up here)") + "\n\n")

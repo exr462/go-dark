@@ -24,6 +24,9 @@ func RenderDeployModal(ui *model.UI) string {
 		"Builds the workspace in dependency waves, builds each service's image into minikube's docker daemon and installs its chart with %s into %s/%s.", deploy.LocalValuesFile, c.Context, c.Namespace)) + "\n\n")
 
 	b.WriteString(clusterLine(ui) + "\n")
+	if n := len(ui.ScaledDown); n > 0 {
+		b.WriteString(ansi.Truncate(decorator.Warning.Render(fmt.Sprintf("⏬ %d deployment%s scaled to 0 by go-dark to make room: %s (u restores)", n, plural(n), strings.Join(ui.ScaledDown, ", "))), width, "…") + "\n")
+	}
 	b.WriteString(shipStages(ui) + "\n\n")
 
 	switch {
@@ -83,7 +86,11 @@ func RenderDeployModal(ui *model.UI) string {
 		hints = append(hints,
 			fmt.Sprintf("[%s] Ship (build + deploy)", sessKeyHint.Render("enter")),
 			fmt.Sprintf("[%s] Deploy only", sessKeyHint.Render("d")),
-			fmt.Sprintf("[%s] Align versions", sessKeyHint.Render("v")))
+			fmt.Sprintf("[%s] Align versions", sessKeyHint.Render("v")),
+			fmt.Sprintf("[%s] Make room (scale others to 0)", sessKeyHint.Render("z")))
+		if len(ui.ScaledDown) > 0 {
+			hints = append(hints, fmt.Sprintf("[%s] Restore", sessKeyHint.Render("u")))
+		}
 	}
 	hints = append(hints, fmt.Sprintf("[%s] Re-check", sessKeyHint.Render("r")),
 		fmt.Sprintf("[%s] Back (a deployment keeps running)", sessKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape))))

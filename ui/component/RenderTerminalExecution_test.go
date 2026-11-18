@@ -130,6 +130,11 @@ func TestRenderBuildModalAndInspector_ShowLiveSessionOutput(t *testing.T) {
 	}
 
 	inspector := ansi.Strip(RenderSessionLogsModal(ui))
+	for i, line := range strings.Split(inspector, "\n") {
+		if w := ansi.StringWidth(line); w > ui.WindowWidth {
+			t.Fatalf("inspector line %d is %d wide in a %d-wide window (the log box overflowed): %q", i, w, ui.WindowWidth, line)
+		}
+	}
 	if !strings.Contains(inspector, "api · build") || !strings.Contains(inspector, "EXIT 2") || !strings.Contains(inspector, "[ERROR] boom") {
 		t.Fatalf("inspector must list the session with a preview:\n%s", inspector)
 	}

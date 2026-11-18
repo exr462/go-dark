@@ -33,11 +33,11 @@ type LocalCluster struct {
 	Namespace string `json:"namespace"`
 }
 
-// Local cluster defaults, matching the services' values.local-rancher.yaml
-// convention (minikube acting as the local Rancher node).
+// Local cluster defaults, matching the team's local-rancher convention:
+// minikube acting as the local Rancher node, services in namespace "til".
 const (
 	DefaultLocalContext   = "minikube"
-	DefaultLocalNamespace = "til-local"
+	DefaultLocalNamespace = "til"
 )
 
 // Cluster returns the configured local cluster, filling in defaults.

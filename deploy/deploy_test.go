@@ -113,11 +113,19 @@ func TestPrepareChart_ValidVersionInCopyOnly(t *testing.T) {
 	}
 	copied, _ := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
 	original, _ := os.ReadFile(filepath.Join(tgt.ChartDir, "Chart.yaml"))
-	if !strings.Contains(string(copied), "version: "+deploy.LocalChartVersion) || !strings.Contains(string(original), "{JENKINS_VERSION}") {
+	if !strings.Contains(string(copied), "version: 1.2.0-SNAPSHOT") || !strings.Contains(string(original), "{JENKINS_VERSION}") {
 		t.Fatalf("the copy gets a valid version, the original stays:\n%s\n---\n%s", copied, original)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "templates", "main.yaml")); err != nil {
 		t.Fatal("templates must be copied")
+	}
+}
+
+func TestChartVersion_ServiceVersionOrFallback(t *testing.T) {
+	for tag, want := range map[string]string{"1.16.2-SNAPSHOT": "1.16.2-SNAPSHOT", "2.0.0": "2.0.0", "latest": deploy.LocalChartVersion, "4.0.0.ALPHA": deploy.LocalChartVersion} {
+		if got := deploy.ChartVersion(deploy.Target{Tag: tag}); got != want {
+			t.Errorf("ChartVersion(%q) = %q, want %q", tag, got, want)
+		}
 	}
 }
 

@@ -68,12 +68,18 @@ enter runs the whole train: **versions → build → images → deploy**.
 The train keeps going if you leave the screen; `x` cancels whatever stage is running.
 
 Deploying covers every cloned, deployable service that has a `helm/<chart>/values.local-rancher.yaml`
-to the local cluster (minikube - the team's "local Rancher" - namespace `til-local`), in
+to the local cluster (minikube - the team's "local Rancher" - namespace `til`, so existing
+local releases are upgraded in place), in
 dependency waves:
 1. `docker build -t <main.image>:<main.version>` with minikube's docker env, so the image is
    available to the cluster without a registry (the local values use `imagePullPolicy: Never`)
-2. `helm upgrade --install` of a temporary copy of the chart (with a valid version instead of
-   `{JENKINS_VERSION}`; the repo isn't touched) with the local values, waiting for the rollout
+2. `helm upgrade --install` of a temporary copy of the chart (its version set to the service
+   version instead of `{JENKINS_VERSION}`; the repo isn't touched) with the local values, waiting
+   for the rollout
+
+A single minikube node fills up quickly (every service requests CPU). `z` scales the other
+deployments in the namespace to 0 to make room - their replica counts are recorded on the
+deployments - and `u` scales them back.
 
 If minikube is stopped the screen offers `s` to start it. Every step runs as a session (ctrl+o to
 watch it); the first failure stops the run and its log stays in the inspector. `x` cancels.
