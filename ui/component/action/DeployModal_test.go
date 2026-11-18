@@ -77,7 +77,8 @@ func TestDeploy_StartsMinikubeThenDeploys(t *testing.T) {
 	log := fakeCluster(t, false, "https://127.0.0.1:53846")
 	ui := deployTestUI(t)
 
-	ClusterChecked(ui, OpenDeploy(ui)().(model.DeployPreflightMsg))
+	OpenDeploy(ui)
+	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
 	out := ansi.Strip(component.RenderDeployModal(ui))
 	if ui.ClusterRunning || !strings.Contains(out, "minikube is stopped - press s") || !strings.Contains(out, "tfc/til-order:1.16.2-SNAPSHOT") ||
 		!strings.Contains(out, "Skipped (no local chart values): til-report") {
@@ -98,9 +99,9 @@ func TestDeploy_StartsMinikubeThenDeploys(t *testing.T) {
 		t.Fatalf("after minikube start the cluster must be ready, got %v %v", ui.ClusterRunning, ui.ClusterErr)
 	}
 
-	run := DeployModal(ui, testKeyMsg("enter"))
+	run := DeployModal(ui, testKeyMsg("d"))
 	if run == nil || !ui.DeployRunning {
-		t.Fatal("enter must start the deployment")
+		t.Fatal("d must start the deployment")
 	}
 	DeployFinished(ui, run().(model.DeployFinishedMsg))
 	if ui.DeployErr != nil || !strings.Contains(ui.StatusMsg, "Deployed to minikube/til-local") {
@@ -119,13 +120,14 @@ func TestDeploy_RefusesNonLocalServer(t *testing.T) {
 	fakeCluster(t, true, "https://rancher.intern-belgiantrain.be/k8s/clusters/c-dfjlf")
 	ui := deployTestUI(t)
 
-	ClusterChecked(ui, OpenDeploy(ui)().(model.DeployPreflightMsg))
+	OpenDeploy(ui)
+	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
 
 	if ui.ClusterErr == nil || !strings.Contains(ansi.Strip(component.RenderDeployModal(ui)), "is a hostname, not a local address") {
 		t.Fatalf("the guard must refuse a remote server, got %v", ui.ClusterErr)
 	}
-	if DeployModal(ui, testKeyMsg("enter")) != nil {
-		t.Fatal("no deployment may start when the guard refuses")
+	if DeployModal(ui, testKeyMsg("enter")) != nil || DeployModal(ui, testKeyMsg("d")) != nil {
+		t.Fatal("no train or deployment may start when the guard refuses")
 	}
 }
 
@@ -134,7 +136,8 @@ func TestDeploy_ConfiguredProductionContextIsRefused(t *testing.T) {
 	ui := deployTestUI(t)
 	ui.Config.LocalCluster = config.LocalCluster{Context: "azr-prd-idas-aks01"}
 
-	ClusterChecked(ui, OpenDeploy(ui)().(model.DeployPreflightMsg))
+	OpenDeploy(ui)
+	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
 
 	if ui.ClusterErr == nil || !strings.Contains(ui.ClusterErr.Error(), "only local contexts") {
 		t.Fatalf("a non-allowlisted context must be refused even on a local address, got %v", ui.ClusterErr)

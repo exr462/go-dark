@@ -68,8 +68,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.ui.StatusMsg = "❌ Pipeline compilation aborted due to build errors."
 		}
-		m.ui.ViewState = model.StateDashboard
-		return m, initializer.InitializeWorkspace(m.ui).OnAction()
+		// The pipeline also runs in the background at startup: don't pull
+		// the user out of whatever screen they're on when it ends.
+		return m, tea.Batch(initializer.InitializeWorkspace(m.ui).OnAction(), componentaction.ShipBuilt(m.ui, msg))
 
 	case config.GitStatusLoadedMsg:
 		return m, componentaction.GitStatusLoaded(m.ui, msg)
@@ -128,6 +129,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case model.DeployFinishedMsg:
 		componentaction.DeployFinished(m.ui, msg)
 		return m, nil
+
+	case model.ShipStartMsg:
+		return m, componentaction.ShipStart(m.ui)
 
 	case tea.WindowSizeMsg:
 		cmd := window.Size(m.ui, msg)

@@ -57,9 +57,17 @@ Lists every session: builds, the startup pipeline's per-module builds and termin
 with a live preview. Enter opens one in the terminal pane, d closes it (killing it if it is
 still running).
 
-### Deploying to the local cluster
+### Shipping to the local cluster
 Shortcut: ctrl+p\
-Deploys every cloned, deployable service that has a `helm/<chart>/values.local-rancher.yaml`
+enter runs the whole train: **versions → build → images → deploy**.
+- *Versions*: if projects are referenced at mixed versions the first enter says so (`v` opens
+  the alignment screen); a second enter ships anyway.
+- *Build*: `mvn clean install -DskipTests` (each project's pipeline command) in dependency waves.
+- *Images & deploy*: below. `d` runs only this part (no rebuild).
+
+The train keeps going if you leave the screen; `x` cancels whatever stage is running.
+
+Deploying covers every cloned, deployable service that has a `helm/<chart>/values.local-rancher.yaml`
 to the local cluster (minikube - the team's "local Rancher" - namespace `til-local`), in
 dependency waves:
 1. `docker build -t <main.image>:<main.version>` with minikube's docker env, so the image is

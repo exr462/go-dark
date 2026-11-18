@@ -19,11 +19,12 @@ func RenderDeployModal(ui *model.UI) string {
 	width := max(ui.WindowWidth-8, 20)
 	c := ui.Config.Cluster()
 	var b strings.Builder
-	b.WriteString(decorator.Title.Render(fmt.Sprintf("🚢 Deploy to the local cluster (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy))) + "\n")
+	b.WriteString(decorator.Title.Render(fmt.Sprintf("🚢 Ship to the local cluster (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy))) + "\n")
 	b.WriteString(decorator.Description.Render(fmt.Sprintf(
-		"Builds each service's image into minikube's docker daemon and installs its chart with %s into %s/%s.", deploy.LocalValuesFile, c.Context, c.Namespace)) + "\n\n")
+		"Builds the workspace in dependency waves, builds each service's image into minikube's docker daemon and installs its chart with %s into %s/%s.", deploy.LocalValuesFile, c.Context, c.Namespace)) + "\n\n")
 
-	b.WriteString(clusterLine(ui) + "\n\n")
+	b.WriteString(clusterLine(ui) + "\n")
+	b.WriteString(shipStages(ui) + "\n\n")
 
 	switch {
 	case ui.DeployPlanErr != nil:
@@ -76,10 +77,13 @@ func RenderDeployModal(ui *model.UI) string {
 	if ui.ClusterChecked && !ui.ClusterRunning && ui.MinikubeStartID == 0 {
 		hints = append(hints, fmt.Sprintf("[%s] Start minikube", sessKeyHint.Render("s")))
 	}
-	if ui.DeployRunning {
+	if ui.DeployRunning || ui.ShipStage == model.ShipBuilding {
 		hints = append(hints, fmt.Sprintf("[%s] Cancel", sessKeyHint.Render("x")))
 	} else {
-		hints = append(hints, fmt.Sprintf("[%s] Deploy", sessKeyHint.Render("enter")))
+		hints = append(hints,
+			fmt.Sprintf("[%s] Ship (build + deploy)", sessKeyHint.Render("enter")),
+			fmt.Sprintf("[%s] Deploy only", sessKeyHint.Render("d")),
+			fmt.Sprintf("[%s] Align versions", sessKeyHint.Render("v")))
 	}
 	hints = append(hints, fmt.Sprintf("[%s] Re-check", sessKeyHint.Render("r")),
 		fmt.Sprintf("[%s] Back (a deployment keeps running)", sessKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape))))
@@ -121,4 +125,42 @@ func stepBadge(s deploy.StepState) string {
 		return decorator.Meta.Render("⏹")
 	}
 	return decorator.Meta.Render("·")
+}
+
+// shipStages shows the train: versions -> build -> images & deploy.
+func shipStages(ui *model.UI) string {
+	versions := decorator.Meta.Render("⏳ scanning")
+	if ui.Workspace != nil {
+		if n := len(model.AlignRows(ui.Workspace, ui.ReleaseTags)); n > 0 {
+			versions = decorator.Warning.Render(fmt.Sprintf("⚠ %d mixed (v)", n))
+		} else {
+			versions = decorator.Success.Render("✅ aligned")
+		}
+	}
+
+	build := decorator.Meta.Render("·")
+	switch ui.ShipStage {
+	case model.ShipBuilding:
+		build = decorator.Warning.Render("⏳ mvn install in waves")
+	case model.ShipDeploying, model.ShipDone:
+		build = decorator.Success.Render("✅")
+	case model.ShipFailed:
+		if !ui.DeployFinished {
+			build = decorator.Error.Render("❌")
+		} else {
+			build = decorator.Success.Render("✅")
+		}
+	}
+
+	deployStage := decorator.Meta.Render("·")
+	switch {
+	case ui.DeployRunning:
+		deployStage = decorator.Warning.Render("⏳")
+	case ui.DeployFinished && ui.DeployErr != nil:
+		deployStage = decorator.Error.Render("❌")
+	case ui.DeployFinished:
+		deployStage = decorator.Success.Render("✅")
+	}
+	arrow := decorator.Meta.Render("  →  ")
+	return "Versions " + versions + arrow + "Build " + build + arrow + "Images & deploy " + deployStage
 }

@@ -252,6 +252,8 @@ type UI struct {
 	ClusterRunning  bool               // minikube is up
 	ClusterErr      error              // minikube missing / guard refusal
 	MinikubeStartID int                // Session running `minikube start` (0 when none)
+	ShipStage       ShipStage          // Where the full train (build -> images -> deploy) is
+	ShipDriftAck    bool               // The user saw the version drift warning and ships anyway
 }
 
 type FileLoadMsg string
@@ -287,3 +289,17 @@ type DeployPreflightMsg struct {
 
 // DeployFinishedMsg ends a deployment run.
 type DeployFinishedMsg struct{ Err error }
+
+// ShipStage tracks the full train started from the deploy screen.
+type ShipStage int
+
+const (
+	ShipIdle ShipStage = iota
+	ShipBuilding
+	ShipDeploying
+	ShipDone
+	ShipFailed
+)
+
+// ShipStartMsg starts the train's build stage (sent once the checks pass).
+type ShipStartMsg struct{}
