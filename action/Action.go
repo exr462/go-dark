@@ -32,6 +32,7 @@ const (
 	TerminalNextTab
 	TerminalPrevTab
 	TerminalCloseTab
+	OpenGraph
 
 	// invalidAction is never assigned to a real shortcut - it's what
 	// Action.UnmarshalJSON produces for anything it can't confidently map
@@ -73,6 +74,7 @@ var actionNames = map[Action]string{
 	TerminalNextTab:   "TerminalNextTab",
 	TerminalPrevTab:   "TerminalPrevTab",
 	TerminalCloseTab:  "TerminalCloseTab",
+	OpenGraph:         "OpenGraph",
 }
 
 var namesToAction = func() map[string]Action {
@@ -156,6 +158,8 @@ const (
 	TerminalNextTabShortcut  = "alt+n"
 	TerminalPrevTabShortcut  = "alt+p"
 	TerminalCloseTabShortcut = "alt+w"
+
+	OpenGraphShortcut = "ctrl+r"
 )
 
 type Shortcut struct {
@@ -245,6 +249,7 @@ var DefaultShortcuts = []Shortcut{
 	{Action: TerminalNextTab, KeyBinding: TerminalNextTabShortcut},
 	{Action: TerminalPrevTab, KeyBinding: TerminalPrevTabShortcut},
 	{Action: TerminalCloseTab, KeyBinding: TerminalCloseTabShortcut},
+	{Action: OpenGraph, KeyBinding: OpenGraphShortcut},
 }
 
 func GetShortcutKeyBinding(shortcuts []Shortcut, action Action) string {

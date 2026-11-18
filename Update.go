@@ -220,6 +220,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.Progress, cmd = m.ui.Progress.Update(msg)
 		return m, cmd
 
+	case model.WorkspaceScannedMsg:
+		componentaction.WorkspaceScanned(m.ui, msg)
+		return m, nil
+
 	case team.SyncedMsg:
 		m.ui.Config.Teams = team.ApplySynced(m.ui.Config.Teams, msg.Teams)
 		if len(msg.Errs) > 0 {
@@ -285,6 +289,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, componentaction.TeamsModal(m.ui, msg)
 		case model.StateProjectsModal:
 			return m, componentaction.ProjectsModal(m.ui, msg)
+		case model.StateGraphModal:
+			return m, componentaction.GraphModal(m.ui, msg)
 		case model.StateTerminalCockpit:
 			if m.ui.Shells == nil {
 				m.ui.ViewState = model.StateDashboard

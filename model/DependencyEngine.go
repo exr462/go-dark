@@ -102,3 +102,12 @@ func ResolveDeployOrder(projects []config.Project) (flat []config.Project, waves
 	nodes := eligibleNodes(projects, func(p config.Project) bool { return p.Deployable })
 	return topoSortWaves(nodes)
 }
+
+// DependencyWaves groups every cloned project into dependency waves (the
+// projects of a wave only depend on earlier waves), using the manifest /
+// local DependsOn lists. It's what the dependency graph screen shows.
+func DependencyWaves(projects []config.Project) ([][]config.Project, error) {
+	nodes := eligibleNodes(projects, func(config.Project) bool { return true })
+	_, waves, err := topoSortWaves(nodes)
+	return waves, err
+}

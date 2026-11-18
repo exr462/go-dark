@@ -83,6 +83,18 @@ status line also doubles as the live `:` command prompt while typing a command,
 and the editor opens full-screen and scrolls automatically to keep the
 cursor's line in view.
 
+### Dependency graph
+Shortcut: ctrl+r\
+Shows the cloned projects in build waves (from the team manifest and your local overrides) and
+what their `pom.xml` files actually say:
+- `+name` - the poms use that project, but the manifest doesn't list it as a dependency
+- `?name` - the manifest lists it, but the poms don't use it
+- `⚠n` - n references to another workspace project use an older version than that project is at
+
+enter shows every pom reference of the selected project (file, version, and the `${property}` it
+comes from); `a` / `A` accept the `+` suggestions of one / all projects as local overrides
+(the team manifest itself is never changed); `r` rescans.
+
 ### Interactive terminal
 Shortcut: ctrl+t\
 Opens a real shell (your `$SHELL`, as a login shell) in the selected project's folder, with that

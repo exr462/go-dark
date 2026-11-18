@@ -11,6 +11,7 @@ import (
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
+	"github.com/exr462/go-dark/maven"
 	"github.com/exr462/go-dark/shell"
 )
 
@@ -54,6 +55,7 @@ const (
 	StateDeployModal
 	StateTeamsModal
 	StateProjectsModal
+	StateGraphModal
 )
 
 type FuzzyMode int
@@ -213,6 +215,13 @@ type UI struct {
 	AddingProject          bool // True while the "add local project" form is open
 	ProjectFormField       int  // Focused row of the form: 0 name, 1 git URL, 2 path, 3 type
 	ProjectFormType        int  // Index into config.PresetNames
+
+	// !!! GLOBAL DEPENDENCY GRAPH STATE MAPPINGS !!!
+	Workspace       *maven.Workspace // Last pom scan (nil until the graph screen scanned once)
+	WorkspaceErrors []error          // Problems found while scanning poms
+	GraphScanning   bool             // A pom scan is running
+	SelectedGraph   int              // Highlighted project (index into GraphRows) on the graph screen
+	GraphDetail     bool             // Show every pom reference of the highlighted project
 
 	// !!! GLOBAL DEPENDENCY SCREEN STATE MAPPINGS !!!
 	DepScreen DependencyScreenState
