@@ -399,6 +399,41 @@ error handling, cancel).
 
 ---
 
+## 🖥 PTY session engine (`shell` package)
+
+This is the foundation for the embedded terminal tabs (PR 4) and for moving
+builds onto real terminals (PR 5). The UI doesn't use it yet.
+
+- **Process.** `creack/pty` starts the process as a session leader with the
+  PTY as its controlling terminal. We use it directly rather than
+  `charmbracelet/x/xpty`, whose Unix `Start` skips `Setsid`/`Setctty`, so
+  ctrl+c and job control would never reach the foreground program.
+  `TERM=xterm-256color`. An empty `Argv` means `$SHELL -l`.
+- **Screen.** `charmbracelet/x/vt` (`SafeEmulator`) keeps 5000 lines of
+  scrollback. `Session.Render()` is the styled screen; `Session.Text()` is
+  plain text built from the emulator's *locked* accessors only.
+- **Three goroutines per session:**
+  - *output*: PTY → emulator.
+  - *input*: emulator → PTY. This carries keys from `SendKey`/`Paste` and
+    the emulator's replies to terminal queries. vt's input side is an
+    unbuffered `io.Pipe`, so without this pump the emulator deadlocks on the
+    first cursor-position query.
+  - *wait*: waits for exit, then gives the output up to 500ms to drain, so
+    the last lines are on screen when `ExitedMsg` arrives. A background job
+    can keep the PTY open, hence the bound.
+- **Events.** One `Manager.Listen()` loop is started in `Init` and re-armed
+  in `Update` after each `OutputMsg`/`ExitedMsg`. Each session has at most
+  one pending `OutputMsg` (atomic flag), so chatty builds coalesce
+  naturally: 2000 lines arrive as a handful of messages.
+- **Teardown.** `Close` sends SIGHUP to the process group (SIGKILL after
+  2s), closes the PTY, waits (bounded) for the output pump, then closes the
+  emulator's *input pipe*. Not `Emulator.Close`: in vt v0.1.0 that writes
+  `closed` without the lock `Read` uses, which the race detector flagged.
+  `main` calls `Shutdown()` on exit so no shells outlive go-dark.
+- **Windows.** `Start` returns `shell.ErrUnsupported`, a deliberate choice.
+
+---
+
 ## 🛰 Cross-team project registry
 
 The project list used to be hardcoded (`config.AvailableProjects` plus a

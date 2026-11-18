@@ -39,11 +39,11 @@ func (m *appModel) Init() tea.Cmd {
 	if m.ui.IsFirstRun {
 		m.ui.ViewState = model.StateGitConfigurationModal
 		m.ui.PreviousViewState = model.StateDashboard
-		return tea.Batch(textinput.Blink, m.ui.Spinner.Tick)
+		return tea.Batch(textinput.Blink, m.ui.Spinner.Tick, m.listenSessions())
 	}
 
 	// If it's NOT a first run, boot up the kernel setup ticks immediately
-	return tea.Batch(m.ui.Spinner.Tick, preflight(m.ui))
+	return tea.Batch(m.ui.Spinner.Tick, preflight(m.ui), m.listenSessions())
 }
 
 func initializeEditor(ui *model.UI) {

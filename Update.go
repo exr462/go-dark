@@ -21,6 +21,7 @@ import (
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/session"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/team"
@@ -97,6 +98,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// 2. CRITICAL: Continue listening for the NEXT log block line by re-calling the command loop!
 		return m, session.ListenForLogs()
+
+	case shell.OutputMsg, shell.ExitedMsg:
+		// The terminal pane renders straight from the session on the next
+		// frame; here we only keep the event loop going.
+		return m, m.listenSessions()
 
 	case session.LogProcessFinishedMsg:
 		m.ui.IsBuilding = false
