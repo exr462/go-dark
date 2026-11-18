@@ -4,10 +4,15 @@ import (
 	"fmt"
 	Strings "strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/ui/color"
 )
+
+// BorderFrame is the number of cells a rounded border adds on each axis.
+// lipgloss v2 counts borders inside Width/Height (v1 did not), so bordered
+// boxes add it back to keep their v1 size.
+const BorderFrame = 2
 
 var (
 	Text            = lipgloss.NewStyle().Foreground(color.Text)

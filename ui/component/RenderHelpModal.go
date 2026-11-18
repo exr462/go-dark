@@ -3,7 +3,7 @@ package component
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
@@ -29,14 +29,20 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenFuzzy), "Fuzzy Finder: Search filenames and deep code contents (Ctrl+T toggles mode)"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenConfiguration), "Config Deck: Centralized environment & project workspace control"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenNewProject), "Add Project: Register a new workspace configuration"))
-	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenBuild), "Build Flight Deck: Launch Maven / Docker background build pipelines"))
-	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenSession), "Session Inspector: Track and unpack background compiler log streams"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenBuild), "Build: run a project command; it keeps running in the background, open it live in the terminal"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenSession), "Session Inspector: every build, pipeline step and shell - enter opens it live, d closes it"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDocker), "Docker Control: Monitor container status, start/stop/restart"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenJdk), "JDK Manager: Register JAVA_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenMvn), "Maven Manager: Register MAVEN_HOME profiles and bind to projects"))
-	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Opens the terminal"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Terminal: real shells in tabs, one per project; they keep running in the background"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy), "Deploy Console: Simulate a dependency-ordered Rancher/Kubernetes rollout"))
 	body.WriteString("\n")
+
+	body.WriteString(decorator.Section.Render("🖥 TERMINAL (every other key goes to the shell)") + "\n")
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalDetach), "Back to the dashboard; shells keep running"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalNewTab), "New tab: pick any project"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalPrevTab)+" / "+action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalNextTab), "Previous / next tab"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalCloseTab), "Close tab (ends its shell)") + "\n")
 
 	body.WriteString(decorator.Section.Render("✍️ DIALOGS & FORMS NAVIGATION") + "\n")
 	body.WriteString(decorator.Row("Tab / Down", "Move cursor focus forward to next field"))
@@ -59,8 +65,8 @@ func RenderHelpModal(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(min(ui.WindowWidth-4, 90)).Render(body.String()),
+		decorator.ModalBox.Width(min(ui.WindowWidth-4, 90)+decorator.BorderFrame).Render(body.String()),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }

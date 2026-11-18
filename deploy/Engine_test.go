@@ -7,17 +7,26 @@ import (
 	"github.com/exr462/go-dark/config"
 )
 
-func clonedProjects(names ...string) []config.Project {
-	projects := make([]config.Project, len(names))
-	for i, n := range names {
-		projects[i] = config.Project{Name: n, Fetched: true}
+// workspace turns registry-style test fixtures into workspace projects: IDs are
+// the plain names (so DependsOn can reference them directly) and only the
+// listed projects count as cloned.
+func workspace(projects []config.Project, cloned ...string) []config.Project {
+	isCloned := make(map[string]bool, len(cloned))
+	for _, n := range cloned {
+		isCloned[n] = true
 	}
-	return projects
+	out := make([]config.Project, len(projects))
+	for i, p := range projects {
+		p.ID = p.Name
+		p.Fetched = isCloned[p.Name]
+		out[i] = p
+	}
+	return out
 }
 
 func TestPlan_UsesDefaultNamespaceWhenEmpty(t *testing.T) {
-	registry := []config.AvailableProject{{Name: "svc", Deployable: true}}
-	entries, err := Plan(clonedProjects("svc"), registry, "")
+	registry := []config.Project{{Name: "svc", Deployable: true}}
+	entries, err := Plan(workspace(registry, "svc"), "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -27,31 +36,31 @@ func TestPlan_UsesDefaultNamespaceWhenEmpty(t *testing.T) {
 }
 
 func TestPlan_NoDeployableProjectsReturnsError(t *testing.T) {
-	registry := []config.AvailableProject{{Name: "lib", Deployable: false}}
-	_, err := Plan(clonedProjects("lib"), registry, "ns")
+	registry := []config.Project{{Name: "lib", Deployable: false}}
+	_, err := Plan(workspace(registry, "lib"), "ns")
 	if err == nil {
 		t.Fatal("expected an error when no deployable projects are available")
 	}
 }
 
 func TestPlan_PropagatesDependencyCycleError(t *testing.T) {
-	registry := []config.AvailableProject{
-		{Name: "a", Deployable: true, Dependencies: []string{"b"}},
-		{Name: "b", Deployable: true, Dependencies: []string{"a"}},
+	registry := []config.Project{
+		{Name: "a", Deployable: true, DependsOn: []string{"b"}},
+		{Name: "b", Deployable: true, DependsOn: []string{"a"}},
 	}
-	_, err := Plan(clonedProjects("a", "b"), registry, "ns")
+	_, err := Plan(workspace(registry, "a", "b"), "ns")
 	if err == nil {
 		t.Fatal("expected a cyclic dependency error to propagate from model.ResolveDeployOrder")
 	}
 }
 
 func TestPlan_EmitsStepsPerWaveInDependencyOrder(t *testing.T) {
-	registry := []config.AvailableProject{
+	registry := []config.Project{
 		{Name: "parent", Deployable: false, Buildable: true},
-		{Name: "til-purchase", Deployable: true, Dependencies: []string{"parent"}},
-		{Name: "til-order", Deployable: true, Dependencies: []string{"til-purchase"}},
+		{Name: "til-purchase", Deployable: true, DependsOn: []string{"parent"}},
+		{Name: "til-order", Deployable: true, DependsOn: []string{"til-purchase"}},
 	}
-	entries, err := Plan(clonedProjects("parent", "til-purchase", "til-order"), registry, "test-ns")
+	entries, err := Plan(workspace(registry, "parent", "til-purchase", "til-order"), "test-ns")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

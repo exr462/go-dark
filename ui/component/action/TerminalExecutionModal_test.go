@@ -1,114 +1,277 @@
+//go:build !windows
+
 package componentaction
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/exr462/go-dark/kbd"
+	tea "charm.land/bubbletea/v2"
+	"github.com/exr462/go-dark/action"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
-	"github.com/exr462/go-dark/terminal"
+	"github.com/exr462/go-dark/shell"
 )
 
-func newTerminalTestUI() *model.UI {
-	ui := newDeployTestUI()
-	inputs := make([]textinput.Model, kbd.Ceiling)
-	for i := range inputs {
-		inputs[i] = textinput.New()
+func newTerminalTestUI(t *testing.T) (*model.UI, *shell.Manager) {
+	t.Helper()
+	t.Setenv("SHELL", "/bin/sh")
+	root := t.TempDir()
+	for _, n := range []string{"api", "web"} {
+		_ = os.Mkdir(filepath.Join(root, n), 0o755)
 	}
-	ui.Inputs = inputs
-	return ui
+	ui := &model.UI{
+		Config: config.Config{
+			BasePath:  root,
+			ShortCuts: append([]action.Shortcut(nil), action.DefaultShortcuts...),
+			Projects: []config.Project{
+				{ID: "rail/api", Name: "api", Path: filepath.Join(root, "api")},
+				{ID: "local/web", Name: "web", Path: filepath.Join(root, "web")},
+			},
+		},
+		ViewState:    model.StateDashboard,
+		WindowWidth:  100,
+		WindowHeight: 30,
+	}
+	m := shell.NewManager()
+	t.Cleanup(m.Shutdown)
+	go func() {
+		for {
+			m.Listen()()
+		}
+	}()
+	return ui, m
 }
 
-func TestTerminalExecutionModal_EmptyCommandDoesNothing(t *testing.T) {
-	ui := newTerminalTestUI()
-
-	cmd := TerminalExecutionModal(ui, testKeyMsg("enter"))
-
-	if cmd != nil {
-		t.Fatal("expected no command for an empty input line")
-	}
-	if len(ui.TerminalLogs) != 0 {
-		t.Fatalf("expected no history to be written for an empty command, got %+v", ui.TerminalLogs)
-	}
-}
-
-func TestTerminalExecutionModal_SubmittingCommandEchoesPromptAndStartsSession(t *testing.T) {
-	ui := newTerminalTestUI()
-	ui.Inputs[kbd.Terminal].SetValue("echo hi")
-
-	cmd := TerminalExecutionModal(ui, testKeyMsg("enter"))
-
-	if cmd == nil {
-		t.Fatal("expected a session-spawning command to be returned")
-	}
-	if !ui.IsBuilding {
-		t.Fatal("expected IsBuilding to be set true while the command runs")
-	}
-	if ui.Inputs[kbd.Terminal].Value() != "" {
-		t.Fatalf("expected the input line to be cleared after submit, got %q", ui.Inputs[kbd.Terminal].Value())
-	}
-	if len(ui.TerminalLogs) != 1 {
-		t.Fatalf("expected exactly one echoed prompt line, got %+v", ui.TerminalLogs)
-	}
-	echoed := ui.TerminalLogs[0]
-	if !echoed.IsPrompt {
-		t.Fatalf("expected the echoed command line to be marked as a prompt, got %+v", echoed)
-	}
-	if !strings.Contains(echoed.Text, "echo hi") || !strings.Contains(echoed.Text, "parent") {
-		t.Fatalf("expected prompt echo to contain project name and command, got %q", echoed.Text)
+func press(ui *model.UI, m *shell.Manager, keys ...tea.KeyPressMsg) {
+	for _, k := range keys {
+		TerminalExecutionModal(ui, m, k)
 	}
 }
 
-func TestTerminalExecutionModal_HistoryAccumulatesAcrossCommands(t *testing.T) {
-	ui := newTerminalTestUI()
-	ui.TerminalLogs = []terminal.LogLine{{Text: "previous output"}}
-
-	ui.Inputs[kbd.Terminal].SetValue("ls")
-	TerminalExecutionModal(ui, testKeyMsg("enter"))
-
-	if len(ui.TerminalLogs) != 2 {
-		t.Fatalf("expected the new prompt to be appended to existing history, not replace it, got %+v", ui.TerminalLogs)
+func typeInto(ui *model.UI, m *shell.Manager, line string) {
+	for _, r := range line {
+		press(ui, m, tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
-	if ui.TerminalLogs[0].Text != "previous output" {
-		t.Fatalf("expected prior history to be preserved, got %+v", ui.TerminalLogs)
-	}
+	press(ui, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 }
 
-func TestTerminalExecutionModal_EnterIgnoredWhileCommandIsRunning(t *testing.T) {
-	ui := newTerminalTestUI()
-	ui.IsBuilding = true
-	ui.Inputs[kbd.Terminal].SetValue("ls")
-
-	cmd := TerminalExecutionModal(ui, testKeyMsg("enter"))
-
-	if cmd != nil {
-		t.Fatal("expected no new command to be spawned while one is already running")
+func eventually(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	if len(ui.TerminalLogs) != 0 {
-		t.Fatalf("expected no history change while a command is running, got %+v", ui.TerminalLogs)
-	}
+	t.Fatalf("timed out waiting for %s", what)
 }
 
-func TestTerminalExecutionModal_EscapeReturnsToDashboardWhenIdle(t *testing.T) {
-	ui := newTerminalTestUI()
-	ui.ViewState = model.StateTerminalCockpit
-
-	TerminalExecutionModal(ui, testKeyMsg("esc"))
-
-	if ui.ViewState != model.StateDashboard {
-		t.Fatalf("expected esc to return to the dashboard, got %v", ui.ViewState)
-	}
+// waitShellReady types a marker command and waits for its output, so later
+// input (and signals like ctrl+c) can't race the shell's startup.
+func waitShellReady(t *testing.T, ui *model.UI, m *shell.Manager) {
+	t.Helper()
+	typeInto(ui, m, "echo ready-$((1+1))")
+	eventually(t, "the shell to be ready", func() bool { return strings.Contains(activeText(ui, m), "ready-2") })
 }
 
-func TestTerminalExecutionModal_EscapeBlockedWhileCommandIsRunning(t *testing.T) {
-	ui := newTerminalTestUI()
-	ui.ViewState = model.StateTerminalCockpit
-	ui.IsBuilding = true
+func activeText(ui *model.UI, m *shell.Manager) string {
+	if s := m.Get(ui.ActiveTerminalSession()); s != nil {
+		return s.Text()
+	}
+	return ""
+}
 
-	TerminalExecutionModal(ui, testKeyMsg("esc"))
+func TestOpenTerminal_StartsShellInSelectedProjectSizedToPane(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	ui.SelectedProject = 1
 
+	OpenTerminal(ui, m)
+
+	if ui.ViewState != model.StateTerminalCockpit || len(ui.TerminalTabs) != 1 {
+		t.Fatalf("expected one tab in the terminal view, got state=%v tabs=%v", ui.ViewState, ui.TerminalTabs)
+	}
+	s := m.Get(ui.ActiveTerminalSession())
+	if s.Title != "web" || !s.Interactive {
+		t.Fatalf("unexpected session %+v", s)
+	}
+	if w, h := s.Size(); [2]int{w, h} != func() [2]int { w, h := ui.TerminalPaneSize(); return [2]int{w, h} }() {
+		t.Fatalf("session must match the pane size, got %dx%d", w, h)
+	}
+	typeInto(ui, m, "basename \"$PWD\"")
+	// The output may share a line with the prompt (e.g. "# web" as root
+	// when input arrives before the first prompt), so match line endings.
+	eventually(t, "the shell to run in the project dir", func() bool {
+		for _, line := range strings.Split(activeText(ui, m), "\n") {
+			if strings.HasSuffix(line, "web") && !strings.Contains(line, "basename") {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func TestTerminal_EscAndCtrlCGoToTheShell(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	OpenTerminal(ui, m)
+
+	waitShellReady(t, ui, m)
+	press(ui, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if ui.ViewState != model.StateTerminalCockpit {
-		t.Fatalf("expected esc to be ignored while a command is running, got %v", ui.ViewState)
+		t.Fatal("esc must reach the shell, not leave the terminal")
 	}
+	// Without line editing (dash) the esc stays in the line; clear it.
+	press(ui, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	typeInto(ui, m, "echo sleeping; sleep 30")
+	eventually(t, "sleep to start", func() bool {
+		return strings.Contains(activeText(ui, m), "\nsleeping") || strings.Contains(activeText(ui, m), "# sleeping")
+	})
+	press(ui, m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	// The tty flushes pending input when it delivers SIGINT, so give it a
+	// moment before typing on, like a person would.
+	time.Sleep(200 * time.Millisecond)
+	typeInto(ui, m, "echo back-$((40+2))")
+	eventually(t, "ctrl+c to interrupt sleep", func() bool { return strings.Contains(activeText(ui, m), "back-42") })
+}
+
+func TestTerminal_DetachKeepsShellAndReopenReattaches(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	OpenTerminal(ui, m)
+	waitShellReady(t, ui, m)
+	typeInto(ui, m, "export KEEP=still-here")
+	id := ui.ActiveTerminalSession()
+
+	press(ui, m, tea.KeyPressMsg{Code: ']', Mod: tea.ModCtrl}) // default detach
+	if ui.ViewState != model.StateDashboard || !m.Get(id).Running() {
+		t.Fatal("detach must return to the dashboard and keep the shell running")
+	}
+
+	OpenTerminal(ui, m)
+	if len(ui.TerminalTabs) != 1 || ui.ActiveTerminalSession() != id {
+		t.Fatalf("reopening must reattach to the same shell, got tabs %v", ui.TerminalTabs)
+	}
+	typeInto(ui, m, "echo $KEEP")
+	eventually(t, "shell state to survive detaching", func() bool {
+		return strings.Count(activeText(ui, m), "still-here") >= 2
+	})
+}
+
+func TestTerminal_NewTabPickerCycleAndClose(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	OpenTerminal(ui, m) // tab 1: api
+
+	press(ui, m, tea.KeyPressMsg{Code: 't', Mod: tea.ModAlt})
+	if !ui.TerminalPicking {
+		t.Fatal("new tab must open the project picker")
+	}
+	press(ui, m, tea.KeyPressMsg{Code: tea.KeyDown}, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if len(ui.TerminalTabs) != 2 || ui.ActiveTerminalTab != 1 || m.Get(ui.ActiveTerminalSession()).Title != "web" {
+		t.Fatalf("expected a second, active tab for web, got %v active=%d", ui.TerminalTabs, ui.ActiveTerminalTab)
+	}
+
+	press(ui, m, tea.KeyPressMsg{Code: 'n', Mod: tea.ModAlt})
+	if ui.ActiveTerminalTab != 0 {
+		t.Fatal("next tab must wrap around")
+	}
+	press(ui, m, tea.KeyPressMsg{Code: 'p', Mod: tea.ModAlt})
+	if ui.ActiveTerminalTab != 1 {
+		t.Fatal("previous tab must wrap around")
+	}
+
+	closing := ui.ActiveTerminalSession()
+	press(ui, m, tea.KeyPressMsg{Code: 'w', Mod: tea.ModAlt})
+	if m.Get(closing) != nil || len(ui.TerminalTabs) != 1 || ui.ViewState != model.StateTerminalCockpit {
+		t.Fatalf("close must end that shell only, got tabs %v", ui.TerminalTabs)
+	}
+	press(ui, m, tea.KeyPressMsg{Code: 'w', Mod: tea.ModAlt})
+	if len(ui.TerminalTabs) != 0 || ui.ViewState != model.StateDashboard || len(m.List()) != 0 {
+		t.Fatal("closing the last tab must return to the dashboard")
+	}
+}
+
+func TestTerminal_PickerEscWithoutTabsReturnsToDashboard(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	ui.ViewState = model.StateTerminalCockpit
+	ui.TerminalPicking = true
+
+	press(ui, m, tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	if ui.TerminalPicking || ui.ViewState != model.StateDashboard {
+		t.Fatal("cancelling the picker with no tabs must leave the terminal")
+	}
+}
+
+func TestTerminal_ExitedShellClosesOnEnter(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	OpenTerminal(ui, m)
+	id := ui.ActiveTerminalSession()
+
+	typeInto(ui, m, "exit")
+	eventually(t, "the shell to exit", func() bool { return !m.Get(id).Running() })
+	press(ui, m, tea.KeyPressMsg{Code: 'x', Text: "x"})
+	if len(ui.TerminalTabs) != 1 {
+		t.Fatal("only enter closes an exited tab")
+	}
+	press(ui, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	if len(ui.TerminalTabs) != 0 || ui.ViewState != model.StateDashboard {
+		t.Fatal("enter must close the exited tab")
+	}
+}
+
+func TestTerminal_ShortcutsAreConfigurable(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	for i := range ui.Config.ShortCuts {
+		if ui.Config.ShortCuts[i].Action == action.TerminalDetach {
+			ui.Config.ShortCuts[i].KeyBinding = "ctrl+x"
+		}
+	}
+	OpenTerminal(ui, m)
+
+	press(ui, m, tea.KeyPressMsg{Code: ']', Mod: tea.ModCtrl})
+	if ui.ViewState != model.StateTerminalCockpit {
+		t.Fatal("the old detach key must now go to the shell")
+	}
+	press(ui, m, tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+	if ui.ViewState != model.StateDashboard {
+		t.Fatal("the rebound detach key must leave the terminal")
+	}
+}
+
+func TestTerminal_PasteGoesToActiveShell(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	OpenTerminal(ui, m)
+
+	TerminalPaste(ui, m, "echo pasted-$((1+1))\n")
+
+	eventually(t, "pasted command output", func() bool { return strings.Contains(activeText(ui, m), "pasted-2") })
+}
+
+func TestResizeTerminals_FollowsWindow(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	OpenTerminal(ui, m)
+
+	ui.WindowWidth, ui.WindowHeight = 140, 50
+	ResizeTerminals(ui, m)
+
+	w, h := m.Get(ui.ActiveTerminalSession()).Size()
+	if pw, ph := ui.TerminalPaneSize(); w != pw || h != ph {
+		t.Fatalf("session %dx%d, pane %dx%d", w, h, pw, ph)
+	}
+}
+
+func TestOpenTerminal_FallsBackWhenProjectNotCloned(t *testing.T) {
+	ui, m := newTerminalTestUI(t)
+	ui.Config.Projects[0].Path = filepath.Join(ui.Config.BasePath, "missing")
+
+	OpenTerminal(ui, m)
+	typeInto(ui, m, "pwd")
+
+	base, _ := filepath.EvalSymlinks(ui.Config.BasePath)
+	eventually(t, "the shell to start in the workspace", func() bool {
+		return strings.Contains(activeText(ui, m), filepath.Base(base))
+	})
 }

@@ -1,11 +1,12 @@
 package componentaction
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
 	commandpanel "github.com/exr462/go-dark/command/panel"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/kbd"
@@ -29,7 +30,7 @@ func profileScreen(ui *model.UI, viewState model.ApplicationViewState, name kbd.
 }
 
 //goland:noinspection GoMixedReceiverTypes
-func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea.KeyMsg) tea.Cmd {
+func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea.KeyPressMsg) tea.Cmd {
 	var cmds []tea.Cmd
 
 	switch msg.String() {
@@ -50,8 +51,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 			activeProj := ui.Config.Projects[ui.SelectedProject]
 
 			// Initialize options excluding self to prevent cyclical dependencies
-			ui.DepScreen = model.NewDependencyScreen(activeProj.Name, ui.Config.Projects)
-			ui.DepScreen.ActiveProjectIndex = ui.SelectedProject
+			ui.DepScreen = model.NewDependencyScreen(activeProj, ui.Config.Projects)
 
 			// Flip view state boundary to render configuration modal
 			ui.ViewState = model.StateDependencyConfigModal
@@ -61,7 +61,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 	case "P": // 👈 Pressing Shift+P triggers the parallel DAG build
 		ui.StatusMsg = "🏗️ Resolving dependency graph and starting parallel builds..."
 
-		// Fire off the background compilation using your exact AvailableProjects layout
+		// Fire off the background compilation over the workspace dependency graph
 		// Limits the machine execution block to a safe ceiling of 4 concurrent threads
 		return initializer.InitializeTriggerPipeline(ui).OnAction()
 
@@ -72,9 +72,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
 		return initializer.InitializeTriggerPipeline(ui).OnAction()
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEditShortcuts):
-		ui.PreviousViewState = model.StateDashboard
-		kbd.LoadShortcutsOnInputs(ui.Config.ShortCuts, ui.Inputs)
-		ui.ViewState = model.StateShortcutConfigurationModal
+		OpenShortcutsConfiguration(ui, model.StateDashboard)
 		return nil
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenFuzzy):
 		if len(ui.Config.Projects) > 0 {
@@ -109,9 +107,8 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenBuild):
 		if len(ui.Config.Projects) > 0 {
 			ui.ViewState = model.StateBuildModal
+			ui.BuildOptions = config.CommandKeys(ui.Config.Projects[ui.SelectedProject])
 			ui.SelectedBuildOption = 0
-			ui.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
-			ui.IsBuilding = false
 			return nil
 		}
 		return nil
@@ -125,7 +122,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenSession):
 		ui.ViewState = model.StateSessionLogsModal
-		ui.ViewingSessionID = 0
+		ui.SelectedSession = 0
 		return nil
 
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenHelp):
@@ -191,11 +188,6 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 		ui.ViewState = model.StateEditorModal
 		ui.FocusedInput = kbd.EditContent
 		return commandfile.LoadFileCmd(ui, providerFactory)
-	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal):
-		ui.ViewState = model.StateTerminalCockpit
-		// Scrollback persists across reopen, like a real terminal session.
-		ui.FocusedInput = kbd.Terminal
-		return TerminalExecutionModal(ui, msg)
 	}
 
 	return tea.Batch(cmds...)

@@ -4,16 +4,33 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/team"
 )
 
+// gitConfigurationFields are the inputs of the global preferences form, in
+// tab order.
+var gitConfigurationFields = []kbd.InputField{
+	kbd.GitWorkspace, kbd.GitUsername, kbd.GitEmail, kbd.GitMaxTagListSize, kbd.TeamGitURL,
+}
+
+func fieldIndex(field kbd.InputField) int {
+	for i, f := range gitConfigurationFields {
+		if f == field {
+			return i
+		}
+	}
+	return 0
+}
+
 //goland:noinspection GoMixedReceiverTypes
-func UpdateGitConfiguration(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func UpdateGitConfiguration(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		log.Printf("updateGitConfiguration Previous View State: %v", ui.PreviousViewState)
@@ -22,16 +39,17 @@ func UpdateGitConfiguration(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
 
 	case "tab", "down":
 		ui.Inputs[ui.FocusedInput].Blur()
-		ui.FocusedInput = (ui.FocusedInput + 1) % 4
+		ui.FocusedInput = gitConfigurationFields[(fieldIndex(ui.FocusedInput)+1)%len(gitConfigurationFields)]
 		ui.Inputs[ui.FocusedInput].Focus()
 		return nil
 
 	case "shift+tab", "up":
 		ui.Inputs[ui.FocusedInput].Blur()
-		ui.FocusedInput--
-		if ui.FocusedInput < 0 {
-			ui.FocusedInput = 3 // 🎯 FIX: Wrap cleanly to index 3 (matching your 4 total inputs)
+		i := fieldIndex(ui.FocusedInput) - 1
+		if i < 0 {
+			i = len(gitConfigurationFields) - 1
 		}
+		ui.FocusedInput = gitConfigurationFields[i]
 		ui.Inputs[ui.FocusedInput].Focus()
 		return nil
 
@@ -43,22 +61,19 @@ func UpdateGitConfiguration(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
 		if ui.Config.BasePath == "" {
 			return nil
 		}
-		ui.Config.Projects = make([]config.Project, 0)
-
-		for _, project := range config.AvailableProjects {
-			ui.Config.Projects = append(ui.Config.Projects, config.Project{
-				Deployable: project.Deployable,
-				Name:       project.Name,
-				// TODO fix this to be magical
-				Type:   "java",
-				Path:   config.ResolvePath(ui.Config.BasePath, project.Name),
-				GitURL: fmt.Sprintf("%s%s.git", config.BaseGitURL, project.Name),
-			})
-		}
-
+		// Projects come from team manifests and the user's own local
+		// projects; re-resolve their default paths against the base path.
+		ui.Config.RefreshProjects()
 		_ = config.SaveConfig(ui.Config)
 		ui.ViewState = ui.PreviousViewState
-		return nil
+
+		teamURL := strings.TrimSpace(ui.Inputs[kbd.TeamGitURL].Value())
+		ui.Inputs[kbd.TeamGitURL].SetValue("")
+		if teamURL == "" {
+			return nil
+		}
+		ui.StatusMsg = fmt.Sprintf("🛰 Subscribing to team manifest %s...", teamURL)
+		return team.SubscribeCmd(ui.Config.Teams, teamURL)
 	}
 
 	var cmd tea.Cmd

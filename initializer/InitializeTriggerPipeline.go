@@ -2,13 +2,14 @@ package initializer
 
 import (
 	"context"
-	"os"
-	"os/exec"
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/runner"
+	"github.com/exr462/go-dark/session"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/task"
 )
 
@@ -18,16 +19,14 @@ type initializerTriggerPipeline struct {
 
 func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 	return func() tea.Msg {
-		// Resolve the exact build queue order based on your registry
-		sortedQueue, err := model.ResolveBuildOrder(m.UI.Config.Projects, config.AvailableProjects)
+		cfg := m.UI.Config
+		shells := m.UI.Shells
+		width, height := m.UI.TerminalPaneSize()
+		// Resolve the exact build queue order from the workspace dependency graph
+		sortedQueue, err := model.ResolveBuildOrder(cfg.Projects)
 
 		if err != nil {
 			return task.PipelineCompleteMsg{Success: false, Log: err.Error()}
-		}
-		// Map to coordinate lookups of current paths inside Config.Projects
-		pathMap := make(map[string]string)
-		for _, p := range m.UI.Config.Projects {
-			pathMap[p.Name] = p.Path
 		}
 
 		// Initialize structural runtime build trackers
@@ -36,11 +35,11 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 		for _, sq := range sortedQueue {
 			t := &task.BuildTask{
 				Meta:  sq,
-				Path:  pathMap[sq.Name],
+				Path:  sq.Path,
 				State: task.StatePending,
 			}
 			tasks = append(tasks, t)
-			taskMap[sq.Name] = t
+			taskMap[sq.ID] = t
 		}
 
 		var wg sync.WaitGroup
@@ -74,8 +73,8 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 
 				// Check prerequisites
 				depsMet := true
-				for _, depName := range t.Meta.Dependencies {
-					depTask, exists := taskMap[depName]
+				for _, depID := range t.Meta.DependsOn {
+					depTask, exists := taskMap[depID]
 					// If the dependency exists in our build tree but hasn't finished, wait.
 					if exists && depTask.State != task.StateSuccess {
 						depsMet = false
@@ -95,7 +94,7 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 						defer func() { <-sem }()
 
 						// Execute compilation step
-						buildErr := runMavenBuild(ctx, buildTask.Path)
+						buildErr := runPipelineBuild(ctx, shells, cfg, buildTask.Meta, width, height)
 
 						mu.Lock()
 						if buildErr != nil {
@@ -132,12 +131,32 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 	}
 }
 
-func runMavenBuild(ctx context.Context, directory string) error {
-	// Standard safe compilation pass args
-	cmd := exec.CommandContext(ctx, "mvn", "clean", "install", "-DskipTests")
-	cmd.Dir = directory
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	return cmd.Run()
+// runPipelineBuild runs the project's pipeline command (by default the
+// preset's, e.g. "mvn clean install -DskipTests" for maven) as a "pipeline"
+// session, so each module's build can be watched in the session inspector.
+// When the pipeline is cancelled the build is killed but its output kept.
+// Projects with no pipeline command are treated as built. Without a session
+// manager (tests) it runs the command directly.
+func runPipelineBuild(ctx context.Context, shells *shell.Manager, cfg config.Config, p config.Project, width, height int) error {
+	shellCmd := config.ResolveCommand(p, config.PipelineCommand)
+	if shellCmd == "" {
+		return nil
+	}
+	if shells == nil {
+		return runner.Command(ctx, cfg, p, shellCmd).Run()
+	}
+	id, err := session.StartBuild(shells, cfg, p, config.PipelineCommand, session.TagPipeline, width, height, nil)
+	if err != nil {
+		return err
+	}
+	s := shells.Get(id)
+	select {
+	case <-s.Done():
+		return s.ExitErr()
+	case <-ctx.Done():
+		_ = shells.Kill(id)
+		return ctx.Err()
+	}
 }
 
 func InitializeTriggerPipeline(ui *model.UI) Initializer {

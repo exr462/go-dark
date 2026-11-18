@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
@@ -37,7 +37,8 @@ func RenderConfigDeckModal(ui *model.UI) string {
 
 	body.WriteString(fmt.Sprintf("  • Registered Java SDK Pools  : %s\n", deckJDKVal.Render(fmt.Sprintf("%d profiles loaded", len(ui.Config.JDKs)))))
 	body.WriteString(fmt.Sprintf("  • Registered Maven Engines   : %s\n", deckMvnVal.Render(fmt.Sprintf("%d profiles loaded", len(ui.Config.Mavens)))))
-	body.WriteString(fmt.Sprintf("  • Total Tracked Workspaces   : %s\n\n", deckProjVal.Render(fmt.Sprintf("%d projects configured", len(ui.Config.Projects)))))
+	body.WriteString(fmt.Sprintf("  • Total Tracked Workspaces   : %s\n", deckProjVal.Render(fmt.Sprintf("%d projects configured", len(ui.Config.Projects)))))
+	body.WriteString(fmt.Sprintf("  • Subscribed Team Manifests  : %s\n\n", deckProjVal.Render(fmt.Sprintf("%d teams", len(ui.Config.Teams)))))
 
 	body.WriteString(decorator.Section.Render("👉 Choose Category Option to Modify / Add Entries:") + "\n\n")
 
@@ -46,6 +47,8 @@ func RenderConfigDeckModal(ui *model.UI) string {
 		"[2] Manage Java SDK Pools (Add / Register JAVA_HOME Paths)",
 		"[3] Manage Apache Maven Engines (Add / Register MAVEN_HOME Paths)",
 		"[4] Edit your shortcuts",
+		"[5] Manage Team Manifests (Subscribe / Sync / Unsubscribe)",
+		"[6] Manage Projects (Add / Remove Local Projects)",
 	}
 
 	for i, opt := range options {
@@ -67,8 +70,8 @@ func RenderConfigDeckModal(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(ui.WindowWidth-4).Render(body.String()),
+		decorator.ModalBox.Width(ui.WindowWidth-4+decorator.BorderFrame).Render(body.String()),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }

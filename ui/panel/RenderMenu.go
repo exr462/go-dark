@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
 )
@@ -21,10 +22,9 @@ var (
 
 func RenderMenu(ui *model.UI) string {
 	var activeSessionTracker string
-	for id, sess := range ui.Sessions {
-		if ui.SelectedProject < len(ui.Config.Projects) && sess.ProjectName == ui.Config.Projects[ui.SelectedProject].Name && sess.IsRunning {
-			activeSessionTracker = sessionAlert.Render(fmt.Sprintf("  ⚡ [Session %d: COMPILING]", id))
-			break
+	if ui.SelectedProject < len(ui.Config.Projects) {
+		if build := session.RunningBuild(ui.Shells, ui.Config.Projects[ui.SelectedProject].ID); build != nil {
+			activeSessionTracker = sessionAlert.Render(fmt.Sprintf("  ⚡ [Session %d: %s]", build.ID, build.Title))
 		}
 	}
 
@@ -58,5 +58,5 @@ func RenderMenu(ui *model.UI) string {
 		topMenuStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 
-	return topMenuStyle.Width(ui.WindowWidth - 2).Render(unifiedTopBarText)
+	return topMenuStyle.Width(ui.WindowWidth - 2 + decorator.BorderFrame).Render(unifiedTopBarText)
 }

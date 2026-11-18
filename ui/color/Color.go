@@ -1,6 +1,6 @@
 package color
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Catppuccin Mocha Color Palette
 var (

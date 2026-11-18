@@ -3,7 +3,7 @@ package componentaction
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/initializer"
@@ -12,7 +12,7 @@ import (
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func JDKModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func JDKModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch ui.JDKStep {
 	case model.StepSelectJDKAction:
 		switch msg.String() {

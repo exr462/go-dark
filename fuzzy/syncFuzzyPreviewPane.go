@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 )
@@ -40,7 +40,7 @@ func FuzzyPreviewPane(ui *model.UI) {
 
 	if ui.FuzzyMode == model.FuzzyModeContent && res.LineNum > 0 {
 		ui.FuzzyViewer.GotoTop()
-		for i := 0; i < res.LineNum-3 && i < ui.FuzzyViewer.Height; i++ {
+		for i := 0; i < res.LineNum-3 && i < ui.FuzzyViewer.Height(); i++ {
 			ui.FuzzyViewer.ScrollDown(1)
 		}
 	} else {

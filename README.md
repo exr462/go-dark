@@ -8,6 +8,7 @@ Fill in the following fields:\
 - git username: to push (still a feature to do) than those info are used
 - git email: same as above
 - max tag list size: only shows X amount of tags
+- team manifest git URL (optional): subscribes to your team's project list (see below)
 
 ![welcome](images/welcome.png)
 
@@ -44,11 +45,17 @@ You can choose between configuring a new mvn or assigning a configured one\
 
 ### Building project
 Shortcut: ctrl+b\
-![build_project](images/build_project.png)\
-Session runs in the background\
-ctrl+s to call the screen\
-![session](images/session.png)\
-![session_footer](images/session_footer.png)
+Pick one of the project's commands (from its type's preset or its own `commands`) and run it.
+The build runs in the background and its output streams into the screen live; you can close
+the screen and it keeps going (the project shows `(#id ⏳)` and the footer reports the result).
+ctrl+t opens the running build in the terminal pane, where ctrl+c cancels it.\
+![build_project](images/build_project.png)
+
+### Sessions
+Shortcut: ctrl+o\
+Lists every session: builds, the startup pipeline's per-module builds and terminal shells,
+with a live preview. Enter opens one in the terminal pane, d closes it (killing it if it is
+still running).
 
 ### Deploying the workspace (simulated Rancher/Kubernetes)
 Shortcut: ctrl+p\
@@ -78,12 +85,46 @@ cursor's line in view.
 
 ### Interactive terminal
 Shortcut: ctrl+t\
-Opens a full-size, real-terminal-style console (prompt, scrolling
-command/output history, dark "glass" window chrome) that runs shell
-commands inside the selected project's directory. Output streams in live
-underneath the command you just ran, and scrollback persists across
-reopens like a real shell session. Enter runs the command, esc exits
-(blocked while a command is still running).
+Opens a real shell (your `$SHELL`, as a login shell) in the selected project's folder, with that
+project's JDK/Maven profile on `PATH`. It is a genuine terminal: `cd` and exported variables stick,
+`vim`, `less`, `htop` and friends work, and esc / ctrl+c / ctrl+d reach the program as usual.
+Shells keep running when you go back to the dashboard (the footer shows how many), so you can
+come back to a long-running command later.
+
+| Key (default) | Action |
+|---|---|
+| ctrl+] | back to the dashboard (shells keep running) |
+| alt+t | new tab - pick any project |
+| alt+n / alt+p | next / previous tab |
+| alt+w | close the tab (ends its shell) |
+
+All of these can be changed with ctrl+k. A `*` on a tab means it printed something you haven't
+seen; `✗` means its shell exited (enter closes it). Not available on Windows yet.
+
+### Teams & projects
+Shortcut: ctrl+y → "Manage Team Manifests" / "Manage Projects"\
+Each team keeps a `go-dark.json` manifest at the root of a git repository and everyone
+subscribes to it by git URL; go-dark clones it and pulls updates at startup. You can follow
+several teams, and dependencies can cross teams (`"depends_on": ["other-team/lib"]`).
+Projects you add yourself are *local* and can be removed again; team projects follow their manifest.
+
+```json
+{
+  "team": "belgiantrain",
+  "base_git_url": "git@bitbucket.org:belgiantrain/",
+  "projects": [
+    { "name": "ypto-maven-parent", "type": "maven", "buildable": true },
+    { "name": "til-order", "type": "maven", "buildable": true, "deployable": true,
+      "depends_on": ["contract-first-api-parent"],
+      "commands": { "test": "mvn clean verify" } }
+  ]
+}
+```
+
+`type` picks a command preset (`maven`, `gradle`, `npm`, `go`, `docker`) used by the build
+modal (ctrl+b) and the startup pipeline; `commands` overrides or adds commands per project.
+`git_url` defaults to `base_git_url + name + ".git"`. The belgiantrain manifest lives in
+[examples/belgiantrain/go-dark.json](examples/belgiantrain/go-dark.json).
 
 ### Profile
 Shortcut: ctrl+y\

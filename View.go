@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/component"
 	"github.com/exr462/go-dark/ui/panel"
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func (m *appModel) View() string {
+func (m *appModel) render() string {
 	switch m.ui.ViewState {
 	case model.StateHelpModal:
 		return component.RenderHelpModal(m.ui)
@@ -38,10 +39,12 @@ func (m *appModel) View() string {
 		return component.RenderOpenEditor(m.ui)
 	case model.StateSystemCheckModal:
 		return component.RenderSystemCheck(m.ui)
-	case model.StateTerminalCockpit:
-		return component.RenderTerminalExecution(m.ui)
 	case model.StateDeployModal:
 		return component.RenderDeployModal(m.ui)
+	case model.StateTeamsModal:
+		return component.RenderTeamsModal(m.ui)
+	case model.StateProjectsModal:
+		return component.RenderProjectsModal(m.ui)
 	case model.StateDashboard:
 		fallthrough
 	default:
@@ -52,4 +55,21 @@ func (m *appModel) View() string {
 			panel.RenderFooter(m.ui),
 		)
 	}
+}
+
+// View wraps the rendered screen in a Bubble Tea v2 view, which now owns
+// terminal features such as the alternate screen.
+//
+//goland:noinspection GoMixedReceiverTypes
+func (m *appModel) View() tea.View {
+	if m.ui.ViewState == model.StateTerminalCockpit && m.ui.Shells != nil {
+		content, cursor := component.RenderTerminalExecution(m.ui, m.ui.Shells)
+		v := tea.NewView(content)
+		v.AltScreen = true
+		v.Cursor = cursor
+		return v
+	}
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	return v
 }

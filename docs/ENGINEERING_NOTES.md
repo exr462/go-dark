@@ -399,6 +399,206 @@ error handling, cancel).
 
 ---
 
+## 🏗 Builds on the session engine
+
+Builds used to stream through a hand-rolled channel map (`session.Sessions`,
+`BuildLogLineMsg`/`BuildCompleteMsg`, `model.BuildSession`). Now every build
+is a `shell.Manager` session.
+
+- **Starting builds.** `session.StartBuild` resolves the project's command,
+  runs it through the platform shell with the JDK/Maven env, and tags the
+  session `build` or `pipeline`. Finished sessions with the same tag and
+  project are closed first, so re-running doesn't pile up logs. Sessions
+  open as a terminal tab are kept.
+- **Where builds show up:**
+  - The build modal renders the latest build's `Text()` live and colors
+    Maven-style lines.
+  - ctrl+t attaches the build to the terminal pane (`AttachSession`), where
+    ctrl+c cancels it.
+  - `shell.ExitedMsg` for a `build` session sets the ✅/❌ status message.
+- **The startup pipeline** keeps its dependency-aware scheduler, but each
+  module runs as a `pipeline` session it waits on (`Session.Done()`). On
+  failure the remaining ones are `Kill`ed, but their output is kept for
+  inspection.
+- **The inspector (ctrl+o)** lists all sessions with a preview. Enter
+  attaches; d closes.
+- **`model.UI.Shells`** now holds the Manager (it was on `appModel`), so
+  render functions such as the footer, project badges and inspector can
+  read sessions.
+- **Windows:** builds still work. Non-interactive sessions fall back to
+  plain pipes (`shell/pipe_process.go`), turning `\n` into `\r\n` for the
+  emulator. Only interactive shells need a PTY.
+- **Footer:** the status message is now at the start of the footer. It used
+  to be at the end, where a wrapped footer pushed it off the screen.
+- **Test timing.** A ctrl+c sent within milliseconds of a process starting
+  can arrive before the child owns the PTY, and keys typed in the same
+  instant as ctrl+c are flushed by the tty. The tests wait for the program
+  to be ready first, as a person would. On Linux these races showed up
+  about 1 in 15 runs before that.
+
+---
+
+## 🗂 Terminal tabs (replaces the fake `sh -c` console)
+
+- **State.** `model.UI` only holds `TerminalTabs` (session IDs), the active
+  tab, and the new-tab picker. Everything else lives in `shell.Manager`. The
+  old `TerminalLogs`/`ActiveTerminalSessionID`/`TerminalSessions` fields, the
+  `terminal` package, and `session.SpawnTerminalSession` (plus its global
+  channel and leaked context) are gone.
+- **Key routing.** `TerminalExecutionModal` checks the five terminal
+  shortcuts first (`TerminalDetach/NewTab/NextTab/PrevTab/CloseTab`, stored
+  by name like every other action). Everything else goes to
+  `Manager.SendKey`. The defaults (ctrl+], alt+t/n/p/w) avoid keys shells
+  and editors use. ctrl+t is handled in `Update` because the dashboard has
+  no access to the Manager. Paste goes to `Manager.Paste` (bracketed when
+  the program asks for it).
+- **Layout and cursor.** The pane is laid out explicitly, not centered with
+  `lipgloss.Place`: 2-column margin, border, 1-column padding, and a tab-bar
+  row. So the screen origin is always `(model.TerminalPaneLeft,
+  model.TerminalPaneTop)`, and `View()` can put the *real* terminal cursor
+  there via `tea.View.Cursor`. `UI.TerminalPaneSize()` is the single source
+  for session size; `WindowSizeMsg` resizes every tab.
+- **Shortcuts screen.** It was a hand-written 17-field format string: it
+  overflowed small windows, Tab never reached the last fields, and it
+  shared the `kbd.Terminal` input with the old terminal's command line
+  (typing a command changed the "Open Terminal" shortcut field). It's now a
+  scrolling list driven by `kbd.ShortcutFields`, and a test checks that
+  every default shortcut except Enter has a field. Opening it from the
+  config deck used to call `LoadShortcutsOnConfig`, copying stale input
+  values *into* the config; both entry points now share
+  `OpenShortcutsConfiguration`.
+- **Checked by hand in tmux (zsh and sh):**
+  - `cd` persists.
+  - vim edits and saves, and esc reaches it.
+  - ctrl+c interrupts `sleep`.
+  - Detach and reattach keep shell state.
+  - The picker, tab switching and the unseen marker work.
+  - Window resizes reach `stty size`.
+  - Rebinding detach via ctrl+k works.
+
+---
+
+## 🖥 PTY session engine (`shell` package)
+
+This is the foundation for the embedded terminal tabs and for moving builds
+onto real terminals (PR 5).
+
+- **Process.** `creack/pty` starts the process as a session leader with the
+  PTY as its controlling terminal. We use it directly rather than
+  `charmbracelet/x/xpty`, whose Unix `Start` skips `Setsid`/`Setctty`, so
+  ctrl+c and job control would never reach the foreground program.
+  `TERM=xterm-256color`. An empty `Argv` means `$SHELL -l`.
+- **Screen.** `charmbracelet/x/vt` (`SafeEmulator`) keeps 5000 lines of
+  scrollback. `Session.Render()` is the styled screen; `Session.Text()` is
+  plain text built from the emulator's *locked* accessors only.
+- **Three goroutines per session:**
+  - *output*: PTY → emulator.
+  - *input*: emulator → PTY. This carries keys from `SendKey`/`Paste` and
+    the emulator's replies to terminal queries. vt's input side is an
+    unbuffered `io.Pipe`, so without this pump the emulator deadlocks on the
+    first cursor-position query.
+  - *wait*: waits for exit, then gives the output up to 500ms to drain, so
+    the last lines are on screen when `ExitedMsg` arrives. A background job
+    can keep the PTY open, hence the bound.
+- **Events.** One `Manager.Listen()` loop is started in `Init` and re-armed
+  in `Update` after each `OutputMsg`/`ExitedMsg`. Each session has at most
+  one pending `OutputMsg` (atomic flag), so chatty builds coalesce
+  naturally: 2000 lines arrive as a handful of messages.
+- **Teardown.** `Close` sends SIGHUP to the process group (SIGKILL after
+  2s), closes the PTY, waits (bounded) for the output pump, then closes the
+  emulator's *input pipe*. Not `Emulator.Close`: in vt v0.1.0 that writes
+  `closed` without the lock `Read` uses, which the race detector flagged.
+  `main` calls `Shutdown()` on exit so no shells outlive go-dark.
+- **Windows.** `Start` returns `shell.ErrUnsupported`, a deliberate choice.
+
+---
+
+## 🛰 Cross-team project registry
+
+The project list used to be hardcoded (`config.AvailableProjects` plus a
+Bitbucket `BaseGitURL`). That caused four bugs:
+- `LoadConfig` re-added every `til-*` repo on each start, so a project could
+  never be removed.
+- The dependency screen edited that global slice in memory only, so edits
+  were lost on restart.
+- The dependency screen matched the registry to `Config.Projects` *by index*,
+  so it showed the wrong project as soon as the two lists differed.
+- Saving the global preferences form rebuilt the project list from scratch,
+  wiping every JDK/Maven assignment.
+
+**Now:**
+- **Team manifests.** A team keeps `go-dark.json` at the root of a git repo
+  (see `examples/belgiantrain/go-dark.json`). Users subscribe by git URL:
+  ctrl+y → "Manage Team Manifests", or field 5 of the first-run form.
+  `team.Sync` clones the repo into `~/.config/godark/teams/<name>` or
+  fast-forwards it. It runs as the "🛰 Teams" startup step, asynchronously and
+  non-interactively (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode`, 20s timeout).
+  A failed pull keeps the cached manifest.
+- **One project model.** `config.Project` has an `ID` (`<team>/<name>` or
+  `local/<name>`) and a `Source`. Dependencies (`DependsOn`) are IDs. A bare
+  name in a manifest means "same team"; `team/name` is cross-team.
+  `config.MergeManifests` builds the effective list:
+  - It keeps the user's own fields (path, JDK, Maven, and dependencies when
+    `DepsOverridden`).
+  - It drops projects of unsubscribed teams, but keeps those of a subscribed
+    team whose manifest can't be read.
+  - It *adopts* a local project with the same name and path as a team
+    project, so subscribing never duplicates.
+- **Per-project commands.** `config/presets.go` defines maven, gradle, npm,
+  go and docker presets, and a project's `commands` override them. The build
+  modal lists `config.CommandKeys`. The startup pipeline runs the `pipeline`
+  command. Everything runs through `runner.Command`, the platform shell plus
+  the JDK/Maven profile environment. The startup pipeline now also honors
+  assigned profiles (it used to call a bare `mvn`). The old hardcoded Maven
+  mapping, and its `mvn clean clean test`, are gone.
+- **Migration.** Configs written before IDs existed are upgraded once
+  (`config/migrate.go`). Every project becomes `local/<name>`, `java` becomes
+  `maven`, and deps/buildable/deployable come from a copy of the old
+  registry. Subscribing to the belgiantrain manifest afterwards adopts them.
+
+**Also fixed while testing:** build sessions stopped after their first log
+line, because `componentaction` had its own, always-empty `sessionChannels`
+map. `BuildLogLine` now re-arms `session.ListenSession`, and the map is
+locked. `SaveConfig` now creates the config directory itself.
+
+**Unsubscribing** removes that team's projects from the workspace, along with
+their JDK/Maven assignments. Files on disk are never touched, either by
+unsubscribing or by removing a local project.
+
+---
+
+## ⬆️ Bubble Tea v2 migration
+
+Everything now imports `charm.land/{bubbletea,bubbles,lipgloss}/v2`; the v1
+`github.com/charmbracelet/*` modules are gone from `go.mod`. It's a mechanical
+port, so behavior should be unchanged (the dashboard and every modal were
+diffed against the v1 binary in tmux). Gotchas that don't show up as compile errors:
+
+- **Borders count toward size.** lipgloss v2 includes borders in
+  `Width`/`Height`; v1 didn't. Bordered boxes add `decorator.BorderFrame`
+  to keep their v1 size. Exception: the Build/Deploy/Fuzzy panels also set
+  `MaxWidth`/`MaxHeight` equal to their size, which in v1 cut off their
+  right border. In v2 they now render complete, so they were left alone.
+- **Paste is its own message.** v2 delivers bracketed paste as
+  `tea.PasteMsg`, not a key, so the key-based modal handlers never saw it.
+  `Paste.go` routes it to the active input.
+- **Placeholders need a width.** A v2 `textinput` with no width renders only
+  the first rune of its placeholder. `MakeInputs` and `main.go` set widths.
+- **`tea.Printf` draws into the alt screen** in v2 (v1 dropped it silently),
+  which corrupted the dashboard. The preflight notes go to `debug.log` now.
+- **The alt screen is set on the view.** `View()` returns `tea.View` with
+  `AltScreen = true`; `render()` builds the string. `tea.WithAltScreen()` is gone.
+- **Synthetic keys are built differently.** They are now
+  `tea.KeyPressMsg{Code: tea.KeyEnter}` / `{Code: 's', Mod: tea.ModCtrl}` /
+  `{Code: 'x', Text: "x"}`. The test helper `testKeyMsg` builds real
+  named keys.
+
+Known and not fixed here: when the project list is taller than the
+terminal, the dashboard overflows the screen. That happened in v1 too, but
+v2's renderer makes it look worse (duplicated rows).
+
+---
+
 ## 🧪 Test coverage map
 
 | Package | What's covered |

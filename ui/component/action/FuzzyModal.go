@@ -1,7 +1,7 @@
 package componentaction
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
 	"github.com/exr462/go-dark/fuzzy"
@@ -9,7 +9,7 @@ import (
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func FuzzyModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func FuzzyModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		ui.ViewState = model.StateDashboard

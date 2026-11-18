@@ -1,0 +1,229 @@
+{
+  "team": "belgiantrain",
+  "base_git_url": "git@bitbucket.org:belgiantrain/",
+  "projects": [
+    {
+      "name": "ypto-maven-parent",
+      "type": "maven",
+      "buildable": true,
+      "deployable": false,
+      "depends_on": []
+    },
+    {
+      "name": "contract-first-api-parent",
+      "type": "maven",
+      "buildable": true,
+      "deployable": false,
+      "depends_on": [
+        "ypto-maven-parent"
+      ]
+    },
+    {
+      "name": "til-purchase",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-product",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-smm",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-fdm",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-b2b-traveler",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-stop-place",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-channel",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-b2c-voucher",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-fulfillment",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-document",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-dtm",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-notification",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-order",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-b2b-voucher",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-authorization",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-mms",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-report",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-travel-time",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-payment",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-global-aks",
+      "type": "maven",
+      "buildable": false,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-communication",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-cash-device",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    },
+    {
+      "name": "til-voucher",
+      "type": "maven",
+      "buildable": true,
+      "deployable": true,
+      "depends_on": [
+        "contract-first-api-parent"
+      ]
+    }
+  ]
+}

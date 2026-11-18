@@ -3,15 +3,18 @@ package componentaction
 import (
 	"strconv"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 )
 
+// configDeckOptionCount must match the options listed by RenderConfigDeckModal.
+const configDeckOptionCount = 6
+
 //goland:noinspection GoMixedReceiverTypes
-func ConfigDeckModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		ui.ViewState = model.StateDashboard
@@ -24,7 +27,7 @@ func ConfigDeckModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "down", "j":
-		if ui.SelectedConfigOption < 3 {
+		if ui.SelectedConfigOption < configDeckOptionCount-1 {
 			ui.SelectedConfigOption++
 		}
 		return nil
@@ -61,12 +64,20 @@ func ConfigDeckModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
 			return nil
 
 		case 3:
-			ui.ViewState = model.StateShortcutConfigurationModal
-			ui.FocusedInput = kbd.FuzzyKey
-			kbd.LoadShortcutsOnConfig(ui.Config.ShortCuts, ui.Inputs)
-			ui.Inputs[kbd.FuzzyKey].Focus()
-			// Save dynamic values safely across memory pointers
+			OpenShortcutsConfiguration(ui, model.StateConfigDeckModal)
 			ui.SelectedMenuIndex = 0
+			return nil
+
+		case 4:
+			ui.ViewState = model.StateTeamsModal
+			ui.SelectedTeam = 0
+			ui.AddingTeam = false
+			return nil
+
+		case 5:
+			ui.ViewState = model.StateProjectsModal
+			ui.SelectedManagedProject = 0
+			ui.AddingProject = false
 			return nil
 		}
 	}

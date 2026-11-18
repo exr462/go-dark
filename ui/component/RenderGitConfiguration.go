@@ -3,7 +3,7 @@ package component
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
@@ -19,7 +19,7 @@ var (
 func RenderGitConfiguration(ui *model.UI) string {
 	var boxContent string
 	boxContent = fmt.Sprintf(
-		"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
+		"%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s",
 		decorator.Title.Render("🚀 Global Preferences Setup (Step 1 of 2)"),
 		decorator.Bold.Render("1. Global Workspace Base Path:"),
 		ui.Inputs[kbd.GitWorkspace].View(),
@@ -29,6 +29,8 @@ func RenderGitConfiguration(ui *model.UI) string {
 		ui.Inputs[kbd.GitEmail].View(),
 		decorator.Bold.Render("4. Max Tag List Size:"),
 		ui.Inputs[kbd.GitMaxTagListSize].View(),
+		decorator.Bold.Render("5. Subscribe to a team manifest (git URL, optional):"),
+		ui.Inputs[kbd.TeamGitURL].View(),
 		installerHint.Render(fmt.Sprintf(
 			"[%s] Navigate Fields | [%s] To Save | [%s] Exit",
 			installerKey.Render("Tab"),
@@ -40,8 +42,8 @@ func RenderGitConfiguration(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(min(ui.WindowWidth-4, 85)).Render(boxContent),
+		decorator.ModalBox.Width(min(ui.WindowWidth-4, 85)+decorator.BorderFrame).Render(boxContent),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }

@@ -7,10 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
 	commandpanel "github.com/exr462/go-dark/command/panel"
@@ -18,19 +17,17 @@ import (
 	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
-	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/session"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
-	"github.com/exr462/go-dark/terminal"
+	"github.com/exr462/go-dark/team"
 	componentaction "github.com/exr462/go-dark/ui/component/action"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 	"github.com/exr462/go-dark/window"
 )
-
-var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -90,19 +87,20 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.SelectedGitBranch = 0
 		return m, nil
 
-	case session.LogStreamMsg:
-		// 1. Thread-safely append the log message directly inside the main UI loop!
-		m.ui.TerminalLogs = append(m.ui.TerminalLogs, terminal.LogLine{
-			Text:  msg.Text,
-			IsErr: msg.IsErr,
-		})
+	case shell.OutputMsg:
+		// Screens render straight from the session on the next frame; here we
+		// only keep the event loop going.
+		return m, m.listenSessions()
 
-		// 2. CRITICAL: Continue listening for the NEXT log block line by re-calling the command loop!
-		return m, session.ListenForLogs()
-
-	case session.LogProcessFinishedMsg:
-		m.ui.IsBuilding = false
-		return m, nil
+	case shell.ExitedMsg:
+		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == session.TagBuild {
+			if s.ExitCode() == 0 {
+				m.ui.StatusMsg = fmt.Sprintf("✅ Build finished: %s", s.Title)
+			} else {
+				m.ui.StatusMsg = fmt.Sprintf("❌ Build failed: %s (exit code %d)", s.Title, s.ExitCode())
+			}
+		}
+		return m, m.listenSessions()
 
 	case config.GitBranchesErrorMsg:
 		m.ui.AvailableBranches = []string{"main"}
@@ -125,7 +123,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, componentaction.DeployTick(m.ui)
 
 	case tea.WindowSizeMsg:
-		return m, window.Size(m.ui, msg)
+		cmd := window.Size(m.ui, msg)
+		if m.ui.Shells != nil {
+			componentaction.ResizeTerminals(m.ui, m.ui.Shells)
+		}
+		return m, cmd
 
 	case model.FileLoadMsg:
 		cmds = commandfile.FileLoad(m.ui, cmds)
@@ -148,12 +150,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case componentmessage.BuildLogLineMsg:
-		return m, componentaction.BuildLogLine(m.ui, msg)
-
-	case componentmessage.BuildCompleteMsg:
-		return m, componentaction.BuildComplete(m.ui, msg)
-
 	case preflightMsg:
 		log.Printf("preflight: %v index: %d", msg, m.ui.Index)
 		// 1. Run the payload for the current index step if safe
@@ -173,7 +169,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Return immediately with optional clean visual logs.
 			// Do NOT append m.preflight() here. The loop stops completely!
-			return m, tea.Printf("%s [ HALT ] Setup interrupted. Redirection to Git Configuration...", checkMark)
+			// tea.Printf is a no-op under the alt screen in v1 but writes into the
+			// frame in v2, so these progress notes go to debug.log instead.
+			log.Print("[ HALT ] Setup interrupted. Redirection to Git Configuration...")
+			return m, nil
 		}
 
 		// 4. Check if EVERYTHING is completed successfully
@@ -193,11 +192,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// here would block every other message - including the
 			// dashboard-ready confirmation - behind a multi-minute build,
 			// which is exactly what produced the "blank screen" flash.
+			log.Print("[ OK ] Go-Dark Subsystems Primed.")
 			return m, tea.Batch(
 				loadCmd,
 				progressCmd,
 				initializer.InitializeWorkspace(m.ui).OnAction(),
-				tea.Printf("%s [ OK ] Go-Dark Subsystems Primed.", checkMark),
 				func() tea.Msg { return state.PreflightCompleteMsg{} },
 			)
 		}
@@ -218,20 +217,37 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case progress.FrameMsg:
 		var cmd tea.Cmd
-		updatedModel, cmd := m.ui.Progress.Update(msg)
-
-		// Explicitly cast tea.Model back to progress.Model
-		if pModel, ok := updatedModel.(progress.Model); ok {
-			m.ui.Progress = pModel
-		}
+		m.ui.Progress, cmd = m.ui.Progress.Update(msg)
 		return m, cmd
+
+	case team.SyncedMsg:
+		m.ui.Config.Teams = team.ApplySynced(m.ui.Config.Teams, msg.Teams)
+		if len(msg.Errs) > 0 {
+			for _, err := range msg.Errs {
+				log.Printf("team sync: %v", err)
+			}
+			m.ui.StatusMsg = fmt.Sprintf("⚠️ Team sync: %v (using cached manifest)", msg.Errs[0])
+		}
+		return m, componentaction.ApplyProjectChange(m.ui)
+
+	case team.SubscribedMsg:
+		if msg.Err != nil {
+			m.ui.StatusMsg = fmt.Sprintf("❌ Team subscription failed: %v", msg.Err)
+			return m, nil
+		}
+		m.ui.Config.Teams = msg.Teams
+		m.ui.StatusMsg = fmt.Sprintf("✅ Subscribed to %s", msg.Teams[len(msg.Teams)-1].Manifest)
+		return m, componentaction.ApplyProjectChange(m.ui)
 
 	case state.PreflightCompleteMsg:
 		m.ui.ViewState = model.StateDashboard
 		log.Printf("PreflightCompleteMsg: %v", m.ui.ViewState)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.PasteMsg:
+		return m, m.routePaste(msg)
+
+	case tea.KeyPressMsg:
 		// Global quit shortcuts
 		if msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.QuitApplication) {
 			return m, tea.Quit
@@ -265,19 +281,19 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, componentaction.EditorModal(m.ui, m.contentLoader, msg)
 		case model.StateDeployModal:
 			return m, componentaction.DeployModal(m.ui, msg)
+		case model.StateTeamsModal:
+			return m, componentaction.TeamsModal(m.ui, msg)
+		case model.StateProjectsModal:
+			return m, componentaction.ProjectsModal(m.ui, msg)
 		case model.StateTerminalCockpit:
-			var cmd tea.Cmd
-
-			// 1. ALWAYS unconditionally forward EVERY message (blinks, ticks, etc.) to the input component
-			m.ui.Inputs[kbd.Terminal], cmd = m.ui.Inputs[kbd.Terminal].Update(msg)
-
-			// 2. Intercept keys explicitly for shortcuts and actions
-			actionCmd := componentaction.TerminalExecutionModal(m.ui, msg)
-			return m, tea.Batch(cmd, actionCmd)
+			if m.ui.Shells == nil {
+				m.ui.ViewState = model.StateDashboard
+				return m, nil
+			}
+			return m, componentaction.TerminalExecutionModal(m.ui, m.ui.Shells, msg)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
-			projIdx := m.ui.DepScreen.ActiveProjectIndex
-			if projIdx < 0 || projIdx >= len(m.ui.Config.Projects) {
+			if config.FindProject(m.ui.Config.Projects, m.ui.DepScreen.ActiveProjectID) < 0 {
 				m.ui.ViewState = model.StateDashboard
 				return m, nil
 			}
@@ -285,6 +301,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateDashboard:
 			fallthrough
 		default:
+			if m.ui.Shells != nil && msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.OpenTerminal) {
+				return m, componentaction.OpenTerminal(m.ui, m.ui.Shells)
+			}
 			return m, componentaction.DashboardPortal(m.ui, m.providerFactory, msg)
 		}
 	}

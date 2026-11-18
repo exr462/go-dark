@@ -2,7 +2,7 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,40 +10,7 @@ import (
 	"github.com/exr462/go-dark/action"
 )
 
-const (
-	ApplicationName = "godark"
-	BaseGitURL      = "git@bitbucket.org:belgiantrain/"
-)
-
-var (
-	AvailableProjects = []AvailableProject{
-		{"ypto-maven-parent", false, true, []string{}},
-		{"contract-first-api-parent", false, true, []string{"ypto-maven-parent"}},
-		{"til-purchase", true, true, []string{"contract-first-api-parent"}},
-		{"til-product", true, true, []string{"contract-first-api-parent"}},
-		{"til-smm", true, true, []string{"contract-first-api-parent"}},
-		{"til-fdm", true, true, []string{"contract-first-api-parent"}},
-		{"til-b2b-traveler", true, true, []string{"contract-first-api-parent"}},
-		{"til-stop-place", true, true, []string{"contract-first-api-parent"}},
-		{"til-channel", true, true, []string{"contract-first-api-parent"}},
-		{"til-b2c-voucher", true, true, []string{"contract-first-api-parent"}},
-		{"til-fulfillment", true, true, []string{"contract-first-api-parent"}},
-		{"til-document", true, true, []string{"contract-first-api-parent"}},
-		{"til-dtm", true, true, []string{"contract-first-api-parent"}},
-		{"til-notification", true, true, []string{"contract-first-api-parent"}},
-		{"til-order", true, true, []string{"contract-first-api-parent"}},
-		{"til-b2b-voucher", true, true, []string{"contract-first-api-parent"}},
-		{"til-authorization", true, true, []string{"contract-first-api-parent"}},
-		{"til-mms", true, true, []string{"contract-first-api-parent"}},
-		{"til-report", true, true, []string{"contract-first-api-parent"}},
-		{"til-travel-time", true, true, []string{"contract-first-api-parent"}},
-		{"til-payment", true, true, []string{"contract-first-api-parent"}},
-		{"til-global-aks", true, false, []string{"contract-first-api-parent"}},
-		{"til-communication", true, true, []string{"contract-first-api-parent"}},
-		{"til-cash-device", true, true, []string{"contract-first-api-parent"}},
-		{"til-voucher", true, true, []string{"contract-first-api-parent"}},
-	}
-)
+const ApplicationName = "godark"
 
 type Config struct {
 	BasePath    string            `json:"base_path"`
@@ -54,6 +21,7 @@ type Config struct {
 	Mavens      []Profile         `json:"mavens"`
 	MaxListTag  int               `json:"max_list_tag"`
 	ShortCuts   []action.Shortcut `json:"short_cuts"`
+	Teams       []Team            `json:"teams"`
 }
 
 func GetConfigPath() (string, error) {
@@ -84,39 +52,7 @@ func LoadConfig() (Config, bool) {
 	var cfg Config
 	_ = json.Unmarshal(bytes, &cfg)
 
-	// 1. Create a map of projects already present in the loaded config
-	existingProjects := make(map[string]bool)
-	for _, p := range cfg.Projects {
-		existingProjects[p.Name] = true // Assuming Project struct has a '.Name' field
-	}
-
-	// 2. Add defaults from AvailableProjects if they aren't already there
-	for _, ap := range AvailableProjects {
-		if !existingProjects[ap.Name] {
-			cfg.Projects = append(cfg.Projects, Project{
-				Name:       ap.Name,
-				Type:       "java",
-				Path:       ResolvePath(cfg.BasePath, ap.Name),
-				GitURL:     fmt.Sprintf("%s%s.git", BaseGitURL, ap.Name),
-				Deployable: ap.Deployable,
-			})
-		}
-	}
-
-	// 3. Dynamically sync the Fetched status by checking if .git exists locally
-	for i := range cfg.Projects {
-		if cfg.Projects[i].Path == "" && cfg.BasePath != "" {
-			cfg.Projects[i].Path = ResolvePath(cfg.BasePath, cfg.Projects[i].Name)
-		}
-		if cfg.Projects[i].Path != "" {
-			gitDir := filepath.Join(cfg.Projects[i].Path, ".git")
-			if _, err := os.Stat(gitDir); err == nil {
-				cfg.Projects[i].Fetched = true
-			} else {
-				cfg.Projects[i].Fetched = false
-			}
-		}
-	}
+	migrated := cfg.RefreshProjects()
 
 	// Drop any shortcut whose Action didn't survive JSON decoding as a known
 	// action (action.invalidAction) - these are either corrupted entries or
@@ -165,13 +101,50 @@ func LoadConfig() (Config, bool) {
 		// entries) or backfilled, so a corrupted config.json self-heals on
 		// disk right away instead of silently re-breaking on every run until
 		// something else happens to trigger a save.
-		if added || droppedInvalid {
+		if added || droppedInvalid || migrated {
 			_ = SaveConfig(cfg)
 		}
 	}
 
 	isFirstRun := cfg.BasePath == ""
 	return cfg, isFirstRun
+}
+
+// RefreshProjects rebuilds the effective project list: it migrates legacy
+// entries, merges the cached team manifests with the local projects and
+// re-detects which projects are cloned. It reports whether a legacy
+// migration happened (and the config should be saved).
+func (cfg *Config) RefreshProjects() bool {
+	// 1. Upgrade projects saved before IDs/team manifests existed.
+	migrated := migrateLegacyProjects(cfg.Projects)
+
+	// 2. Merge the cached team manifests (synced at startup, see the team
+	//    package) with the user's local projects.
+	manifests, unavailable, manifestErrs := LoadCachedManifests(cfg.Teams)
+	for _, e := range manifestErrs {
+		log.Printf("team manifest: %v", e)
+	}
+	cfg.Projects = MergeManifests(cfg.Projects, manifests, unavailable, cfg.BasePath)
+
+	// 3. Dynamically sync the Fetched status by checking if .git exists locally
+	for i := range cfg.Projects {
+		if cfg.Projects[i].Path == "" && cfg.BasePath != "" {
+			cfg.Projects[i].Path = ResolvePath(cfg.BasePath, cfg.Projects[i].Name)
+		}
+		if cfg.Projects[i].Path != "" {
+			gitDir := filepath.Join(cfg.Projects[i].Path, ".git")
+			if _, err := os.Stat(gitDir); err == nil {
+				cfg.Projects[i].Fetched = true
+			} else {
+				cfg.Projects[i].Fetched = false
+			}
+		}
+	}
+
+	if cfg.Projects == nil {
+		cfg.Projects = []Project{}
+	}
+	return migrated
 }
 
 func SaveConfig(cfg Config) error {
@@ -181,6 +154,9 @@ func SaveConfig(cfg Config) error {
 	}
 	bytes, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(configPath, bytes, 0o644)

@@ -27,6 +27,11 @@ const (
 	Enter
 	OpenTerminal
 	OpenDeploy
+	TerminalDetach
+	TerminalNewTab
+	TerminalNextTab
+	TerminalPrevTab
+	TerminalCloseTab
 
 	// invalidAction is never assigned to a real shortcut - it's what
 	// Action.UnmarshalJSON produces for anything it can't confidently map
@@ -63,6 +68,11 @@ var actionNames = map[Action]string{
 	Enter:             "Enter",
 	OpenTerminal:      "OpenTerminal",
 	OpenDeploy:        "OpenDeploy",
+	TerminalDetach:    "TerminalDetach",
+	TerminalNewTab:    "TerminalNewTab",
+	TerminalNextTab:   "TerminalNextTab",
+	TerminalPrevTab:   "TerminalPrevTab",
+	TerminalCloseTab:  "TerminalCloseTab",
 }
 
 var namesToAction = func() map[string]Action {
@@ -138,6 +148,14 @@ const (
 	OpenEditShortcutsShortcut = "ctrl+k"
 	TerminalShortcut          = "ctrl+t"
 	OpenDeployShortcut        = "ctrl+p"
+
+	// Inside the terminal every other key goes to the shell, so these
+	// defaults avoid keys shells and editors rely on (esc, ctrl+c, ctrl+d...).
+	TerminalDetachShortcut   = "ctrl+]"
+	TerminalNewTabShortcut   = "alt+t"
+	TerminalNextTabShortcut  = "alt+n"
+	TerminalPrevTabShortcut  = "alt+p"
+	TerminalCloseTabShortcut = "alt+w"
 )
 
 type Shortcut struct {
@@ -222,6 +240,11 @@ var DefaultShortcuts = []Shortcut{
 		Action:     OpenDeploy,
 		KeyBinding: OpenDeployShortcut,
 	},
+	{Action: TerminalDetach, KeyBinding: TerminalDetachShortcut},
+	{Action: TerminalNewTab, KeyBinding: TerminalNewTabShortcut},
+	{Action: TerminalNextTab, KeyBinding: TerminalNextTabShortcut},
+	{Action: TerminalPrevTab, KeyBinding: TerminalPrevTabShortcut},
+	{Action: TerminalCloseTab, KeyBinding: TerminalCloseTabShortcut},
 }
 
 func GetShortcutKeyBinding(shortcuts []Shortcut, action Action) string {

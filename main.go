@@ -5,9 +5,10 @@ import (
 	"log"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/storage"
 )
 
@@ -21,12 +22,17 @@ func main() {
 		ui:            ui,
 		contentLoader: storage.NewContentLoader(),
 	}
+	m.ui.Shells = shell.NewManager()
+	// Don't leave shells or builds running behind once go-dark exits.
+	defer m.ui.Shells.Shutdown()
 	m.ui.Inputs = initializer.MakeInputs()
 	m.ui.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
 	m.ui.FuzzyQueryInput.CharLimit = 50
+	m.ui.FuzzyQueryInput.SetWidth(m.ui.FuzzyQueryInput.CharLimit)
 
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
+		m.ui.Shells.Shutdown()
 		os.Exit(1)
 	}
 }

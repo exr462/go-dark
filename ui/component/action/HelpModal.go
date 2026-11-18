@@ -1,13 +1,13 @@
 package componentaction
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func HelpModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func HelpModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape),
 		action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenHelp),

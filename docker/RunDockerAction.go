@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/state"
 )
 

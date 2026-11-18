@@ -1,50 +1,55 @@
 package componentaction
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"fmt"
+	"slices"
+
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/session"
 )
 
-func BuildModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
-	if len(ui.Config.Projects) == 0 {
+// BuildModal picks and runs one of the selected project's commands. Builds
+// run as sessions: they keep going when the modal is closed, the modal shows
+// their output live, and the terminal shortcut attaches to them (where
+// ctrl+c cancels).
+func BuildModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
+	if len(ui.Config.Projects) == 0 || ui.SelectedProject >= len(ui.Config.Projects) {
 		ui.ViewState = model.StateDashboard
 		return nil
 	}
-
-	targetProj := ui.Config.Projects[ui.SelectedProject]
-	var currentSessionID int
-	for id, sess := range ui.Sessions {
-		if sess.ProjectName == targetProj.Name && sess.IsRunning {
-			currentSessionID = id
-			break
-		}
-	}
-
-	if currentSessionID != 0 {
-		if msg.String() == action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape) {
-			ui.ViewState = model.StateDashboard
-		}
-		return nil
-	}
+	proj := ui.Config.Projects[ui.SelectedProject]
+	latest := session.LatestBuild(ui.Shells, proj.ID, session.TagBuild)
+	running := latest != nil && latest.Running()
 
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
+	case binding(ui, action.Escape):
 		ui.ViewState = model.StateDashboard
-		return nil
+	case binding(ui, action.OpenTerminal):
+		if latest != nil && ui.Shells != nil {
+			AttachSession(ui, ui.Shells, latest.ID)
+		}
 	case "left", "h":
-		if ui.SelectedBuildOption > 0 {
+		if !running && ui.SelectedBuildOption > 0 {
 			ui.SelectedBuildOption--
 		}
 	case "right", "l":
-		if ui.SelectedBuildOption < len(ui.BuildOptions)-1 {
+		if !running && ui.SelectedBuildOption < len(ui.BuildOptions)-1 {
 			ui.SelectedBuildOption++
 		}
-	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save):
-		ui.IsBuilding = true
-		chosenOpt := ui.BuildOptions[ui.SelectedBuildOption]
-		return session.SpawnBackgroundSession(ui, targetProj, chosenOpt)
+	case binding(ui, action.Save):
+		if running || ui.Shells == nil || ui.SelectedBuildOption >= len(ui.BuildOptions) {
+			return nil
+		}
+		key := ui.BuildOptions[ui.SelectedBuildOption]
+		w, h := ui.TerminalPaneSize()
+		keep := func(id int) bool { return slices.Contains(ui.TerminalTabs, id) }
+		if _, err := session.StartBuild(ui.Shells, ui.Config, proj, key, session.TagBuild, w, h, keep); err != nil {
+			ui.StatusMsg = fmt.Sprintf("❌ Build: %v", err)
+			return nil
+		}
+		ui.StatusMsg = fmt.Sprintf("🏗️  Building %s (%s)...", proj.Name, key)
 	}
 	return nil
 }

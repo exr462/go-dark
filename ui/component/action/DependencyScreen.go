@@ -1,24 +1,27 @@
 package componentaction
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	"slices"
+
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 )
 
+// DependencyScreen edits the DependsOn list of the project picked on the
+// dashboard. Edits are saved to the user's config; on a team project they
+// are kept as a local override of the manifest's list.
+//
 //goland:noinspection GoMixedReceiverTypes
-func DependencyScreen(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
-	projIdx := ui.DepScreen.ActiveProjectIndex
-	if projIdx < 0 || projIdx >= len(ui.Config.Projects) {
+func DependencyScreen(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
+	projIdx := config.FindProject(ui.Config.Projects, ui.DepScreen.ActiveProjectID)
+	if projIdx < 0 {
 		ui.ViewState = model.StateDashboard
 		return nil
 	}
-
-	// 🔍 FIX 1: Direct slice reference modification
-	// Do NOT copy out the project struct into a local variable.
-	// Instead, manipulate the array directly at its absolute index position.
+	proj := &ui.Config.Projects[projIdx]
 
 	switch msg.String() {
 	case "up", "k":
@@ -32,43 +35,29 @@ func DependencyScreen(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
 		}
 
 	case "space":
-		selectedTarget := ui.DepScreen.AvailableOptions[ui.DepScreen.Cursor]
-
-		// Find if dependency exists in our absolute index target
-		foundIdx := -1
-		for i, dep := range config.AvailableProjects[projIdx].Dependencies {
-			if dep == selectedTarget {
-				foundIdx = i
-				break
-			}
+		if len(ui.DepScreen.AvailableOptions) == 0 {
+			return nil
 		}
-
-		if foundIdx >= 0 {
-			// Toggle Off: Remove dependency directly from the slice array
-			config.AvailableProjects[projIdx].Dependencies = append(
-				config.AvailableProjects[projIdx].Dependencies[:foundIdx],
-				config.AvailableProjects[projIdx].Dependencies[foundIdx+1:]...,
-			)
+		target := ui.DepScreen.AvailableOptions[ui.DepScreen.Cursor]
+		if i := slices.Index(proj.DependsOn, target); i >= 0 {
+			proj.DependsOn = slices.Delete(slices.Clone(proj.DependsOn), i, i+1)
 		} else {
-			// Toggle On: Add dependency directly to the slice array
-			config.AvailableProjects[projIdx].Dependencies = append(
-				config.AvailableProjects[projIdx].Dependencies,
-				selectedTarget,
-			)
+			proj.DependsOn = append(slices.Clone(proj.DependsOn), target)
 		}
 
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save):
+		if !slices.Equal(proj.DependsOn, ui.DepScreen.Original) && !proj.IsLocal() {
+			proj.DepsOverridden = true
+		}
 		_ = config.SaveConfig(ui.Config)
 		ui.ViewState = model.StateDashboard
 		return initializer.InitializeWorkspace(ui).OnAction()
 
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape), action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.QuitApplication):
+		proj.DependsOn = ui.DepScreen.Original
 		ui.ViewState = model.StateDashboard
 		return nil
 	}
 
-	// 🔍 FIX 2: Return the updated model 'm' back to Bubble Tea!
-	// If you were returning 'nil, nil' or a raw unmutated model state here,
-	// Bubble Tea wouldn't know the selection markers changed.
 	return nil
 }

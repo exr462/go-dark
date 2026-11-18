@@ -3,15 +3,16 @@ package main
 import (
 	"time"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/team"
 	"github.com/exr462/go-dark/ui/component"
 )
 
@@ -38,11 +39,11 @@ func (m *appModel) Init() tea.Cmd {
 	if m.ui.IsFirstRun {
 		m.ui.ViewState = model.StateGitConfigurationModal
 		m.ui.PreviousViewState = model.StateDashboard
-		return tea.Batch(textinput.Blink, m.ui.Spinner.Tick)
+		return tea.Batch(textinput.Blink, m.ui.Spinner.Tick, m.listenSessions())
 	}
 
 	// If it's NOT a first run, boot up the kernel setup ticks immediately
-	return tea.Batch(m.ui.Spinner.Tick, preflight(m.ui))
+	return tea.Batch(m.ui.Spinner.Tick, preflight(m.ui), m.listenSessions())
 }
 
 func initializeEditor(ui *model.UI) {
@@ -71,8 +72,7 @@ const (
 
 func initializeProgress(ui *model.UI) {
 	ui.Progress = progress.New(
-		progress.WithDefaultGradient(),
-		progress.WithSolidFill(component.MochaGreen),
+		progress.WithColors(lipgloss.Color(component.MochaGreen)),
 		progress.WithoutPercentage(),
 	)
 }
@@ -83,6 +83,7 @@ func loadPrechecks(ui *model.UI) {
 		// NOTE: previously this ran twice ("Load env" + "Updating env") calling the
 		// exact same initializer with no behavioral difference - trimmed to one step.
 		{Name: lipgloss.NewStyle().Render("👷 Load env"), Load: initializer.InitializeWelcomePanel(ui).OnAction},
+		{Name: lipgloss.NewStyle().Render("🛰 Teams"), Load: func() tea.Cmd { return team.SyncCmd(ui.Config.Teams) }},
 		{Name: lipgloss.NewStyle().Render("🐳 Docker"), Load: initializer.InitializeDockerTelemetry(ui).OnAction},
 		{Name: lipgloss.NewStyle().Render("🪁 Async"), Load: initializer.InitializeTriggerPipeline(ui).OnAction},
 	}
