@@ -9,6 +9,7 @@ import (
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/task"
 )
 
 func bigDashboardUI(width, height int) *model.UI {
@@ -49,5 +50,19 @@ func TestDashboard_FitsWindowWithManyProjects(t *testing.T) {
 		if !strings.Contains(out, "of 80") || !strings.Contains(out, "file-70.java") {
 			t.Fatalf("%dx%d: expected a scroll position and the selected file:\n%s", size[0], size[1], out)
 		}
+	}
+}
+
+// The startup pipeline finishes in the background; it used to force the
+// dashboard, pulling the user out of e.g. the terminal mid-command.
+func TestPipelineComplete_KeepsTheCurrentScreen(t *testing.T) {
+	ui := bigDashboardUI(100, 30)
+	ui.ViewState = model.StateTerminalCockpit
+	m := &appModel{ui: ui}
+
+	m.Update(task.PipelineCompleteMsg{Success: true})
+
+	if ui.ViewState != model.StateTerminalCockpit || !strings.Contains(ui.StatusMsg, "built successfully") {
+		t.Fatalf("expected to stay on the terminal with a status, got %v %q", ui.ViewState, ui.StatusMsg)
 	}
 }

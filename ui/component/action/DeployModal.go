@@ -20,7 +20,7 @@ const TagMinikube = "minikube"
 func OpenDeploy(ui *model.UI) tea.Cmd {
 	ui.ViewState = model.StateDeployModal
 	PlanDeploy(ui)
-	return CheckCluster(ui)
+	return tea.Batch(CheckCluster(ui), ScanWorkspace(ui))
 }
 
 // PlanDeploy resolves the deploy waves from the current projects.
@@ -57,9 +57,10 @@ func ClusterChecked(ui *model.UI, msg model.DeployPreflightMsg) {
 	ui.ClusterErr = msg.Err
 }
 
-// DeployModal: enter deploys, s starts minikube when it's stopped, x
-// cancels a running deployment, r re-checks the cluster, esc leaves (a
-// running deployment continues in the background).
+// DeployModal is the ship screen: enter runs the full train (build ->
+// images -> deploy), d deploys without rebuilding, v aligns versions, s
+// starts minikube when it's stopped, x cancels, r re-checks, esc leaves (a
+// running train continues in the background).
 func DeployModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case binding(ui, action.Escape):
@@ -81,12 +82,18 @@ func DeployModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			ui.StatusMsg = "⏳ Starting minikube (watch it in the session inspector)..."
 		}
 	case "x":
-		if ui.DeployRunning && ui.DeployCancel != nil {
-			ui.DeployCancel()
-			ui.StatusMsg = "⏹ Cancelling deployment..."
+		cancelShip(ui)
+	case "v":
+		if !ui.DeployRunning && ui.ShipStage != model.ShipBuilding {
+			return OpenAlign(ui, model.StateDeployModal)
+		}
+	case "d":
+		if ui.ShipStage != model.ShipBuilding {
+			ui.ShipStage = model.ShipIdle
+			return startDeploy(ui)
 		}
 	case "enter", binding(ui, action.Save):
-		return startDeploy(ui)
+		return ship(ui)
 	}
 	return nil
 }
@@ -127,6 +134,7 @@ func startDeploy(ui *model.UI) tea.Cmd {
 // DeployFinished stores the outcome of a run.
 func DeployFinished(ui *model.UI, msg model.DeployFinishedMsg) {
 	ui.DeployRunning, ui.DeployFinished, ui.DeployErr, ui.DeployCancel = false, true, msg.Err, nil
+	shipFinished(ui, msg.Err)
 	if msg.Err != nil {
 		ui.StatusMsg = fmt.Sprintf("❌ Deploy failed: %v", msg.Err)
 	} else {
