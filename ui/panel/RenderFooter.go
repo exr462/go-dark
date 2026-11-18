@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/session"
@@ -61,7 +62,7 @@ func RenderFooter(ui *model.UI) string {
 		Background(color.Mantle).
 		Foreground(color.Subtext0).
 		Width(ui.WindowWidth).
-		Render(footerText)
+		Render(ansi.Truncate(footerText, max(ui.WindowWidth, 1), "…"))
 }
 
 var (
