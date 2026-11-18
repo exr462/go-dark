@@ -220,6 +220,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.Progress, cmd = m.ui.Progress.Update(msg)
 		return m, cmd
 
+	case model.AlignedMsg:
+		return m, componentaction.Aligned(m.ui, msg)
+
 	case model.WorkspaceScannedMsg:
 		componentaction.WorkspaceScanned(m.ui, msg)
 		return m, nil
@@ -291,6 +294,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, componentaction.ProjectsModal(m.ui, msg)
 		case model.StateGraphModal:
 			return m, componentaction.GraphModal(m.ui, msg)
+		case model.StateAlignModal:
+			return m, componentaction.AlignModal(m.ui, msg)
 		case model.StateTerminalCockpit:
 			if m.ui.Shells == nil {
 				m.ui.ViewState = model.StateDashboard

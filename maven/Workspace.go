@@ -40,10 +40,11 @@ type Ref struct {
 
 // Project is the pom view of one workspace project.
 type Project struct {
-	ID      string
-	Dir     string
-	Version string // version of the repo's root pom
-	POMs    []*POM
+	ID         string
+	Dir        string
+	ArtifactID string // the repo's root pom artifactId (release tags are named after it)
+	Version    string // version of the repo's root pom
+	POMs       []*POM
 }
 
 // Workspace indexes every pom of the scanned projects.
@@ -96,6 +97,7 @@ func Scan(projects []config.Project) (*Workspace, []error) {
 		for _, p := range poms {
 			if filepath.Dir(p.Path) == filepath.Clean(cp.Path) {
 				proj.Version = resolveValue(p.Self.Version, p, poms)
+				proj.ArtifactID = p.Self.ArtifactID
 			}
 			ga := p.Self.GA
 			if prev, dup := w.Artifacts[ga]; dup && prev.ProjectID != cp.ID {

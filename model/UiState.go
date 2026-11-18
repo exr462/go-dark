@@ -56,6 +56,7 @@ const (
 	StateTeamsModal
 	StateProjectsModal
 	StateGraphModal
+	StateAlignModal
 )
 
 type FuzzyMode int
@@ -217,11 +218,21 @@ type UI struct {
 	ProjectFormType        int  // Index into config.PresetNames
 
 	// !!! GLOBAL DEPENDENCY GRAPH STATE MAPPINGS !!!
-	Workspace       *maven.Workspace // Last pom scan (nil until the graph screen scanned once)
-	WorkspaceErrors []error          // Problems found while scanning poms
-	GraphScanning   bool             // A pom scan is running
-	SelectedGraph   int              // Highlighted project (index into GraphRows) on the graph screen
-	GraphDetail     bool             // Show every pom reference of the highlighted project
+	Workspace       *maven.Workspace  // Last pom scan (nil until the graph screen scanned once)
+	WorkspaceErrors []error           // Problems found while scanning poms
+	GraphScanning   bool              // A pom scan is running
+	SelectedGraph   int               // Highlighted project (index into GraphRows) on the graph screen
+	GraphDetail     bool              // Show every pom reference of the highlighted project
+	ReleaseTags     map[string]string // Newest release version per scanned project (from git tags)
+
+	// !!! GLOBAL VERSION ALIGNMENT STATE MAPPINGS !!!
+	AlignChoices  map[string]AlignTarget // Chosen target per producing project (default: workspace version)
+	SelectedAlign int                    // Highlighted row
+	AlignPreview  bool                   // Show the line-by-line preview
+	AlignConfirm  bool                   // Waiting for the second enter before committing
+	AlignRunning  bool                   // Commits are being made
+	AlignResults  []AlignResult          // Outcome of the last run
+	AlignReturnTo ApplicationViewState   // Screen to go back to
 
 	// !!! GLOBAL DEPENDENCY SCREEN STATE MAPPINGS !!!
 	DepScreen DependencyScreenState

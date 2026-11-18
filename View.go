@@ -47,6 +47,8 @@ func (m *appModel) render() string {
 		return component.RenderProjectsModal(m.ui)
 	case model.StateGraphModal:
 		return component.RenderGraphModal(m.ui)
+	case model.StateAlignModal:
+		return component.RenderAlignModal(m.ui)
 	case model.StateDashboard:
 		fallthrough
 	default:

@@ -95,6 +95,17 @@ enter shows every pom reference of the selected project (file, version, and the 
 comes from); `a` / `A` accept the `+` suggestions of one / all projects as local overrides
 (the team manifest itself is never changed); `r` rescans.
 
+### Aligning versions
+ctrl+y → "Align Workspace Versions" (or `v` on the dependency graph)\
+Lists every workspace project that other projects reference at inconsistent versions, e.g.
+`ypto-maven-parent` used at 3.4.9 … 3.5.7 across the services. Per project pick the target with
+←/→ - its version in the workspace, its newest release tag, or keep - and `p` previews every
+changed line (`↓ downgrade` is flagged). enter (twice) applies it: in each repo that needs
+changes go-dark edits only the version text (the `<version>` or the `${property}` it comes from)
+and commits just those poms on branch `go-dark/align-versions`. It never pushes. A repo is
+skipped, and reported, when one of its poms has uncommitted changes or the branch already exists
+without being checked out.
+
 ### Interactive terminal
 Shortcut: ctrl+t\
 Opens a real shell (your `$SHELL`, as a login shell) in the selected project's folder, with that

@@ -11,7 +11,7 @@ import (
 )
 
 // configDeckOptionCount must match the options listed by RenderConfigDeckModal.
-const configDeckOptionCount = 6
+const configDeckOptionCount = 7
 
 //goland:noinspection GoMixedReceiverTypes
 func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
@@ -79,6 +79,9 @@ func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			ui.SelectedManagedProject = 0
 			ui.AddingProject = false
 			return nil
+
+		case 6:
+			return OpenAlign(ui, model.StateConfigDeckModal)
 		}
 	}
 	return nil
