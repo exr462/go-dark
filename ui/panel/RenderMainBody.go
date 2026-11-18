@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
 )
@@ -36,11 +37,8 @@ func RenderMainBody(ui *model.UI) string {
 
 	for i, p := range ui.Config.Projects {
 		sessionLabel := ""
-		for id, sess := range ui.Sessions {
-			if sess.ProjectName == p.Name && sess.IsRunning {
-				sessionLabel = sessionBadgeStyle.Render(fmt.Sprintf(" (ID:%d ⏳)", id))
-				break
-			}
+		if build := session.RunningBuild(ui.Shells, p.ID); build != nil {
+			sessionLabel = sessionBadgeStyle.Render(fmt.Sprintf(" (#%d ⏳)", build.ID))
 		}
 
 		statusBadge := localBadgeStyle.Render("[local]")

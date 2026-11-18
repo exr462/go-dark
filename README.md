@@ -45,11 +45,17 @@ You can choose between configuring a new mvn or assigning a configured one\
 
 ### Building project
 Shortcut: ctrl+b\
-![build_project](images/build_project.png)\
-Session runs in the background\
-ctrl+s to call the screen\
-![session](images/session.png)\
-![session_footer](images/session_footer.png)
+Pick one of the project's commands (from its type's preset or its own `commands`) and run it.
+The build runs in the background and its output streams into the screen live; you can close
+the screen and it keeps going (the project shows `(#id ⏳)` and the footer reports the result).
+ctrl+t opens the running build in the terminal pane, where ctrl+c cancels it.\
+![build_project](images/build_project.png)
+
+### Sessions
+Shortcut: ctrl+o\
+Lists every session: builds, the startup pipeline's per-module builds and terminal shells,
+with a live preview. Enter opens one in the terminal pane, d closes it (killing it if it is
+still running).
 
 ### Deploying the workspace (simulated Rancher/Kubernetes)
 Shortcut: ctrl+p\

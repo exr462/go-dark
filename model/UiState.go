@@ -11,15 +11,8 @@ import (
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
+	"github.com/exr462/go-dark/shell"
 )
-
-type BuildSession struct {
-	ID          int
-	ProjectName string
-	Command     string
-	IsRunning   bool
-	Logs        []string
-}
 
 type FileNode struct {
 	Name       string
@@ -177,8 +170,6 @@ type UI struct {
 
 	// !!! GLOBAL BUILD VARIABLES MAPPINGS !!!
 	BuildOptions []string
-	BuildLogs    []string
-	IsBuilding   bool
 
 	// !!! GLOBAL PROJECT VARIABLES MAPPINGS !!!
 	SelectedProject int
@@ -192,10 +183,8 @@ type UI struct {
 	SelectedMavenIndex int
 
 	// !!! GLOBAL BACKGROUND SESSION ENGINE STRUCTURES VARIABLES MAPPINGS !!!
-	Sessions         map[int]*BuildSession // Stores historical logs keyed by session index identifier
-	ActiveSessionID  int                   // The session ID currently being viewed/active
-	ViewingSessionID int                   // The session ID currently selected via Ctrl+S inspector modal
-	NextSessionID    int                   // Counter managing increment steps
+	Shells          *shell.Manager // Every PTY session: terminal tabs, builds, pipeline builds (nil in some tests)
+	SelectedSession int            // Highlighted row of the session inspector
 
 	// !!! GLOBAL FUZZY FINDER RECON ENGINE PARAMETERS VARIABLES MAPPINGS !!!
 	FuzzyMode            FuzzyMode       // Track if searching names vs text blocks

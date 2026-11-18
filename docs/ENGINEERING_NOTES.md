@@ -399,6 +399,45 @@ error handling, cancel).
 
 ---
 
+## 🏗 Builds on the session engine
+
+Builds used to stream through a hand-rolled channel map (`session.Sessions`,
+`BuildLogLineMsg`/`BuildCompleteMsg`, `model.BuildSession`). Now every build
+is a `shell.Manager` session.
+
+- **Starting builds.** `session.StartBuild` resolves the project's command,
+  runs it through the platform shell with the JDK/Maven env, and tags the
+  session `build` or `pipeline`. Finished sessions with the same tag and
+  project are closed first, so re-running doesn't pile up logs. Sessions
+  open as a terminal tab are kept.
+- **Where builds show up:**
+  - The build modal renders the latest build's `Text()` live and colors
+    Maven-style lines.
+  - ctrl+t attaches the build to the terminal pane (`AttachSession`), where
+    ctrl+c cancels it.
+  - `shell.ExitedMsg` for a `build` session sets the ✅/❌ status message.
+- **The startup pipeline** keeps its dependency-aware scheduler, but each
+  module runs as a `pipeline` session it waits on (`Session.Done()`). On
+  failure the remaining ones are `Kill`ed, but their output is kept for
+  inspection.
+- **The inspector (ctrl+o)** lists all sessions with a preview. Enter
+  attaches; d closes.
+- **`model.UI.Shells`** now holds the Manager (it was on `appModel`), so
+  render functions such as the footer, project badges and inspector can
+  read sessions.
+- **Windows:** builds still work. Non-interactive sessions fall back to
+  plain pipes (`shell/pipe_process.go`), turning `\n` into `\r\n` for the
+  emulator. Only interactive shells need a PTY.
+- **Footer:** the status message is now at the start of the footer. It used
+  to be at the end, where a wrapped footer pushed it off the screen.
+- **Test timing.** A ctrl+c sent within milliseconds of a process starting
+  can arrive before the child owns the PTY, and keys typed in the same
+  instant as ctrl+c are flushed by the tty. The tests wait for the program
+  to be ready first, as a person would. On Linux these races showed up
+  about 1 in 15 runs before that.
+
+---
+
 ## 🗂 Terminal tabs (replaces the fake `sh -c` console)
 
 - **State.** `model.UI` only holds `TerminalTabs` (session IDs), the active

@@ -109,8 +109,6 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 			ui.ViewState = model.StateBuildModal
 			ui.BuildOptions = config.CommandKeys(ui.Config.Projects[ui.SelectedProject])
 			ui.SelectedBuildOption = 0
-			ui.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
-			ui.IsBuilding = false
 			return nil
 		}
 		return nil
@@ -124,7 +122,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenSession):
 		ui.ViewState = model.StateSessionLogsModal
-		ui.ViewingSessionID = 0
+		ui.SelectedSession = 0
 		return nil
 
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenHelp):

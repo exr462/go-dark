@@ -62,8 +62,8 @@ func (m *appModel) render() string {
 //
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) View() tea.View {
-	if m.ui.ViewState == model.StateTerminalCockpit && m.sessions != nil {
-		content, cursor := component.RenderTerminalExecution(m.ui, m.sessions)
+	if m.ui.ViewState == model.StateTerminalCockpit && m.ui.Shells != nil {
+		content, cursor := component.RenderTerminalExecution(m.ui, m.ui.Shells)
 		v := tea.NewView(content)
 		v.AltScreen = true
 		v.Cursor = cursor

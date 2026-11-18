@@ -8,6 +8,8 @@ import (
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/runner"
+	"github.com/exr462/go-dark/session"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/task"
 )
 
@@ -18,6 +20,8 @@ type initializerTriggerPipeline struct {
 func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 	return func() tea.Msg {
 		cfg := m.UI.Config
+		shells := m.UI.Shells
+		width, height := m.UI.TerminalPaneSize()
 		// Resolve the exact build queue order from the workspace dependency graph
 		sortedQueue, err := model.ResolveBuildOrder(cfg.Projects)
 
@@ -90,7 +94,7 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 						defer func() { <-sem }()
 
 						// Execute compilation step
-						buildErr := runPipelineBuild(ctx, cfg, buildTask.Meta)
+						buildErr := runPipelineBuild(ctx, shells, cfg, buildTask.Meta, width, height)
 
 						mu.Lock()
 						if buildErr != nil {
@@ -128,14 +132,31 @@ func (m *initializerTriggerPipeline) OnAction() tea.Cmd {
 }
 
 // runPipelineBuild runs the project's pipeline command (by default the
-// preset's, e.g. "mvn clean install -DskipTests" for maven). Projects with no
-// pipeline command are treated as built.
-func runPipelineBuild(ctx context.Context, cfg config.Config, p config.Project) error {
+// preset's, e.g. "mvn clean install -DskipTests" for maven) as a "pipeline"
+// session, so each module's build can be watched in the session inspector.
+// When the pipeline is cancelled the build is killed but its output kept.
+// Projects with no pipeline command are treated as built. Without a session
+// manager (tests) it runs the command directly.
+func runPipelineBuild(ctx context.Context, shells *shell.Manager, cfg config.Config, p config.Project, width, height int) error {
 	shellCmd := config.ResolveCommand(p, config.PipelineCommand)
 	if shellCmd == "" {
 		return nil
 	}
-	return runner.Command(ctx, cfg, p, shellCmd).Run()
+	if shells == nil {
+		return runner.Command(ctx, cfg, p, shellCmd).Run()
+	}
+	id, err := session.StartBuild(shells, cfg, p, config.PipelineCommand, session.TagPipeline, width, height, nil)
+	if err != nil {
+		return err
+	}
+	s := shells.Get(id)
+	select {
+	case <-s.Done():
+		return s.ExitErr()
+	case <-ctx.Done():
+		_ = shells.Kill(id)
+		return ctx.Err()
+	}
 }
 
 func InitializeTriggerPipeline(ui *model.UI) Initializer {

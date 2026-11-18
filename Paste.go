@@ -29,8 +29,8 @@ func (m *appModel) routePaste(msg tea.PasteMsg) tea.Cmd {
 			fuzzy.FuzzyPreviewPane(m.ui)
 		}
 	case model.StateTerminalCockpit:
-		if m.sessions != nil {
-			componentaction.TerminalPaste(m.ui, m.sessions, msg.Content)
+		if m.ui.Shells != nil {
+			componentaction.TerminalPaste(m.ui, m.ui.Shells, msg.Content)
 		}
 	case model.StateGitConfigurationModal, model.StateShortcutConfigurationModal:
 		m.ui.Inputs[m.ui.FocusedInput], cmd = m.ui.Inputs[m.ui.FocusedInput].Update(msg)

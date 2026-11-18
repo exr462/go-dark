@@ -34,6 +34,27 @@ func OpenTerminal(ui *model.UI, sessions *shell.Manager) tea.Cmd {
 	return nil
 }
 
+// AttachSession shows an existing session (a build, a pipeline step, a
+// shell) in the terminal pane, adding it as a tab if needed.
+func AttachSession(ui *model.UI, sessions *shell.Manager, id int) {
+	s := sessions.Get(id)
+	if s == nil {
+		return
+	}
+	pruneTerminalTabs(ui, sessions)
+	i := slices.Index(ui.TerminalTabs, id)
+	if i < 0 {
+		w, h := ui.TerminalPaneSize()
+		_ = sessions.Resize(id, w, h)
+		ui.TerminalTabs = append(ui.TerminalTabs, id)
+		i = len(ui.TerminalTabs) - 1
+	}
+	ui.ActiveTerminalTab = i
+	ui.TerminalPicking = false
+	ui.ViewState = model.StateTerminalCockpit
+	s.MarkSeen()
+}
+
 // TerminalExecutionModal routes keys inside the terminal pane. The terminal
 // shortcuts (all configurable) are handled here; every other key goes to the
 // active shell, so esc, ctrl+c, arrows etc. behave like in a real terminal.

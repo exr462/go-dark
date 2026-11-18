@@ -71,6 +71,14 @@ func eventually(t *testing.T, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
+// waitShellReady types a marker command and waits for its output, so later
+// input (and signals like ctrl+c) can't race the shell's startup.
+func waitShellReady(t *testing.T, ui *model.UI, m *shell.Manager) {
+	t.Helper()
+	typeInto(ui, m, "echo ready-$((1+1))")
+	eventually(t, "the shell to be ready", func() bool { return strings.Contains(activeText(ui, m), "ready-2") })
+}
+
 func activeText(ui *model.UI, m *shell.Manager) string {
 	if s := m.Get(ui.ActiveTerminalSession()); s != nil {
 		return s.Text()
@@ -95,8 +103,15 @@ func TestOpenTerminal_StartsShellInSelectedProjectSizedToPane(t *testing.T) {
 		t.Fatalf("session must match the pane size, got %dx%d", w, h)
 	}
 	typeInto(ui, m, "basename \"$PWD\"")
+	// The output may share a line with the prompt (e.g. "# web" as root
+	// when input arrives before the first prompt), so match line endings.
 	eventually(t, "the shell to run in the project dir", func() bool {
-		return strings.Contains(activeText(ui, m), "\nweb")
+		for _, line := range strings.Split(activeText(ui, m), "\n") {
+			if strings.HasSuffix(line, "web") && !strings.Contains(line, "basename") {
+				return true
+			}
+		}
+		return false
 	})
 }
 
@@ -104,13 +119,21 @@ func TestTerminal_EscAndCtrlCGoToTheShell(t *testing.T) {
 	ui, m := newTerminalTestUI(t)
 	OpenTerminal(ui, m)
 
+	waitShellReady(t, ui, m)
 	press(ui, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	if ui.ViewState != model.StateTerminalCockpit {
 		t.Fatal("esc must reach the shell, not leave the terminal")
 	}
-	typeInto(ui, m, "sleep 30")
-	time.Sleep(200 * time.Millisecond)
+	// Without line editing (dash) the esc stays in the line; clear it.
+	press(ui, m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	typeInto(ui, m, "echo sleeping; sleep 30")
+	eventually(t, "sleep to start", func() bool {
+		return strings.Contains(activeText(ui, m), "\nsleeping") || strings.Contains(activeText(ui, m), "# sleeping")
+	})
 	press(ui, m, tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	// The tty flushes pending input when it delivers SIGINT, so give it a
+	// moment before typing on, like a person would.
+	time.Sleep(200 * time.Millisecond)
 	typeInto(ui, m, "echo back-$((40+2))")
 	eventually(t, "ctrl+c to interrupt sleep", func() bool { return strings.Contains(activeText(ui, m), "back-42") })
 }
@@ -118,6 +141,7 @@ func TestTerminal_EscAndCtrlCGoToTheShell(t *testing.T) {
 func TestTerminal_DetachKeepsShellAndReopenReattaches(t *testing.T) {
 	ui, m := newTerminalTestUI(t)
 	OpenTerminal(ui, m)
+	waitShellReady(t, ui, m)
 	typeInto(ui, m, "export KEEP=still-here")
 	id := ui.ActiveTerminalSession()
 

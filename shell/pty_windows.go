@@ -4,10 +4,13 @@ package shell
 
 import "os"
 
-// Embedded terminals are deliberately not offered on Windows (yet): go-dark
-// ships a Windows binary, but every other feature works without a PTY.
-func startProcess([]string, string, []string, int, int) (process, error) {
-	return nil, ErrUnsupported
+// Interactive shells are deliberately not offered on Windows (yet). One-off
+// commands such as builds still run, through plain pipes instead of a PTY.
+func startProcess(argv []string, dir string, env []string, _, _ int, interactive bool) (process, error) {
+	if interactive {
+		return nil, ErrUnsupported
+	}
+	return startPipeProcess(argv, dir, env)
 }
 
 func loginShell() []string { return []string{"cmd.exe"} }

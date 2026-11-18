@@ -21,7 +21,7 @@ type unixProcess struct {
 	done chan struct{}
 }
 
-func startProcess(argv []string, dir string, env []string, width, height int) (process, error) {
+func startProcess(argv []string, dir string, env []string, width, height int, _ bool) (process, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
 	cmd.Env = env

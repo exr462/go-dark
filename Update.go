@@ -19,6 +19,7 @@ import (
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
@@ -86,9 +87,19 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.SelectedGitBranch = 0
 		return m, nil
 
-	case shell.OutputMsg, shell.ExitedMsg:
-		// The terminal pane renders straight from the session on the next
-		// frame; here we only keep the event loop going.
+	case shell.OutputMsg:
+		// Screens render straight from the session on the next frame; here we
+		// only keep the event loop going.
+		return m, m.listenSessions()
+
+	case shell.ExitedMsg:
+		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == session.TagBuild {
+			if s.ExitCode() == 0 {
+				m.ui.StatusMsg = fmt.Sprintf("✅ Build finished: %s", s.Title)
+			} else {
+				m.ui.StatusMsg = fmt.Sprintf("❌ Build failed: %s (exit code %d)", s.Title, s.ExitCode())
+			}
+		}
 		return m, m.listenSessions()
 
 	case config.GitBranchesErrorMsg:
@@ -113,8 +124,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		cmd := window.Size(m.ui, msg)
-		if m.sessions != nil {
-			componentaction.ResizeTerminals(m.ui, m.sessions)
+		if m.ui.Shells != nil {
+			componentaction.ResizeTerminals(m.ui, m.ui.Shells)
 		}
 		return m, cmd
 
@@ -138,12 +149,6 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, initializer.InitializeWorkspace(m.ui).OnAction()
 		}
 		return m, nil
-
-	case componentmessage.BuildLogLineMsg:
-		return m, componentaction.BuildLogLine(m.ui, msg)
-
-	case componentmessage.BuildCompleteMsg:
-		return m, componentaction.BuildComplete(m.ui, msg)
 
 	case preflightMsg:
 		log.Printf("preflight: %v index: %d", msg, m.ui.Index)
@@ -281,11 +286,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateProjectsModal:
 			return m, componentaction.ProjectsModal(m.ui, msg)
 		case model.StateTerminalCockpit:
-			if m.sessions == nil {
+			if m.ui.Shells == nil {
 				m.ui.ViewState = model.StateDashboard
 				return m, nil
 			}
-			return m, componentaction.TerminalExecutionModal(m.ui, m.sessions, msg)
+			return m, componentaction.TerminalExecutionModal(m.ui, m.ui.Shells, msg)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
 			if config.FindProject(m.ui.Config.Projects, m.ui.DepScreen.ActiveProjectID) < 0 {
@@ -296,8 +301,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateDashboard:
 			fallthrough
 		default:
-			if m.sessions != nil && msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.OpenTerminal) {
-				return m, componentaction.OpenTerminal(m.ui, m.sessions)
+			if m.ui.Shells != nil && msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.OpenTerminal) {
+				return m, componentaction.OpenTerminal(m.ui, m.ui.Shells)
 			}
 			return m, componentaction.DashboardPortal(m.ui, m.providerFactory, msg)
 		}

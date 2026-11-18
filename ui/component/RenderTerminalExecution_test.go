@@ -111,3 +111,26 @@ func TestRenderTerminal_PickerListsProjects(t *testing.T) {
 		t.Fatalf("expected the project picker with web highlighted:\n%s", plain)
 	}
 }
+
+func TestRenderBuildModalAndInspector_ShowLiveSessionOutput(t *testing.T) {
+	ui := newRenderUI()
+	m := shell.NewManager()
+	defer m.Shutdown()
+	ui.Shells = m
+	ui.Config.Projects = []config.Project{{ID: "t/api", Name: "api", Type: "go"}}
+	ui.BuildOptions = config.CommandKeys(ui.Config.Projects[0])
+	id, _ := m.Start(shell.StartOptions{ProjectID: "t/api", Title: "api · build", Tag: "build", Dir: t.TempDir(),
+		Argv: []string{"sh", "-c", "echo '[ERROR] boom'; exit 2"}})
+	<-m.Get(id).Done()
+	time.Sleep(50 * time.Millisecond)
+
+	build := ansi.Strip(RenderBuildModal(ui))
+	if !strings.Contains(build, "[ERROR] boom") || !strings.Contains(build, "exit code 2") || !strings.Contains(build, "Open in terminal") {
+		t.Fatalf("build modal must show the session output and result:\n%s", build)
+	}
+
+	inspector := ansi.Strip(RenderSessionLogsModal(ui))
+	if !strings.Contains(inspector, "api · build") || !strings.Contains(inspector, "EXIT 2") || !strings.Contains(inspector, "[ERROR] boom") {
+		t.Fatalf("inspector must list the session with a preview:\n%s", inspector)
+	}
+}

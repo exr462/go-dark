@@ -53,6 +53,9 @@ type StartOptions struct {
 	Interactive bool
 	// Title is shown in tab bars; it defaults to the project name.
 	Title string
+	// Tag classifies the session for the UI (e.g. "build", "pipeline");
+	// empty for plain shells.
+	Tag string
 	// Width and Height are the initial terminal size (default 80x24).
 	Width, Height int
 }
@@ -66,6 +69,7 @@ type Session struct {
 	Title       string
 	Command     string
 	Interactive bool
+	Tag         string
 
 	term     *vt.SafeEmulator
 	proc     process
@@ -97,6 +101,24 @@ func (s *Session) Running() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.running
+}
+
+// ExitCode is the process's exit code: 0 on success, -1 while running or
+// when it was killed by a signal.
+func (s *Session) ExitCode() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.running {
+		return -1
+	}
+	var exitErr interface{ ExitCode() int }
+	if s.exitErr == nil {
+		return 0
+	}
+	if errors.As(s.exitErr, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
 }
 
 // ExitErr is the process's exit error (nil on success or while running).
@@ -174,19 +196,26 @@ func (m *Manager) Start(opts StartOptions) (int, error) {
 	if opts.Width <= 0 || opts.Height <= 0 {
 		opts.Width, opts.Height = 80, 24
 	}
-	if opts.Title == "" {
-		opts.Title = opts.ProjectName
-	}
-	argv := opts.Argv
-	if len(argv) == 0 {
-		argv = loginShell()
+	if len(opts.Argv) == 0 {
+		opts.Argv = loginShell()
 	}
 
-	proc, err := startProcess(argv, opts.Dir, withTermEnv(opts.Env), opts.Width, opts.Height)
+	proc, err := startProcess(opts.Argv, opts.Dir, withTermEnv(opts.Env), opts.Width, opts.Height, opts.Interactive)
 	if err != nil {
 		return 0, err
 	}
 
+	return m.adopt(proc, opts).ID, nil
+}
+
+// adopt wraps a started process in a session and starts its pumps.
+func (m *Manager) adopt(proc process, opts StartOptions) *Session {
+	if opts.Width <= 0 || opts.Height <= 0 {
+		opts.Width, opts.Height = 80, 24
+	}
+	if opts.Title == "" {
+		opts.Title = opts.ProjectName
+	}
 	term := vt.NewSafeEmulator(opts.Width, opts.Height)
 	term.SetScrollbackSize(scrollbackLines)
 
@@ -198,8 +227,9 @@ func (m *Manager) Start(opts StartOptions) (int, error) {
 		ProjectName: opts.ProjectName,
 		Dir:         opts.Dir,
 		Title:       opts.Title,
-		Command:     strings.Join(argv, " "),
+		Command:     strings.Join(opts.Argv, " "),
 		Interactive: opts.Interactive,
+		Tag:         opts.Tag,
 		term:        term,
 		proc:        proc,
 		running:     true,
@@ -213,7 +243,7 @@ func (m *Manager) Start(opts StartOptions) (int, error) {
 	go m.pumpOutput(s)
 	go pumpInput(s)
 	go m.wait(s)
-	return s.ID, nil
+	return s
 }
 
 // pumpOutput feeds PTY output into the emulator and notifies the UI.
@@ -356,6 +386,19 @@ func (m *Manager) ResizeAll(width, height int) {
 	for _, s := range m.List() {
 		_ = m.Resize(s.ID, width, height)
 	}
+}
+
+// Kill terminates a session's process but keeps the session (and its
+// output) around, e.g. to inspect a cancelled build.
+func (m *Manager) Kill(id int) error {
+	s := m.Get(id)
+	if s == nil {
+		return fmt.Errorf("no session %d", id)
+	}
+	if s.Running() {
+		return s.proc.Kill()
+	}
+	return nil
 }
 
 // Close kills a session's process (if still running) and forgets it.

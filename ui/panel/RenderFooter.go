@@ -6,6 +6,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/ui/color"
 )
 
@@ -24,12 +25,7 @@ func RenderFooter(ui *model.UI) string {
 		boundMaven = "N/A"
 	}
 
-	var activeCount int
-	for _, s := range ui.Sessions {
-		if s.IsRunning {
-			activeCount++
-		}
-	}
+	activeCount := session.RunningBuilds(ui.Shells)
 
 	var sessionStatusStr = footerMutedStyle.Render("Idle (no sessions)")
 	if activeCount > 0 {
@@ -43,12 +39,14 @@ func RenderFooter(ui *model.UI) string {
 			action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal)))
 	}
 
+	// The status (e.g. a build result) goes first too: a long footer wraps
+	// and its second line falls off the bottom of the screen.
 	statusDisplay := ""
 	if ui.StatusMsg != "" {
-		statusDisplay = fmt.Sprintf(" | %s", footerStatusStyle.Render(ui.StatusMsg))
+		statusDisplay = " " + footerStatusStyle.Render(ui.StatusMsg) + " |"
 	}
 
-	footerText := shellsStr + fmt.Sprintf(" %s Help | %s Git Ops | %s Fuzzy | %s Config | %s Shortcuts | SDK: %s | Build: %s | %s%s",
+	footerText := statusDisplay + shellsStr + fmt.Sprintf(" %s Help | %s Git Ops | %s Fuzzy | %s Config | %s Shortcuts | SDK: %s | Build: %s | %s",
 		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenHelp))),
 		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenGitOperations))),
 		footerKeyStyle.Render(fmt.Sprintf("[%s]", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenFuzzy))),
@@ -57,7 +55,6 @@ func RenderFooter(ui *model.UI) string {
 		footerBoundStyle.Render(boundJDK),
 		footerBoundStyle.Render(boundMaven),
 		sessionStatusStr,
-		statusDisplay,
 	)
 
 	return lipgloss.NewStyle().

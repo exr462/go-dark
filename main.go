@@ -21,10 +21,10 @@ func main() {
 	m := &appModel{
 		ui:            ui,
 		contentLoader: storage.NewContentLoader(),
-		sessions:      shell.NewManager(),
 	}
+	m.ui.Shells = shell.NewManager()
 	// Don't leave shells or builds running behind once go-dark exits.
-	defer m.sessions.Shutdown()
+	defer m.ui.Shells.Shutdown()
 	m.ui.Inputs = initializer.MakeInputs()
 	m.ui.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
 	m.ui.FuzzyQueryInput.CharLimit = 50
@@ -32,7 +32,7 @@ func main() {
 
 	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
-		m.sessions.Shutdown()
+		m.ui.Shells.Shutdown()
 		os.Exit(1)
 	}
 }

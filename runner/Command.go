@@ -18,15 +18,19 @@ import (
 // the project's directory. For JVM projects the assigned JDK/Maven profiles
 // are exported (JAVA_HOME, MAVEN_HOME, M2_HOME) and put first on PATH.
 func Command(ctx context.Context, cfg config.Config, p config.Project, shellCmd string) *exec.Cmd {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.CommandContext(ctx, "cmd.exe", "/C", shellCmd)
-	} else {
-		cmd = exec.CommandContext(ctx, "sh", "-c", shellCmd)
-	}
+	argv := ShellArgv(shellCmd)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = p.Path
 	cmd.Env = Env(cfg, p)
 	return cmd
+}
+
+// ShellArgv runs shellCmd through the platform shell.
+func ShellArgv(shellCmd string) []string {
+	if runtime.GOOS == "windows" {
+		return []string{"cmd.exe", "/C", shellCmd}
+	}
+	return []string{"sh", "-c", shellCmd}
 }
 
 // Env is the environment a project's commands run with.

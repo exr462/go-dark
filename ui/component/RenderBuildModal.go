@@ -2,12 +2,16 @@ package component
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
 )
@@ -30,31 +34,26 @@ func RenderBuildModal(ui *model.UI) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(color.Surface1)
 
-	var currentSessionID int
-	var isRunningBackground bool
-	for id, sess := range ui.Sessions {
-		if sess.ProjectName == targetProj.Name && sess.IsRunning {
-			currentSessionID = id
-			isRunningBackground = true
-			break
-		}
-	}
+	latest := session.LatestBuild(ui.Shells, targetProj.ID, session.TagBuild)
+	running := latest != nil && latest.Running()
 
 	activeCmdString := "(no commands configured for this project type)"
 	if ui.SelectedBuildOption < len(ui.BuildOptions) {
 		activeCmdString = config.ResolveCommand(targetProj, ui.BuildOptions[ui.SelectedBuildOption])
 	}
-
+	if running {
+		activeCmdString = latest.Title
+	}
 	body.WriteString(fmt.Sprintf("🚀 Target Executable Execution: %s\n\n", buildExecStyle.Render(activeCmdString)))
 
 	sessionTitleStr := "Detached State"
-	if currentSessionID != 0 {
-		sessionTitleStr = fmt.Sprintf("Active Session #%d", currentSessionID)
+	if latest != nil {
+		sessionTitleStr = fmt.Sprintf("Session #%d", latest.ID)
 	}
 	body.WriteString(decorator.Title.Render(fmt.Sprintf("🔨 Build Flight Deck: %s [%s]", targetProj.Name, sessionTitleStr)) + "\n")
 	body.WriteString(fmt.Sprintf("☕ Env: %s  |  🛠️ Engine: %s\n\n", targetProj.JDKName, targetProj.MavenName))
 
-	if !isRunningBackground {
+	if !running {
 		body.WriteString(decorator.Section.Render("👉 Select Target Lifecycle Step to Fire:") + "\n\n")
 		var optsRow []string
 		for i, opt := range ui.BuildOptions {
@@ -65,45 +64,25 @@ func RenderBuildModal(ui *model.UI) string {
 			}
 		}
 		body.WriteString("  " + strings.Join(optsRow, "  ") + "\n\n")
-		body.WriteString(buildHintStyle.Render(fmt.Sprintf(
-			"[%s] Navigate Choices | [%s] Initialize Pipeline | [%s] Dashboard",
-			buildKeyHint.Render("←/→"),
-			buildKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save)),
-			buildKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
-		)) + "\n")
-	} else {
-		body.WriteString(buildAlertStyle.Render(fmt.Sprintf("⏳ Running in background process pool... Assigned Session ID: %d", currentSessionID)) + "\n\n")
 	}
+	body.WriteString(buildStatusLine(latest) + "\n")
+	body.WriteString(buildHintStyle.Render(buildHint(ui, latest, running)) + "\n\n")
 
-	body.WriteString(decorator.Section.Render("📋 Complete Build Output History Trail:") + "\n")
+	body.WriteString(decorator.Section.Render("📋 Build Output:") + "\n")
 
-	var activeLogsSource []string
-	if currentSessionID != 0 && ui.Sessions[currentSessionID] != nil {
-		activeLogsSource = ui.Sessions[currentSessionID].Logs
-	} else {
-		activeLogsSource = ui.BuildLogs
-	}
-	logLen := len(activeLogsSource)
-
-	logHeight := max(ui.WindowHeight-18, 5)
+	logHeight := max(ui.WindowHeight-20, 5)
 	logWidth := max(ui.WindowWidth-8, 20)
-
 	var historyLines []string
-	startIdx := 0
-	if logLen > logHeight {
-		startIdx = logLen - logHeight
+	if latest != nil {
+		historyLines = tailLines(latest.Text(), logHeight)
+	} else {
+		historyLines = []string{"Console engine ready. Select command step to initialize stream..."}
 	}
-
-	for i := startIdx; i < logLen; i++ {
-		line := activeLogsSource[i]
-		if len(line) > logWidth {
-			line = line[:logWidth-3] + "..."
-		}
-		historyLines = append(historyLines, line)
+	for i, line := range historyLines {
+		historyLines[i] = colorizeLogLine(ansi.Truncate(line, logWidth, "…"))
 	}
-
 	for len(historyLines) < logHeight {
-		historyLines = append(historyLines, strings.Repeat(" ", logWidth))
+		historyLines = append(historyLines, "")
 	}
 	consoleBox := buildLogWindowStyle.
 		Width(logWidth).
@@ -120,4 +99,60 @@ func RenderBuildModal(ui *model.UI) string {
 		decorator.WhiteSpace,
 		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
+}
+
+func buildStatusLine(latest *shell.Session) string {
+	switch {
+	case latest == nil:
+		return ""
+	case latest.Running():
+		return buildAlertStyle.Render(fmt.Sprintf("⏳ Running in the background as session #%d - it keeps going if you close this screen", latest.ID))
+	case latest.ExitCode() == 0:
+		return decorator.Success.Render("✅ Last build succeeded")
+	default:
+		return decorator.Error.Render(fmt.Sprintf("❌ Last build failed (exit code %d)", latest.ExitCode()))
+	}
+}
+
+func buildHint(ui *model.UI, latest *shell.Session, running bool) string {
+	key := func(a action.Action) string {
+		return buildKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, a))
+	}
+	var parts []string
+	if !running {
+		parts = append(parts, fmt.Sprintf("[%s] Choose", buildKeyHint.Render("←/→")), fmt.Sprintf("[%s] Run", key(action.Save)))
+	}
+	if latest != nil {
+		parts = append(parts, fmt.Sprintf("[%s] Open in terminal (ctrl+c there cancels)", key(action.OpenTerminal)))
+	}
+	parts = append(parts, fmt.Sprintf("[%s] Dashboard", key(action.Escape)))
+	return strings.Join(parts, " | ")
+}
+
+// tailLines returns the last n lines of text.
+func tailLines(text string, n int) []string {
+	lines := strings.Split(text, "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return lines
+}
+
+var (
+	logErrorPattern = regexp.MustCompile(`(?i)\[error|fail`)
+	logWarnPattern  = regexp.MustCompile(`(?i)\[warn`)
+	logInfoPattern  = regexp.MustCompile(`(?i)\[info|success`)
+)
+
+// colorizeLogLine highlights Maven-style [ERROR]/[WARN]/[INFO] lines.
+func colorizeLogLine(line string) string {
+	switch {
+	case logErrorPattern.MatchString(line):
+		return decorator.Error.Render(line)
+	case logWarnPattern.MatchString(line):
+		return decorator.Warning.Render(line)
+	case logInfoPattern.MatchString(line):
+		return decorator.Success.Render(line)
+	}
+	return line
 }

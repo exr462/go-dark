@@ -19,9 +19,9 @@ func TestUpdate_ReArmsSessionListenerUntilExit(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("no PTY on windows")
 	}
-	m := &appModel{ui: &model.UI{}, sessions: shell.NewManager()}
-	defer m.sessions.Shutdown()
-	id, err := m.sessions.Start(shell.StartOptions{Dir: t.TempDir(), Argv: []string{"sh", "-c", "echo wired"}})
+	m := &appModel{ui: &model.UI{Shells: shell.NewManager()}}
+	defer m.ui.Shells.Shutdown()
+	id, err := m.ui.Shells.Start(shell.StartOptions{Dir: t.TempDir(), Argv: []string{"sh", "-c", "echo wired"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestUpdate_ReArmsSessionListenerUntilExit(t *testing.T) {
 		}
 		cmd = next
 	}
-	if !strings.Contains(m.sessions.Get(id).Text(), "wired") {
+	if !strings.Contains(m.ui.Shells.Get(id).Text(), "wired") {
 		t.Fatal("expected the session output")
 	}
 }
@@ -68,11 +68,12 @@ func TestUpdate_CtrlTOpensTerminalAndPasteReachesShell(t *testing.T) {
 		WindowWidth:  100,
 		WindowHeight: 30,
 	}
-	m := &appModel{ui: ui, sessions: shell.NewManager()}
-	defer m.sessions.Shutdown()
+	ui.Shells = shell.NewManager()
+	m := &appModel{ui: ui}
+	defer m.ui.Shells.Shutdown()
 	go func() {
 		for {
-			m.sessions.Listen()()
+			m.ui.Shells.Listen()()
 		}
 	}()
 
@@ -81,7 +82,7 @@ func TestUpdate_CtrlTOpensTerminalAndPasteReachesShell(t *testing.T) {
 		t.Fatalf("ctrl+t must open a terminal tab, state=%v tabs=%v", ui.ViewState, ui.TerminalTabs)
 	}
 	m.Update(tea.PasteMsg{Content: "echo via-update\n"})
-	s := m.sessions.Get(ui.ActiveTerminalSession())
+	s := m.ui.Shells.Get(ui.ActiveTerminalSession())
 	deadline := time.Now().Add(5 * time.Second)
 	for strings.Count(s.Text(), "via-update") < 2 && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
@@ -98,5 +99,30 @@ func TestUpdate_CtrlTOpensTerminalAndPasteReachesShell(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	if w, _ := s.Size(); w != 120-2*model.TerminalPaneLeft {
 		t.Fatalf("window resize must resize the shell, width %d", w)
+	}
+}
+
+func TestUpdate_BuildExitSetsStatus(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses sh")
+	}
+	ui := &model.UI{Shells: shell.NewManager()}
+	defer ui.Shells.Shutdown()
+	m := &appModel{ui: ui}
+	for _, tc := range []struct{ script, want string }{{"exit 0", "✅ Build finished"}, {"exit 4", "exit code 4"}} {
+		id, err := ui.Shells.Start(shell.StartOptions{Dir: t.TempDir(), Argv: []string{"sh", "-c", tc.script}, Title: "api · build", Tag: "build"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for {
+			msg := ui.Shells.Listen()()
+			if e, ok := msg.(shell.ExitedMsg); ok && e.ID == id {
+				m.Update(msg)
+				break
+			}
+		}
+		if !strings.Contains(ui.StatusMsg, tc.want) {
+			t.Fatalf("status %q, want %q", ui.StatusMsg, tc.want)
+		}
 	}
 }
