@@ -35,6 +35,7 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenJdk), "JDK Manager: Register JAVA_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenMvn), "Maven Manager: Register MAVEN_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Terminal: real shells in tabs, one per project; they keep running in the background"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenGraph), "Dependency Graph: build waves, plus what the poms say (missing deps, outdated versions)"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy), "Deploy Console: Simulate a dependency-ordered Rancher/Kubernetes rollout"))
 	body.WriteString("\n")
 

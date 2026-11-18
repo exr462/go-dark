@@ -99,6 +99,9 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 		ui.PreviousViewState = model.StateDashboard
 		return profileScreen(ui, model.StateMavenConfigModal, kbd.MvnName, kbd.MvnPath)
 
+	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenGraph):
+		return OpenGraph(ui)
+
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenConfiguration):
 		ui.ViewState = model.StateConfigDeckModal
 		ui.SelectedConfigOption = 0
