@@ -120,3 +120,78 @@ func TestClusterArgsAlwaysNameContextAndNamespace(t *testing.T) {
 		t.Fatalf("kubectl args %q", got)
 	}
 }
+
+// recorder fakes kubectl with a deployment list and records mutating calls.
+func recorder(t *testing.T, deployments string) *[]string {
+	t.Helper()
+	var calls []string
+	orig := runner
+	t.Cleanup(func() { runner = orig })
+	runner = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		key := strings.Join(append([]string{name}, args...), " ")
+		switch {
+		case strings.HasPrefix(key, "kubectl config view"):
+			return []byte("https://127.0.0.1:53846"), nil
+		case strings.HasPrefix(key, "kubectl get deployments"):
+			return []byte(deployments), nil
+		case strings.HasPrefix(key, "kubectl annotate"), strings.HasPrefix(key, "kubectl scale"):
+			calls = append(calls, key)
+			return nil, nil
+		}
+		return nil, errors.New("unexpected " + key)
+	}
+	return &calls
+}
+
+const twoDeployments = `{"items":[
+ {"metadata":{"name":"til-order"},"spec":{"replicas":1}},
+ {"metadata":{"name":"til-dtm"},"spec":{"replicas":2}},
+ {"metadata":{"name":"til-idle"},"spec":{"replicas":0}}]}`
+
+func TestScaleDownOthers_KeepsShippedAndRecordsReplicas(t *testing.T) {
+	calls := recorder(t, twoDeployments)
+	c := Cluster{Context: "minikube", Namespace: "til"}
+
+	scaled, err := ScaleDownOthers(c, []string{"til-order"})
+
+	if err != nil || len(scaled) != 1 || scaled[0] != "til-dtm" {
+		t.Fatalf("only til-dtm should be scaled, got %v %v", scaled, err)
+	}
+	want := []string{
+		"kubectl annotate deployment til-dtm --overwrite go-dark/replicas-before=2 --context minikube --namespace til",
+		"kubectl scale deployment til-dtm --replicas=0 --context minikube --namespace til",
+	}
+	if strings.Join(*calls, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("unexpected calls:\n%s", strings.Join(*calls, "\n"))
+	}
+}
+
+func TestRestoreScaled_PutsBackRecordedReplicas(t *testing.T) {
+	calls := recorder(t, `{"items":[
+	 {"metadata":{"name":"til-dtm","annotations":{"go-dark/replicas-before":"2"}},"spec":{"replicas":0}},
+	 {"metadata":{"name":"til-order"},"spec":{"replicas":1}}]}`)
+	c := Cluster{Context: "minikube", Namespace: "til"}
+
+	restored, err := RestoreScaled(c)
+
+	if err != nil || len(restored) != 1 || restored[0] != "til-dtm" {
+		t.Fatalf("expected til-dtm restored, got %v %v", restored, err)
+	}
+	if (*calls)[0] != "kubectl scale deployment til-dtm --replicas=2 --context minikube --namespace til" ||
+		(*calls)[1] != "kubectl annotate deployment til-dtm go-dark/replicas-before- --context minikube --namespace til" {
+		t.Fatalf("unexpected calls %v", *calls)
+	}
+	if names, _ := ScaledDown(c); len(names) != 1 {
+		t.Fatalf("ScaledDown lists annotated deployments, got %v", names)
+	}
+}
+
+func TestScaleDownOthers_RefusesNonLocal(t *testing.T) {
+	recorder(t, twoDeployments)
+	if _, err := ScaleDownOthers(Cluster{Context: "azr-prd-idas-aks01", Namespace: "til"}, nil); err == nil {
+		t.Fatal("scaling must go through the guard")
+	}
+	if _, err := RestoreScaled(Cluster{Context: "azr-prd-idas-aks01", Namespace: "til"}); err == nil {
+		t.Fatal("restoring must go through the guard")
+	}
+}

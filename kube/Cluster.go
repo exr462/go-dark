@@ -124,3 +124,100 @@ func (c Cluster) Args(args ...string) []string {
 func (c Cluster) KubectlArgs(args ...string) []string {
 	return append(args, "--context", c.Context, "--namespace", c.Namespace)
 }
+
+// ReplicasBeforeAnnotation records a deployment's replica count before
+// go-dark scaled it to 0, so RestoreScaled can put it back.
+const ReplicasBeforeAnnotation = "go-dark/replicas-before"
+
+type deploymentList struct {
+	Items []struct {
+		Metadata struct {
+			Name        string            `json:"name"`
+			Annotations map[string]string `json:"annotations"`
+		} `json:"metadata"`
+		Spec struct {
+			Replicas int `json:"replicas"`
+		} `json:"spec"`
+	} `json:"items"`
+}
+
+func (c Cluster) deployments() (deploymentList, error) {
+	var list deploymentList
+	out, err := run("kubectl", c.KubectlArgs("get", "deployments", "-o", "json")...)
+	if err != nil {
+		return list, fmt.Errorf("kubectl get deployments: %v", err)
+	}
+	return list, json.Unmarshal(out, &list)
+}
+
+// ScaleDownOthers frees the local node for a deployment: every deployment
+// in the namespace that isn't in keep and has replicas is scaled to 0, its
+// previous replica count stored in an annotation. It returns what it scaled.
+func ScaleDownOthers(c Cluster, keep []string) ([]string, error) {
+	if err := Guard(c); err != nil {
+		return nil, err
+	}
+	list, err := c.deployments()
+	if err != nil {
+		return nil, err
+	}
+	var scaled []string
+	for _, d := range list.Items {
+		name := d.Metadata.Name
+		if slices.Contains(keep, name) || d.Spec.Replicas == 0 {
+			continue
+		}
+		if _, err := run("kubectl", c.KubectlArgs("annotate", "deployment", name, "--overwrite",
+			fmt.Sprintf("%s=%d", ReplicasBeforeAnnotation, d.Spec.Replicas))...); err != nil {
+			return scaled, fmt.Errorf("annotate %s: %v", name, err)
+		}
+		if _, err := run("kubectl", c.KubectlArgs("scale", "deployment", name, "--replicas=0")...); err != nil {
+			return scaled, fmt.Errorf("scale %s: %v", name, err)
+		}
+		scaled = append(scaled, name)
+	}
+	return scaled, nil
+}
+
+// RestoreScaled scales every deployment go-dark scaled down back to its
+// recorded replica count and removes the annotation.
+func RestoreScaled(c Cluster) ([]string, error) {
+	if err := Guard(c); err != nil {
+		return nil, err
+	}
+	list, err := c.deployments()
+	if err != nil {
+		return nil, err
+	}
+	var restored []string
+	for _, d := range list.Items {
+		before, ok := d.Metadata.Annotations[ReplicasBeforeAnnotation]
+		if !ok {
+			continue
+		}
+		name := d.Metadata.Name
+		if _, err := run("kubectl", c.KubectlArgs("scale", "deployment", name, "--replicas="+before)...); err != nil {
+			return restored, fmt.Errorf("scale %s: %v", name, err)
+		}
+		if _, err := run("kubectl", c.KubectlArgs("annotate", "deployment", name, ReplicasBeforeAnnotation+"-")...); err != nil {
+			return restored, fmt.Errorf("annotate %s: %v", name, err)
+		}
+		restored = append(restored, name)
+	}
+	return restored, nil
+}
+
+// ScaledDown lists the deployments go-dark has scaled to 0.
+func ScaledDown(c Cluster) ([]string, error) {
+	list, err := c.deployments()
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, d := range list.Items {
+		if _, ok := d.Metadata.Annotations[ReplicasBeforeAnnotation]; ok {
+			names = append(names, d.Metadata.Name)
+		}
+	}
+	return names, nil
+}

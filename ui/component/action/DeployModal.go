@@ -46,7 +46,11 @@ func CheckCluster(ui *model.UI) tea.Cmd {
 		if err == nil {
 			err = kube.Guard(c)
 		}
-		return model.DeployPreflightMsg{Running: running, Err: err}
+		var scaled []string
+		if err == nil && running {
+			scaled, _ = kube.ScaledDown(c)
+		}
+		return model.DeployPreflightMsg{Running: running, Err: err, ScaledDown: scaled}
 	}
 }
 
@@ -55,6 +59,7 @@ func ClusterChecked(ui *model.UI, msg model.DeployPreflightMsg) {
 	ui.ClusterChecked = true
 	ui.ClusterRunning = msg.Running
 	ui.ClusterErr = msg.Err
+	ui.ScaledDown = msg.ScaledDown
 }
 
 // DeployModal is the ship screen: enter runs the full train (build ->
@@ -88,9 +93,23 @@ func DeployModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			return OpenAlign(ui, model.StateDeployModal)
 		}
 	case "d":
+		if pipelineRunning(ui) {
+			ui.StatusMsg = "⏳ A build is still running - deploy when it's done"
+			return nil
+		}
 		if ui.ShipStage != model.ShipBuilding {
 			ui.ShipStage = model.ShipIdle
 			return startDeploy(ui)
+		}
+	case "z":
+		if ui.ClusterRunning && ui.ClusterErr == nil && !ui.DeployRunning {
+			ui.StatusMsg = "⏳ Scaling the other deployments to 0..."
+			return scaleCmd(ui, false)
+		}
+	case "u":
+		if ui.ClusterRunning && ui.ClusterErr == nil && !ui.DeployRunning {
+			ui.StatusMsg = "⏳ Restoring scaled-down deployments..."
+			return scaleCmd(ui, true)
 		}
 	case "enter", binding(ui, action.Save):
 		return ship(ui)

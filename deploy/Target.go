@@ -135,12 +135,25 @@ func ImageArgv(t Target) []string {
 	return []string{"docker", "build", "-t", t.Image + ":" + t.Tag, t.DockerDir}
 }
 
-// LocalChartVersion replaces the charts' {JENKINS_VERSION} placeholder,
-// which Helm rejects, in the temporary copy that gets installed.
+// LocalChartVersion is the chart version used when the service version
+// isn't valid semver.
 const LocalChartVersion = "0.0.0-local"
 
-// PrepareChart copies the chart to dir with a valid version and reports
-// whether it has dependencies to build. The project's chart is untouched.
+// ChartVersion is the version the temporary chart copy gets: the service
+// version (like the team's existing local releases, e.g.
+// til-order-1.16.2-SNAPSHOT), or LocalChartVersion when that isn't semver.
+func ChartVersion(t Target) string {
+	if semver.MatchString(t.Tag) {
+		return t.Tag
+	}
+	return LocalChartVersion
+}
+
+var semver = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
+
+// PrepareChart copies the chart to dir with a valid version instead of the
+// {JENKINS_VERSION} placeholder (which Helm rejects) and reports whether it
+// has dependencies to build. The project's chart is untouched.
 func PrepareChart(t Target, dir string) (chartDir string, hasDeps bool, err error) {
 	chartDir = filepath.Join(dir, t.ChartName)
 	if err := os.CopyFS(chartDir, os.DirFS(t.ChartDir)); err != nil {
@@ -151,7 +164,7 @@ func PrepareChart(t Target, dir string) (chartDir string, hasDeps bool, err erro
 	if err != nil {
 		return "", false, err
 	}
-	data = versionLine.ReplaceAll(data, []byte("version: "+LocalChartVersion))
+	data = versionLine.ReplaceAll(data, []byte("version: "+ChartVersion(t)))
 	if err := os.WriteFile(chartFile, data, 0o644); err != nil {
 		return "", false, err
 	}

@@ -104,11 +104,11 @@ func TestDeploy_StartsMinikubeThenDeploys(t *testing.T) {
 		t.Fatal("d must start the deployment")
 	}
 	DeployFinished(ui, run().(model.DeployFinishedMsg))
-	if ui.DeployErr != nil || !strings.Contains(ui.StatusMsg, "Deployed to minikube/til-local") {
+	if ui.DeployErr != nil || !strings.Contains(ui.StatusMsg, "Deployed to minikube/til") {
 		t.Fatalf("expected success, got %v / %q", ui.DeployErr, ui.StatusMsg)
 	}
 	calls, _ := os.ReadFile(log)
-	if !strings.Contains(string(calls), "docker build -t tfc/til-order:1.16.2-SNAPSHOT") || !strings.Contains(string(calls), "--kube-context minikube --namespace til-local") {
+	if !strings.Contains(string(calls), "docker build -t tfc/til-order:1.16.2-SNAPSHOT") || !strings.Contains(string(calls), "--kube-context minikube --namespace til\n") {
 		t.Fatalf("unexpected calls:\n%s", calls)
 	}
 	if out := ansi.Strip(component.RenderDeployModal(ui)); !strings.Contains(out, "image ✅  deploy ✅") {
