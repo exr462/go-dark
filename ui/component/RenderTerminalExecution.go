@@ -2,9 +2,10 @@ package component
 
 import (
 	"fmt"
+	"github.com/exr462/go-dark/ui/decorator"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
@@ -96,14 +97,14 @@ func RenderTerminalExecution(ui *model.UI) string {
 		livePrompt,
 	}, "\n")
 
-	termBox := termGlassStyle.Width(innerWidth).Height(innerHeight).Render(content)
+	termBox := termGlassStyle.Width(innerWidth + decorator.BorderFrame).Height(innerHeight + decorator.BorderFrame).Render(content)
 
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
 		lipgloss.JoinVertical(lipgloss.Center, termBox, hint),
 		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }
 

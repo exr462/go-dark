@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/formatters"
 	"github.com/alecthomas/chroma/lexers"
 	"github.com/alecthomas/chroma/styles"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -163,9 +163,9 @@ func RenderOpenEditor(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(ui.WindowWidth-editorBoxMargin).Height(ui.WindowHeight-editorBoxMargin).Render(fullView),
+		decorator.ModalBox.Width(ui.WindowWidth-editorBoxMargin+decorator.BorderFrame).Height(ui.WindowHeight-editorBoxMargin).Render(fullView),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }
 

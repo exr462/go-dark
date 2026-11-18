@@ -3,7 +3,7 @@ package componentaction
 import (
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/node"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"

@@ -4,9 +4,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/bubbles/textinput"
+	"charm.land/bubbles/v2/textinput"
 	"github.com/exr462/go-dark/kbd"
 )
+
+// placeholderInputWidth fits the longest placeholder and typical paths
+// inside the 85-column configuration modals.
+const placeholderInputWidth = 60
 
 func MakeInputs() []textinput.Model {
 	home, _ := os.UserHomeDir()
@@ -24,6 +28,14 @@ func MakeInputs() []textinput.Model {
 	inputs[kbd.MvnName].Placeholder = "Maven Profile Name (e.g. Maven-3.9)"
 	inputs[kbd.MvnPath].Placeholder = "MAVEN_HOME directory path"
 	inputs[kbd.EditContent].Placeholder = "Opening editor... please wait 😘"
+
+	// bubbles v2 renders only the first rune of a placeholder when the
+	// input has no width, so every input that shows a placeholder gets one.
+	for i := range inputs {
+		if inputs[i].Placeholder != "" {
+			inputs[i].SetWidth(placeholderInputWidth)
+		}
+	}
 
 	return inputs
 }

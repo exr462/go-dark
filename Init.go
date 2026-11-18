@@ -3,12 +3,12 @@ package main
 import (
 	"time"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
@@ -71,8 +71,7 @@ const (
 
 func initializeProgress(ui *model.UI) {
 	ui.Progress = progress.New(
-		progress.WithDefaultGradient(),
-		progress.WithSolidFill(component.MochaGreen),
+		progress.WithColors(lipgloss.Color(component.MochaGreen)),
 		progress.WithoutPercentage(),
 	)
 }

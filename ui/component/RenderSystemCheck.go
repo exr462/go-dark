@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -55,7 +55,7 @@ func RenderSystemCheck(ui *model.UI) string {
 			lipgloss.Center, lipgloss.Center,
 			doneStyle.Render(checkMark.String()+" Go-Dark Subsystems Primed."),
 			decorator.WhiteSpace,
-			lipgloss.WithWhitespaceForeground(color.Crust),
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 		)
 	}
 
@@ -80,9 +80,9 @@ func RenderSystemCheck(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(modalWidth).Render(modalBody.String()),
+		decorator.ModalBox.Width(modalWidth+decorator.BorderFrame).Render(modalBody.String()),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }
 
@@ -103,7 +103,7 @@ func view(ui *model.UI, width int) string {
 	// 1. STABILIZE THE PROGRESS BAR WIDTH
 	//    Instead of calculating based on the text, give the progress bar a fixed wide allocation
 	//    (e.g., 30 or 35 characters wide).
-	ui.Progress.Width = 35
+	ui.Progress.SetWidth(35)
 	prog := ui.Progress.View()
 
 	// 2. STABILIZE THE TEXT BOUNDARY

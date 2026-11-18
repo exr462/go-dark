@@ -399,6 +399,38 @@ error handling, cancel).
 
 ---
 
+## ⬆️ Bubble Tea v2 migration
+
+Everything now imports `charm.land/{bubbletea,bubbles,lipgloss}/v2`; the v1
+`github.com/charmbracelet/*` modules are gone from `go.mod`. It's a mechanical
+port, so behavior should be unchanged (the dashboard and every modal were
+diffed against the v1 binary in tmux). Gotchas that don't show up as compile errors:
+
+- **Borders count toward size.** lipgloss v2 includes borders in
+  `Width`/`Height`; v1 didn't. Bordered boxes add `decorator.BorderFrame`
+  to keep their v1 size. Exception: the Build/Deploy/Fuzzy panels also set
+  `MaxWidth`/`MaxHeight` equal to their size, which in v1 cut off their
+  right border. In v2 they now render complete, so they were left alone.
+- **Paste is its own message.** v2 delivers bracketed paste as
+  `tea.PasteMsg`, not a key, so the key-based modal handlers never saw it.
+  `Paste.go` routes it to the active input.
+- **Placeholders need a width.** A v2 `textinput` with no width renders only
+  the first rune of its placeholder. `MakeInputs` and `main.go` set widths.
+- **`tea.Printf` draws into the alt screen** in v2 (v1 dropped it silently),
+  which corrupted the dashboard. The preflight notes go to `debug.log` now.
+- **The alt screen is set on the view.** `View()` returns `tea.View` with
+  `AltScreen = true`; `render()` builds the string. `tea.WithAltScreen()` is gone.
+- **Synthetic keys are built differently.** They are now
+  `tea.KeyPressMsg{Code: tea.KeyEnter}` / `{Code: 's', Mod: tea.ModCtrl}` /
+  `{Code: 'x', Text: "x"}`. The test helper `testKeyMsg` builds real
+  named keys.
+
+Known and not fixed here: when the project list is taller than the
+terminal, the dashboard overflows the screen. That happened in v1 too, but
+v2's renderer makes it look worse (duplicated rows).
+
+---
+
 ## 🧪 Test coverage map
 
 | Package | What's covered |

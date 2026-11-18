@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/storage"
@@ -24,8 +24,9 @@ func main() {
 	m.ui.Inputs = initializer.MakeInputs()
 	m.ui.FuzzyQueryInput.Placeholder = "Type lookup phrase (e.g. controller)..."
 	m.ui.FuzzyQueryInput.CharLimit = 50
+	m.ui.FuzzyQueryInput.SetWidth(m.ui.FuzzyQueryInput.CharLimit)
 
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
 	}

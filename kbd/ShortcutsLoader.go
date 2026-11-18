@@ -1,7 +1,7 @@
 package kbd
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
+	"charm.land/bubbles/v2/textinput"
 	"github.com/exr462/go-dark/action"
 )
 

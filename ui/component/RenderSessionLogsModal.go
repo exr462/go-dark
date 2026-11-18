@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
@@ -74,7 +74,7 @@ func RenderSessionLogsModal(ui *model.UI) string {
 				lines = append(lines, strings.Repeat(" ", logWidth))
 			}
 
-			consoleBox := decorator.LogWindow.Width(logWidth).Height(logHeight).Render(strings.Join(lines, "\n"))
+			consoleBox := decorator.LogWindow.Width(logWidth + decorator.BorderFrame).Height(logHeight).Render(strings.Join(lines, "\n"))
 			body.WriteString(consoleBox + "\n")
 		}
 	}
@@ -84,8 +84,8 @@ func RenderSessionLogsModal(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(ui.WindowWidth-4).Render(body.String()),
+		decorator.ModalBox.Width(ui.WindowWidth-4+decorator.BorderFrame).Render(body.String()),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }

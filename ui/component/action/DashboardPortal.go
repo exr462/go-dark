@@ -1,8 +1,8 @@
 package componentaction
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
 	commandpanel "github.com/exr462/go-dark/command/panel"
@@ -29,7 +29,7 @@ func profileScreen(ui *model.UI, viewState model.ApplicationViewState, name kbd.
 }
 
 //goland:noinspection GoMixedReceiverTypes
-func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea.KeyMsg) tea.Cmd {
+func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea.KeyPressMsg) tea.Cmd {
 	var cmds []tea.Cmd
 
 	switch msg.String() {

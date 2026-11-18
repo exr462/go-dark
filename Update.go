@@ -7,10 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
 	commandpanel "github.com/exr462/go-dark/command/panel"
@@ -29,8 +28,6 @@ import (
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 	"github.com/exr462/go-dark/window"
 )
-
-var checkMark = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).SetString("✓")
 
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -173,7 +170,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Return immediately with optional clean visual logs.
 			// Do NOT append m.preflight() here. The loop stops completely!
-			return m, tea.Printf("%s [ HALT ] Setup interrupted. Redirection to Git Configuration...", checkMark)
+			// tea.Printf is a no-op under the alt screen in v1 but writes into the
+			// frame in v2, so these progress notes go to debug.log instead.
+			log.Print("[ HALT ] Setup interrupted. Redirection to Git Configuration...")
+			return m, nil
 		}
 
 		// 4. Check if EVERYTHING is completed successfully
@@ -193,11 +193,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// here would block every other message - including the
 			// dashboard-ready confirmation - behind a multi-minute build,
 			// which is exactly what produced the "blank screen" flash.
+			log.Print("[ OK ] Go-Dark Subsystems Primed.")
 			return m, tea.Batch(
 				loadCmd,
 				progressCmd,
 				initializer.InitializeWorkspace(m.ui).OnAction(),
-				tea.Printf("%s [ OK ] Go-Dark Subsystems Primed.", checkMark),
 				func() tea.Msg { return state.PreflightCompleteMsg{} },
 			)
 		}
@@ -218,12 +218,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case progress.FrameMsg:
 		var cmd tea.Cmd
-		updatedModel, cmd := m.ui.Progress.Update(msg)
-
-		// Explicitly cast tea.Model back to progress.Model
-		if pModel, ok := updatedModel.(progress.Model); ok {
-			m.ui.Progress = pModel
-		}
+		m.ui.Progress, cmd = m.ui.Progress.Update(msg)
 		return m, cmd
 
 	case state.PreflightCompleteMsg:
@@ -231,7 +226,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		log.Printf("PreflightCompleteMsg: %v", m.ui.ViewState)
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.PasteMsg:
+		return m, m.routePaste(msg)
+
+	case tea.KeyPressMsg:
 		// Global quit shortcuts
 		if msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.QuitApplication) {
 			return m, tea.Quit

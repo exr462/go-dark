@@ -3,15 +3,15 @@ package componentaction
 import (
 	"strconv"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func ConfigDeckModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		ui.ViewState = model.StateDashboard

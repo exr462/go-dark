@@ -1,7 +1,7 @@
 package componentaction
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/initializer"
@@ -9,7 +9,7 @@ import (
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func DependencyScreen(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func DependencyScreen(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	projIdx := ui.DepScreen.ActiveProjectIndex
 	if projIdx < 0 || projIdx >= len(ui.Config.Projects) {
 		ui.ViewState = model.StateDashboard

@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/component"
 	"github.com/exr462/go-dark/ui/panel"
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func (m *appModel) View() string {
+func (m *appModel) render() string {
 	switch m.ui.ViewState {
 	case model.StateHelpModal:
 		return component.RenderHelpModal(m.ui)
@@ -52,4 +53,14 @@ func (m *appModel) View() string {
 			panel.RenderFooter(m.ui),
 		)
 	}
+}
+
+// View wraps the rendered screen in a Bubble Tea v2 view, which now owns
+// terminal features such as the alternate screen.
+//
+//goland:noinspection GoMixedReceiverTypes
+func (m *appModel) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	return v
 }

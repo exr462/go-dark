@@ -3,22 +3,26 @@ package componentaction
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 )
 
-// testKeyMsg builds a tea.KeyMsg whose String() matches the given key
+// testKeyMsg builds a tea.KeyPressMsg whose String() matches the given key
 // representation (e.g. "esc", "ctrl+s", or a single printable rune).
-func testKeyMsg(key string) tea.KeyMsg {
+func testKeyMsg(key string) tea.KeyPressMsg {
 	switch key {
 	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEscape}
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "backspace":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
 	case "ctrl+s":
-		return tea.KeyMsg{Type: tea.KeyCtrlS}
+		return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}
 	default:
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+		return tea.KeyPressMsg{Code: []rune(key)[0], Text: key}
 	}
 }
 

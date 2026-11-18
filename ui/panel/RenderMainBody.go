@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -64,8 +64,8 @@ func RenderMainBody(ui *model.UI) string {
 		leftBoxStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 	leftPanel := leftBoxStyle.
-		Width(((ui.WindowWidth / widthDivider) * leftPaneMultiplier) - widthPadding).
-		Height(paneHeight).
+		Width(((ui.WindowWidth / widthDivider) * leftPaneMultiplier) - widthPadding + decorator.BorderFrame).
+		Height(paneHeight + decorator.BorderFrame).
 		Render(projList.String())
 
 	// 2. Render Directory Tree in the Center Column
@@ -106,8 +106,8 @@ func RenderMainBody(ui *model.UI) string {
 		centerBoxStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 	centerPanel := centerBoxStyle.
-		Width(((ui.WindowWidth / widthDivider) * rightPaneMultiplier) - widthPadding).
-		Height(paneHeight).
+		Width(((ui.WindowWidth / widthDivider) * rightPaneMultiplier) - widthPadding + decorator.BorderFrame).
+		Height(paneHeight + decorator.BorderFrame).
 		Render(treeList.String())
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, centerPanel)

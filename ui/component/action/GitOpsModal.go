@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	commandgit "github.com/exr462/go-dark/command/git"
 	"github.com/exr462/go-dark/model"
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func GitOpsModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func GitOpsModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		if ui.GitOperationStep == model.StepSelectGitBranch {

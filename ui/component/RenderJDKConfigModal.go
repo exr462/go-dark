@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
@@ -88,8 +88,8 @@ func RenderJDKConfigModal(ui *model.UI) string {
 	return lipgloss.Place(
 		ui.WindowWidth, ui.WindowHeight,
 		lipgloss.Center, lipgloss.Center,
-		decorator.ModalBox.Width(min(ui.WindowWidth-4, 85)).Render(modalBody.String()),
+		decorator.ModalBox.Width(min(ui.WindowWidth-4, 85)+decorator.BorderFrame).Render(modalBody.String()),
 		decorator.WhiteSpace,
-		lipgloss.WithWhitespaceForeground(color.Crust),
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
 	)
 }

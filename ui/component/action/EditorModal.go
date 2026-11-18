@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
@@ -23,7 +23,7 @@ import (
 //   - Command mode: a classic ":" command line accepting :w, :q, :q! and :wq
 //     (plus :x as an alias of :wq), mirroring real Vim behavior including
 //     refusing a bare :q when there are unsaved changes.
-func EditorModal(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyMsg) tea.Cmd {
+func EditorModal(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyPressMsg) tea.Cmd {
 	switch ui.EditorMode {
 	case model.EditorModeInsert:
 		return handleInsertMode(ui, contentLoader, msg)
@@ -37,7 +37,7 @@ func EditorModal(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyM
 // handleInsertMode forwards keystrokes straight to the textarea so typing,
 // arrows, backspace etc. behave exactly as before. Escape (and ctrl+s, as a
 // convenience alias for :w + :q together) are the only intercepted keys.
-func handleInsertMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyMsg) tea.Cmd {
+func handleInsertMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		ui.EditorMode = model.EditorModeNormal
@@ -53,7 +53,7 @@ func handleInsertMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea
 }
 
 // handleNormalMode implements the Vim-style Normal mode command set.
-func handleNormalMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyMsg) tea.Cmd {
+func handleNormalMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyPressMsg) tea.Cmd {
 	key := msg.String()
 
 	// Resolve a pending two-key combo (gg, dd) started on a previous keypress.
@@ -85,29 +85,29 @@ func handleNormalMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea
 		ui.EditorMode = model.EditorModeInsert
 		return nil
 	case "a":
-		cmd := forwardKey(ui, tea.KeyMsg{Type: tea.KeyRight})
+		cmd := forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyRight})
 		ui.EditorMode = model.EditorModeInsert
 		return cmd
 	case "A":
-		cmd := forwardKey(ui, tea.KeyMsg{Type: tea.KeyEnd})
+		cmd := forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyEnd})
 		ui.EditorMode = model.EditorModeInsert
 		return cmd
 	case "I":
-		cmd := forwardKey(ui, tea.KeyMsg{Type: tea.KeyHome})
+		cmd := forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyHome})
 		ui.EditorMode = model.EditorModeInsert
 		return cmd
 	case "o":
 		cmds := []tea.Cmd{
-			forwardKey(ui, tea.KeyMsg{Type: tea.KeyEnd}),
-			forwardKey(ui, tea.KeyMsg{Type: tea.KeyEnter}),
+			forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyEnd}),
+			forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyEnter}),
 		}
 		ui.EditorMode = model.EditorModeInsert
 		ui.EditorDirty = ui.Editor.Value() != ui.EditorOriginalContent
 		return tea.Batch(cmds...)
 	case "O":
 		cmds := []tea.Cmd{
-			forwardKey(ui, tea.KeyMsg{Type: tea.KeyHome}),
-			forwardKey(ui, tea.KeyMsg{Type: tea.KeyEnter}),
+			forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyHome}),
+			forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyEnter}),
 		}
 		ui.Editor.CursorUp()
 		ui.EditorMode = model.EditorModeInsert
@@ -115,21 +115,21 @@ func handleNormalMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea
 		return tea.Batch(cmds...)
 
 	case "h":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyLeft})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyLeft})
 	case "l":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyRight})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyRight})
 	case "j":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyDown})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyDown})
 	case "k":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyUp})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyUp})
 	case "0":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyHome})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyHome})
 	case "$":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyEnd})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyEnd})
 	case "G":
-		return forwardKey(ui, tea.KeyMsg{Type: tea.KeyCtrlEnd})
+		return forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyEnd, Mod: tea.ModCtrl})
 	case "x":
-		cmd := forwardKey(ui, tea.KeyMsg{Type: tea.KeyDelete})
+		cmd := forwardKey(ui, tea.KeyPressMsg{Code: tea.KeyDelete})
 		ui.EditorDirty = ui.Editor.Value() != ui.EditorOriginalContent
 		return cmd
 
@@ -144,8 +144,8 @@ func handleNormalMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea
 
 // handleCommandMode drives the ":" command line: character entry, backspace,
 // escape-to-cancel and enter-to-execute.
-func handleCommandMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyMsg) tea.Cmd {
-	switch msg.Type {
+func handleCommandMode(ui *model.UI, contentLoader storage.ContentLoader, msg tea.KeyPressMsg) tea.Cmd {
+	switch msg.Code {
 	case tea.KeyEscape:
 		ui.EditorMode = model.EditorModeNormal
 		ui.EditorCommandBuffer = ""
@@ -165,11 +165,11 @@ func handleCommandMode(ui *model.UI, contentLoader storage.ContentLoader, msg te
 		}
 		return nil
 
-	case tea.KeyRunes:
-		ui.EditorCommandBuffer += string(msg.Runes)
-		return nil
 	}
 
+	if msg.Text != "" {
+		ui.EditorCommandBuffer += msg.Text
+	}
 	return nil
 }
 
@@ -197,7 +197,7 @@ func executeEditorCommand(ui *model.UI, contentLoader storage.ContentLoader, cmd
 // forwardKey synthesizes the given key message straight into the textarea's
 // own Update method, reusing its native (but otherwise unexported) cursor
 // movement and editing behavior instead of reimplementing it here.
-func forwardKey(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func forwardKey(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	var cmd tea.Cmd
 	ui.Editor, cmd = ui.Editor.Update(msg)
 	return cmd

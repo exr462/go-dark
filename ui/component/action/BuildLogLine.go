@@ -3,7 +3,7 @@ package componentaction
 import (
 	"regexp"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/model"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 )

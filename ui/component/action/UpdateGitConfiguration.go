@@ -5,7 +5,7 @@ import (
 	"log"
 	"strconv"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/kbd"
@@ -13,7 +13,7 @@ import (
 )
 
 //goland:noinspection GoMixedReceiverTypes
-func UpdateGitConfiguration(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func UpdateGitConfiguration(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
 		log.Printf("updateGitConfiguration Previous View State: %v", ui.PreviousViewState)

@@ -1,13 +1,13 @@
 package componentaction
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/session"
 )
 
-func BuildModal(ui *model.UI, msg tea.KeyMsg) tea.Cmd {
+func BuildModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	if len(ui.Config.Projects) == 0 {
 		ui.ViewState = model.StateDashboard
 		return nil

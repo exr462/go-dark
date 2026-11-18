@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -58,5 +58,5 @@ func RenderMenu(ui *model.UI) string {
 		topMenuStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 
-	return topMenuStyle.Width(ui.WindowWidth - 2).Render(unifiedTopBarText)
+	return topMenuStyle.Width(ui.WindowWidth - 2 + decorator.BorderFrame).Render(unifiedTopBarText)
 }

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
@@ -240,7 +240,7 @@ func TestEditorModal_ColonWWritesWithoutLeavingEditor(t *testing.T) {
 
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("w"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEnter})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if got := loader.written["/tmp/file.txt"]; got != "abc edited" {
 		t.Fatalf("expected :w to persist the buffer, got %q", got)
@@ -264,7 +264,7 @@ func TestEditorModal_ColonQRefusesToQuitWithUnsavedChanges(t *testing.T) {
 
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("q"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEnter})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if ui.ViewState != model.StateEditorModal {
 		t.Fatalf("expected bare :q to refuse quitting with unsaved changes, got %v", ui.ViewState)
@@ -280,7 +280,7 @@ func TestEditorModal_ColonQQuitsWhenClean(t *testing.T) {
 
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("q"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEnter})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if ui.ViewState != model.StateDashboard {
 		t.Fatalf("expected :q to quit when there are no unsaved changes, got %v", ui.ViewState)
@@ -296,7 +296,7 @@ func TestEditorModal_ColonQBangForceQuitsDiscardingChanges(t *testing.T) {
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("q"))
 	EditorModal(ui, loader, testKeyMsg("!"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEnter})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if ui.ViewState != model.StateDashboard {
 		t.Fatalf("expected :q! to force-quit, got %v", ui.ViewState)
@@ -317,7 +317,7 @@ func TestEditorModal_ColonWQSavesThenQuits(t *testing.T) {
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("w"))
 	EditorModal(ui, loader, testKeyMsg("q"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEnter})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if got := loader.written["/tmp/file.txt"]; got != "abc edited" {
 		t.Fatalf("expected :wq to persist the buffer, got %q", got)
@@ -333,7 +333,7 @@ func TestEditorModal_UnknownCommandShowsError(t *testing.T) {
 
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("z"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEnter})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	if ui.ViewState != model.StateEditorModal {
 		t.Fatalf("expected an unknown command to not leave the editor, got %v", ui.ViewState)
@@ -348,7 +348,7 @@ func TestEditorModal_CommandModeBackspaceOnEmptyBufferReturnsToNormal(t *testing
 	loader := newFakeContentLoader()
 
 	EditorModal(ui, loader, testKeyMsg(":"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyBackspace})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyBackspace})
 
 	if ui.EditorMode != model.EditorModeNormal {
 		t.Fatalf("expected backspace on an empty command buffer to exit Command mode, got %v", ui.EditorMode)
@@ -361,7 +361,7 @@ func TestEditorModal_CommandModeEscapeCancels(t *testing.T) {
 
 	EditorModal(ui, loader, testKeyMsg(":"))
 	EditorModal(ui, loader, testKeyMsg("w"))
-	EditorModal(ui, loader, tea.KeyMsg{Type: tea.KeyEscape})
+	EditorModal(ui, loader, tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if ui.EditorMode != model.EditorModeNormal {
 		t.Fatalf("expected esc to cancel Command mode, got %v", ui.EditorMode)
