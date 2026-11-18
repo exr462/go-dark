@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/exr462/go-dark/action"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/ui/color"
 	"github.com/exr462/go-dark/ui/decorator"
@@ -39,23 +40,9 @@ func RenderBuildModal(ui *model.UI) string {
 		}
 	}
 
-	var mvnBin = "mvn"
-	if targetProj.Type != "java" {
-		mvnBin = "docker"
-	}
-	var selectedBuildOption = "full"
+	activeCmdString := "(no commands configured for this project type)"
 	if ui.SelectedBuildOption < len(ui.BuildOptions) {
-		selectedBuildOption = ui.BuildOptions[ui.SelectedBuildOption]
-	}
-	switch selectedBuildOption {
-	case "without tests":
-		selectedBuildOption = "install -DskipTests"
-	case "full":
-		selectedBuildOption = "install"
-	}
-	var activeCmdString = fmt.Sprintf("%s %s", mvnBin, selectedBuildOption)
-	if targetProj.Type != "java" {
-		activeCmdString = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(targetProj.Name))
+		activeCmdString = config.ResolveCommand(targetProj, ui.BuildOptions[ui.SelectedBuildOption])
 	}
 
 	body.WriteString(fmt.Sprintf("🚀 Target Executable Execution: %s\n\n", buildExecStyle.Render(activeCmdString)))

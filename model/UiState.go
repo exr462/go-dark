@@ -60,6 +60,8 @@ const (
 	StateSystemCheckModal
 	StateTerminalCockpit
 	StateDeployModal
+	StateTeamsModal
+	StateProjectsModal
 )
 
 type FuzzyMode int
@@ -214,6 +216,14 @@ type UI struct {
 	Err              error
 	ActiveCodeBuffer string // Holds the text content of the editor buffer
 	LastError        error
+
+	// !!! GLOBAL TEAMS & PROJECTS MANAGEMENT STATE MAPPINGS !!!
+	SelectedTeam           int  // Highlighted row in the teams modal
+	AddingTeam             bool // True while typing a new team manifest git URL
+	SelectedManagedProject int  // Highlighted row in the projects modal
+	AddingProject          bool // True while the "add local project" form is open
+	ProjectFormField       int  // Focused row of the form: 0 name, 1 git URL, 2 path, 3 type
+	ProjectFormType        int  // Index into config.PresetNames
 
 	// !!! GLOBAL DEPENDENCY SCREEN STATE MAPPINGS !!!
 	DepScreen DependencyScreenState

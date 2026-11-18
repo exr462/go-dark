@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
-	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/model"
 )
@@ -44,7 +43,7 @@ func startDeploy(ui *model.UI) tea.Cmd {
 		namespace = deploy.DefaultNamespace
 	}
 
-	entries, err := deploy.Plan(ui.Config.Projects, config.AvailableProjects, namespace)
+	entries, err := deploy.Plan(ui.Config.Projects, namespace)
 	if err != nil {
 		ui.DeployError = err
 		ui.DeployDone = true

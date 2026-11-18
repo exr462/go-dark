@@ -12,6 +12,7 @@ import (
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/team"
 	"github.com/exr462/go-dark/ui/component"
 )
 
@@ -82,6 +83,7 @@ func loadPrechecks(ui *model.UI) {
 		// NOTE: previously this ran twice ("Load env" + "Updating env") calling the
 		// exact same initializer with no behavioral difference - trimmed to one step.
 		{Name: lipgloss.NewStyle().Render("👷 Load env"), Load: initializer.InitializeWelcomePanel(ui).OnAction},
+		{Name: lipgloss.NewStyle().Render("🛰 Teams"), Load: func() tea.Cmd { return team.SyncCmd(ui.Config.Teams) }},
 		{Name: lipgloss.NewStyle().Render("🐳 Docker"), Load: initializer.InitializeDockerTelemetry(ui).OnAction},
 		{Name: lipgloss.NewStyle().Render("🪁 Async"), Load: initializer.InitializeTriggerPipeline(ui).OnAction},
 	}

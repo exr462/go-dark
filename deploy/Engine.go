@@ -26,16 +26,16 @@ type LogEntry struct {
 	Text    string
 }
 
-// Plan resolves the Deployable dependency graph for the given active
-// projects/registry and builds the full simulated rollout transcript, wave
+// Plan resolves the Deployable dependency graph of the given workspace
+// projects and builds the full simulated rollout transcript, wave
 // by wave. It is a pure function - safe and fast to unit test - the actual
 // "streaming" effect is applied by the UI layer afterwards.
-func Plan(activeProjects []config.Project, registry []config.AvailableProject, namespace string) ([]LogEntry, error) {
+func Plan(projects []config.Project, namespace string) ([]LogEntry, error) {
 	if namespace == "" {
 		namespace = DefaultNamespace
 	}
 
-	_, waves, err := model.ResolveDeployOrder(activeProjects, registry)
+	_, waves, err := model.ResolveDeployOrder(projects)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func Plan(activeProjects []config.Project, registry []config.AvailableProject, n
 
 // rolloutSteps produces the deterministic, ordered set of simulated steps
 // Rancher/Kubernetes would perform to bring one deployable project online.
-func rolloutSteps(wave int, namespace string, p config.AvailableProject) []LogEntry {
+func rolloutSteps(wave int, namespace string, p config.Project) []LogEntry {
 	slug := kebabCase(p.Name)
 	steps := []string{
 		fmt.Sprintf("🔧 [%s] Rendering Deployment/Service manifests", p.Name),

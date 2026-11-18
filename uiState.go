@@ -10,7 +10,6 @@ var ui = &model.UI{
 	ActiveFocus:     model.FocusProjects,
 	FileViewer:      viewport.New(viewport.WithWidth(30), viewport.WithHeight(20)),
 	GitCommands:     []string{"checkout", "clone", "pull", "fetch", "status", "reset"},
-	BuildOptions:    []string{"clean", "test", "compile", "package", "without tests", "full"},
 	BuildLogs:       []string{"Console ready. Select option step to launch..."},
 	Sessions:        make(map[int]*model.BuildSession),
 	FuzzyQueryInput: textinput.New(),

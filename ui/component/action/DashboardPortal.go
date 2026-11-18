@@ -6,6 +6,7 @@ import (
 	"github.com/exr462/go-dark/action"
 	commandfile "github.com/exr462/go-dark/command/file"
 	commandpanel "github.com/exr462/go-dark/command/panel"
+	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/kbd"
@@ -50,8 +51,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 			activeProj := ui.Config.Projects[ui.SelectedProject]
 
 			// Initialize options excluding self to prevent cyclical dependencies
-			ui.DepScreen = model.NewDependencyScreen(activeProj.Name, ui.Config.Projects)
-			ui.DepScreen.ActiveProjectIndex = ui.SelectedProject
+			ui.DepScreen = model.NewDependencyScreen(activeProj, ui.Config.Projects)
 
 			// Flip view state boundary to render configuration modal
 			ui.ViewState = model.StateDependencyConfigModal
@@ -61,7 +61,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 	case "P": // 👈 Pressing Shift+P triggers the parallel DAG build
 		ui.StatusMsg = "🏗️ Resolving dependency graph and starting parallel builds..."
 
-		// Fire off the background compilation using your exact AvailableProjects layout
+		// Fire off the background compilation over the workspace dependency graph
 		// Limits the machine execution block to a safe ceiling of 4 concurrent threads
 		return initializer.InitializeTriggerPipeline(ui).OnAction()
 
@@ -109,6 +109,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenBuild):
 		if len(ui.Config.Projects) > 0 {
 			ui.ViewState = model.StateBuildModal
+			ui.BuildOptions = config.CommandKeys(ui.Config.Projects[ui.SelectedProject])
 			ui.SelectedBuildOption = 0
 			ui.BuildLogs = []string{"Console engine ready. Select command step to initialize stream..."}
 			ui.IsBuilding = false

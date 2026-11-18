@@ -43,6 +43,10 @@ func (m *appModel) render() string {
 		return component.RenderTerminalExecution(m.ui)
 	case model.StateDeployModal:
 		return component.RenderDeployModal(m.ui)
+	case model.StateTeamsModal:
+		return component.RenderTeamsModal(m.ui)
+	case model.StateProjectsModal:
+		return component.RenderProjectsModal(m.ui)
 	case model.StateDashboard:
 		fallthrough
 	default:

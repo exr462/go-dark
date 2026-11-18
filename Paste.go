@@ -31,6 +31,14 @@ func (m *appModel) routePaste(msg tea.PasteMsg) tea.Cmd {
 		m.ui.Inputs[kbd.Terminal], cmd = m.ui.Inputs[kbd.Terminal].Update(msg)
 	case model.StateGitConfigurationModal, model.StateShortcutConfigurationModal:
 		m.ui.Inputs[m.ui.FocusedInput], cmd = m.ui.Inputs[m.ui.FocusedInput].Update(msg)
+	case model.StateTeamsModal:
+		if m.ui.AddingTeam {
+			m.ui.Inputs[kbd.TeamGitURL], cmd = m.ui.Inputs[kbd.TeamGitURL].Update(msg)
+		}
+	case model.StateProjectsModal:
+		if m.ui.AddingProject && m.ui.FocusedInput >= kbd.ProjectName && m.ui.FocusedInput <= kbd.ProjectPath {
+			m.ui.Inputs[m.ui.FocusedInput], cmd = m.ui.Inputs[m.ui.FocusedInput].Update(msg)
+		}
 	case model.StateJDKConfigModal:
 		if m.ui.JDKStep == model.StepAddNewJDKVersion {
 			m.ui.Inputs[m.ui.FocusedInput], cmd = m.ui.Inputs[m.ui.FocusedInput].Update(msg)

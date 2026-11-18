@@ -5,10 +5,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/session"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 )
-
-var sessionChannels = make(map[int]chan string)
 
 func BuildLogLine(ui *model.UI, msg componentmessage.BuildLogLineMsg) tea.Cmd {
 	if sess, exists := ui.Sessions[msg.SessionID]; exists {
@@ -28,15 +27,8 @@ func BuildLogLine(ui *model.UI, msg componentmessage.BuildLogLineMsg) tea.Cmd {
 			}
 		}
 	}
-	return func() tea.Msg {
-		activeCh, exists := sessionChannels[msg.SessionID]
-		if !exists {
-			return nil
-		}
-		line, ok := <-activeCh
-		if !ok {
-			return componentmessage.BuildCompleteMsg{SessionID: msg.SessionID, Err: nil}
-		}
-		return componentmessage.BuildLogLineMsg{SessionID: msg.SessionID, Line: line}
-	}
+	// Keep reading the session's output: the channel lives in the session
+	// package (a second, always-empty map here used to stop every build
+	// after its first line).
+	return session.ListenSession(msg.SessionID)
 }

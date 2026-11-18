@@ -7,20 +7,15 @@ import (
 	"github.com/exr462/go-dark/config"
 )
 
-// eligibleNodes narrows the full project registry down to only the entries
-// that are (a) actually cloned/fetched locally and (b) selected by the given
-// predicate (e.g. Buildable or Deployable), keyed by project name for O(1)
+// eligibleNodes narrows the workspace down to only the projects that are
+// (a) actually cloned/fetched locally and (b) selected by the given
+// predicate (e.g. Buildable or Deployable), keyed by project ID for O(1)
 // graph lookups.
-func eligibleNodes(activeProjects []config.Project, registry []config.AvailableProject, include func(config.AvailableProject) bool) map[string]config.AvailableProject {
-	clonedMap := make(map[string]bool, len(activeProjects))
-	for _, p := range activeProjects {
-		clonedMap[p.Name] = p.Fetched
-	}
-
-	nodes := make(map[string]config.AvailableProject)
-	for _, ap := range registry {
-		if clonedMap[ap.Name] && include(ap) {
-			nodes[ap.Name] = ap
+func eligibleNodes(projects []config.Project, include func(config.Project) bool) map[string]config.Project {
+	nodes := make(map[string]config.Project)
+	for _, p := range projects {
+		if p.Fetched && include(p) {
+			nodes[p.ID] = p
 		}
 	}
 	return nodes
@@ -34,17 +29,17 @@ func eligibleNodes(activeProjects []config.Project, registry []config.AvailableP
 // a real CI pipeline or a Kubernetes rollout of several independent
 // Deployments would behave.
 //
-// Node names within a wave are sorted for deterministic, reproducible output
+// Node IDs within a wave are sorted for deterministic, reproducible output
 // (useful for both rendering and unit testing).
-func topoSortWaves(nodes map[string]config.AvailableProject) (flat []config.AvailableProject, waves [][]config.AvailableProject, err error) {
+func topoSortWaves(nodes map[string]config.Project) (flat []config.Project, waves [][]config.Project, err error) {
 	adj := make(map[string][]string)
 	inDegree := make(map[string]int, len(nodes))
 	for name := range nodes {
 		inDegree[name] = 0
 	}
 
-	for name, ap := range nodes {
-		for _, dep := range ap.Dependencies {
+	for name, p := range nodes {
+		for _, dep := range p.DependsOn {
 			if _, ok := nodes[dep]; ok {
 				adj[dep] = append(adj[dep], name)
 				inDegree[name]++
@@ -61,7 +56,7 @@ func topoSortWaves(nodes map[string]config.AvailableProject) (flat []config.Avai
 	sort.Strings(frontier)
 
 	for len(frontier) > 0 {
-		wave := make([]config.AvailableProject, 0, len(frontier))
+		wave := make([]config.Project, 0, len(frontier))
 		for _, name := range frontier {
 			wave = append(wave, nodes[name])
 		}
@@ -83,17 +78,17 @@ func topoSortWaves(nodes map[string]config.AvailableProject) (flat []config.Avai
 	}
 
 	if len(flat) != len(nodes) {
-		return nil, nil, fmt.Errorf("❌ Cyclic dependency or structural mapping issue detected in AvailableProjects metadata")
+		return nil, nil, fmt.Errorf("❌ Cyclic dependency or structural mapping issue detected between workspace projects")
 	}
 
 	return flat, waves, nil
 }
 
-// ResolveBuildOrder maps your active project state against AvailableProjects
-// metadata and returns a single flat, dependency-respecting build order for
-// every cloned, Buildable component.
-func ResolveBuildOrder(activeProjects []config.Project, registry []config.AvailableProject) ([]config.AvailableProject, error) {
-	nodes := eligibleNodes(activeProjects, registry, func(ap config.AvailableProject) bool { return ap.Buildable })
+// ResolveBuildOrder returns a single flat, dependency-respecting build order
+// for every cloned, Buildable project. Dependencies on projects that aren't
+// part of the build (not cloned, not buildable, unknown) are ignored.
+func ResolveBuildOrder(projects []config.Project) ([]config.Project, error) {
+	nodes := eligibleNodes(projects, func(p config.Project) bool { return p.Buildable })
 	flat, _, err := topoSortWaves(nodes)
 	return flat, err
 }
@@ -103,7 +98,7 @@ func ResolveBuildOrder(activeProjects []config.Project, registry []config.Availa
 // dependency "waves" so the deploy engine can roll out independent
 // components concurrently - just like independent Kubernetes Deployments in
 // the same namespace would.
-func ResolveDeployOrder(activeProjects []config.Project, registry []config.AvailableProject) (flat []config.AvailableProject, waves [][]config.AvailableProject, err error) {
-	nodes := eligibleNodes(activeProjects, registry, func(ap config.AvailableProject) bool { return ap.Deployable })
+func ResolveDeployOrder(projects []config.Project) (flat []config.Project, waves [][]config.Project, err error) {
+	nodes := eligibleNodes(projects, func(p config.Project) bool { return p.Deployable })
 	return topoSortWaves(nodes)
 }

@@ -399,6 +399,60 @@ error handling, cancel).
 
 ---
 
+## 🛰 Cross-team project registry
+
+The project list used to be hardcoded (`config.AvailableProjects` plus a
+Bitbucket `BaseGitURL`). That caused four bugs:
+- `LoadConfig` re-added every `til-*` repo on each start, so a project could
+  never be removed.
+- The dependency screen edited that global slice in memory only, so edits
+  were lost on restart.
+- The dependency screen matched the registry to `Config.Projects` *by index*,
+  so it showed the wrong project as soon as the two lists differed.
+- Saving the global preferences form rebuilt the project list from scratch,
+  wiping every JDK/Maven assignment.
+
+**Now:**
+- **Team manifests.** A team keeps `go-dark.json` at the root of a git repo
+  (see `examples/belgiantrain/go-dark.json`). Users subscribe by git URL:
+  ctrl+y → "Manage Team Manifests", or field 5 of the first-run form.
+  `team.Sync` clones the repo into `~/.config/godark/teams/<name>` or
+  fast-forwards it. It runs as the "🛰 Teams" startup step, asynchronously and
+  non-interactively (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode`, 20s timeout).
+  A failed pull keeps the cached manifest.
+- **One project model.** `config.Project` has an `ID` (`<team>/<name>` or
+  `local/<name>`) and a `Source`. Dependencies (`DependsOn`) are IDs. A bare
+  name in a manifest means "same team"; `team/name` is cross-team.
+  `config.MergeManifests` builds the effective list:
+  - It keeps the user's own fields (path, JDK, Maven, and dependencies when
+    `DepsOverridden`).
+  - It drops projects of unsubscribed teams, but keeps those of a subscribed
+    team whose manifest can't be read.
+  - It *adopts* a local project with the same name and path as a team
+    project, so subscribing never duplicates.
+- **Per-project commands.** `config/presets.go` defines maven, gradle, npm,
+  go and docker presets, and a project's `commands` override them. The build
+  modal lists `config.CommandKeys`. The startup pipeline runs the `pipeline`
+  command. Everything runs through `runner.Command`, the platform shell plus
+  the JDK/Maven profile environment. The startup pipeline now also honors
+  assigned profiles (it used to call a bare `mvn`). The old hardcoded Maven
+  mapping, and its `mvn clean clean test`, are gone.
+- **Migration.** Configs written before IDs existed are upgraded once
+  (`config/migrate.go`). Every project becomes `local/<name>`, `java` becomes
+  `maven`, and deps/buildable/deployable come from a copy of the old
+  registry. Subscribing to the belgiantrain manifest afterwards adopts them.
+
+**Also fixed while testing:** build sessions stopped after their first log
+line, because `componentaction` had its own, always-empty `sessionChannels`
+map. `BuildLogLine` now re-arms `session.ListenSession`, and the map is
+locked. `SaveConfig` now creates the config directory itself.
+
+**Unsubscribing** removes that team's projects from the workspace, along with
+their JDK/Maven assignments. Files on disk are never touched, either by
+unsubscribing or by removing a local project.
+
+---
+
 ## ⬆️ Bubble Tea v2 migration
 
 Everything now imports `charm.land/{bubbletea,bubbles,lipgloss}/v2`; the v1

@@ -8,6 +8,7 @@ Fill in the following fields:\
 - git username: to push (still a feature to do) than those info are used
 - git email: same as above
 - max tag list size: only shows X amount of tags
+- team manifest git URL (optional): subscribes to your team's project list (see below)
 
 ![welcome](images/welcome.png)
 
@@ -84,6 +85,31 @@ commands inside the selected project's directory. Output streams in live
 underneath the command you just ran, and scrollback persists across
 reopens like a real shell session. Enter runs the command, esc exits
 (blocked while a command is still running).
+
+### Teams & projects
+Shortcut: ctrl+y → "Manage Team Manifests" / "Manage Projects"\
+Each team keeps a `go-dark.json` manifest at the root of a git repository and everyone
+subscribes to it by git URL; go-dark clones it and pulls updates at startup. You can follow
+several teams, and dependencies can cross teams (`"depends_on": ["other-team/lib"]`).
+Projects you add yourself are *local* and can be removed again; team projects follow their manifest.
+
+```json
+{
+  "team": "belgiantrain",
+  "base_git_url": "git@bitbucket.org:belgiantrain/",
+  "projects": [
+    { "name": "ypto-maven-parent", "type": "maven", "buildable": true },
+    { "name": "til-order", "type": "maven", "buildable": true, "deployable": true,
+      "depends_on": ["contract-first-api-parent"],
+      "commands": { "test": "mvn clean verify" } }
+  ]
+}
+```
+
+`type` picks a command preset (`maven`, `gradle`, `npm`, `go`, `docker`) used by the build
+modal (ctrl+b) and the startup pipeline; `commands` overrides or adds commands per project.
+`git_url` defaults to `base_git_url + name + ".git"`. The belgiantrain manifest lives in
+[examples/belgiantrain/go-dark.json](examples/belgiantrain/go-dark.json).
 
 ### Profile
 Shortcut: ctrl+y\

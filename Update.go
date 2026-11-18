@@ -23,6 +23,7 @@ import (
 	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
+	"github.com/exr462/go-dark/team"
 	"github.com/exr462/go-dark/terminal"
 	componentaction "github.com/exr462/go-dark/ui/component/action"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
@@ -221,6 +222,25 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.Progress, cmd = m.ui.Progress.Update(msg)
 		return m, cmd
 
+	case team.SyncedMsg:
+		m.ui.Config.Teams = team.ApplySynced(m.ui.Config.Teams, msg.Teams)
+		if len(msg.Errs) > 0 {
+			for _, err := range msg.Errs {
+				log.Printf("team sync: %v", err)
+			}
+			m.ui.StatusMsg = fmt.Sprintf("⚠️ Team sync: %v (using cached manifest)", msg.Errs[0])
+		}
+		return m, componentaction.ApplyProjectChange(m.ui)
+
+	case team.SubscribedMsg:
+		if msg.Err != nil {
+			m.ui.StatusMsg = fmt.Sprintf("❌ Team subscription failed: %v", msg.Err)
+			return m, nil
+		}
+		m.ui.Config.Teams = msg.Teams
+		m.ui.StatusMsg = fmt.Sprintf("✅ Subscribed to %s", msg.Teams[len(msg.Teams)-1].Manifest)
+		return m, componentaction.ApplyProjectChange(m.ui)
+
 	case state.PreflightCompleteMsg:
 		m.ui.ViewState = model.StateDashboard
 		log.Printf("PreflightCompleteMsg: %v", m.ui.ViewState)
@@ -263,6 +283,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, componentaction.EditorModal(m.ui, m.contentLoader, msg)
 		case model.StateDeployModal:
 			return m, componentaction.DeployModal(m.ui, msg)
+		case model.StateTeamsModal:
+			return m, componentaction.TeamsModal(m.ui, msg)
+		case model.StateProjectsModal:
+			return m, componentaction.ProjectsModal(m.ui, msg)
 		case model.StateTerminalCockpit:
 			var cmd tea.Cmd
 
@@ -274,8 +298,7 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmd, actionCmd)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
-			projIdx := m.ui.DepScreen.ActiveProjectIndex
-			if projIdx < 0 || projIdx >= len(m.ui.Config.Projects) {
+			if config.FindProject(m.ui.Config.Projects, m.ui.DepScreen.ActiveProjectID) < 0 {
 				m.ui.ViewState = model.StateDashboard
 				return m, nil
 			}

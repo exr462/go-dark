@@ -18,7 +18,7 @@ type BuildTask struct {
 	BuildArgs    string   // e.g., "install -DskipTests"
 	Dependencies []string // Names of projects that MUST build successfully first
 	State        TaskState
-	Meta         config.AvailableProject
+	Meta         config.Project
 	Error        error
 }
 

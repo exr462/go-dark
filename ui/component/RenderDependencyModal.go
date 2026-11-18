@@ -10,13 +10,12 @@ import (
 
 // RenderDependencyModal renders an interactive configuration checklist overlay
 func RenderDependencyModal(ui *model.UI) string {
-	projIdx := ui.DepScreen.ActiveProjectIndex
-	if projIdx < 0 || projIdx >= len(ui.Config.Projects) {
+	projIdx := config.FindProject(ui.Config.Projects, ui.DepScreen.ActiveProjectID)
+	if projIdx < 0 {
 		return "⚠️ No project active for configuration."
 	}
 
 	proj := ui.Config.Projects[projIdx]
-	availableProject := config.AvailableProjects[projIdx]
 
 	var b strings.Builder
 	b.WriteString("\n")
@@ -26,8 +25,19 @@ func RenderDependencyModal(ui *model.UI) string {
 
 	// Convert current chosen dependencies into a hashmap for quick looks
 	activeDeps := make(map[string]bool)
-	for _, d := range availableProject.Dependencies {
+	for _, d := range proj.DependsOn {
 		activeDeps[d] = true
+	}
+
+	if !proj.IsLocal() {
+		note := fmt.Sprintf("  Managed by team %s", proj.Source)
+		if proj.DepsOverridden {
+			note += " (local override of the manifest's dependencies)"
+		}
+		b.WriteString(note + "\n\n")
+	}
+	for _, unknown := range config.UnknownDependencies(proj, ui.Config.Projects) {
+		b.WriteString(fmt.Sprintf("  ⚠️ Unknown dependency %s (not in any subscribed team or local project)\n", unknown))
 	}
 
 	if len(ui.DepScreen.AvailableOptions) == 0 {

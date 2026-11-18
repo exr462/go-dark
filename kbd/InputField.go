@@ -30,6 +30,10 @@ const (
 	EditContent
 	Terminal
 	DeployKey
+	TeamGitURL
+	ProjectName
+	ProjectGitURL
+	ProjectPath
 	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
 	Ceiling
 )

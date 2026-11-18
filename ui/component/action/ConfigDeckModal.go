@@ -10,6 +10,9 @@ import (
 	"github.com/exr462/go-dark/model"
 )
 
+// configDeckOptionCount must match the options listed by RenderConfigDeckModal.
+const configDeckOptionCount = 6
+
 //goland:noinspection GoMixedReceiverTypes
 func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
@@ -24,7 +27,7 @@ func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 
 	case "down", "j":
-		if ui.SelectedConfigOption < 3 {
+		if ui.SelectedConfigOption < configDeckOptionCount-1 {
 			ui.SelectedConfigOption++
 		}
 		return nil
@@ -67,6 +70,18 @@ func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			ui.Inputs[kbd.FuzzyKey].Focus()
 			// Save dynamic values safely across memory pointers
 			ui.SelectedMenuIndex = 0
+			return nil
+
+		case 4:
+			ui.ViewState = model.StateTeamsModal
+			ui.SelectedTeam = 0
+			ui.AddingTeam = false
+			return nil
+
+		case 5:
+			ui.ViewState = model.StateProjectsModal
+			ui.SelectedManagedProject = 0
+			ui.AddingProject = false
 			return nil
 		}
 	}

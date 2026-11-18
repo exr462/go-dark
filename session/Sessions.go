@@ -2,46 +2,31 @@ package session
 
 import (
 	"bufio"
+	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/runner"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 )
 
-var sessionChannels = make(map[int]chan string)
+// sessionChannels is read from Bubble Tea command goroutines and written by
+// the update loop, hence the lock.
+var (
+	sessionChannelsMu sync.Mutex
+	sessionChannels   = make(map[int]chan string)
+)
 
-func SpawnBackgroundSession(ui *model.UI, proj config.Project, targetStep string) tea.Cmd {
+// SpawnBackgroundSession runs the project's command for commandKey (see
+// config.CommandKeys) in the background, streaming its output into a session.
+func SpawnBackgroundSession(ui *model.UI, proj config.Project, commandKey string) tea.Cmd {
 	ui.NextSessionID++
 	sID := ui.NextSessionID
 
-	var mvnBin = "mvn"
-	if proj.Type != "java" {
-		mvnBin = "docker"
-	}
-	// BuildOptions:    []string{"clean", "test", "compile", "package", "without tests", "full"},
-	switch targetStep {
-	case "test":
-		targetStep = "clean test"
-	case "compile":
-		targetStep = "clean compile"
-	case "package":
-		targetStep = "clean package"
-	case "without tests":
-		targetStep = "clean install -DskipTests"
-	case "full":
-		targetStep = "clean install"
-	}
-	cmdStr := fmt.Sprintf("%s clean %s", mvnBin, targetStep)
-	if proj.Type != "java" {
-		cmdStr = fmt.Sprintf("docker build -t %s:latest .", strings.ToLower(proj.Name))
-	}
-
+	cmdStr := config.ResolveCommand(proj, commandKey)
 	session := &model.BuildSession{
 		ID:          sID,
 		ProjectName: proj.Name,
@@ -53,60 +38,15 @@ func SpawnBackgroundSession(ui *model.UI, proj config.Project, targetStep string
 	ui.ActiveSessionID = sID
 
 	localCh := make(chan string, 500)
+	cfg := ui.Config
 
 	go func() {
-		fullProjPath := proj.Path
-
-		var targetMvnPath string
-		for _, mvn := range ui.Config.Mavens {
-			if mvn.Name == proj.MavenName {
-				targetMvnPath = mvn.Path
-				break
-			}
+		if cmdStr == "" {
+			localCh <- fmt.Sprintf("❌ No %q command configured for %s", commandKey, proj.Name)
+			close(localCh)
+			return
 		}
-
-		binPath := "mvn"
-		var cmdArgs []string
-		if proj.Type == "java" {
-			if targetMvnPath != "" {
-				binPath = filepath.Join(targetMvnPath, "bin", "mvn")
-			}
-
-			cmdArgs = strings.Split(targetStep, " ")
-		} else {
-			binPath = "docker"
-			cmdArgs = []string{"build", "-t", strings.ToLower(proj.Name) + ":latest", "."}
-		}
-
-		cmd := exec.Command(binPath, cmdArgs...)
-		cmd.Dir = fullProjPath
-
-		var targetJDKPath string
-		for _, jdk := range ui.Config.JDKs {
-			if jdk.Name == proj.JDKName {
-				targetJDKPath = jdk.Path
-				break
-			}
-		}
-
-		env := os.Environ()
-		if targetJDKPath != "" {
-			env = append(env, fmt.Sprintf("JAVA_HOME=%s", targetJDKPath))
-		}
-		if targetMvnPath != "" {
-			env = append(env, fmt.Sprintf("MAVEN_HOME=%s", targetMvnPath), fmt.Sprintf("M2_HOME=%s", targetMvnPath))
-		}
-		var prefixes []string
-		if targetJDKPath != "" {
-			prefixes = append(prefixes, filepath.Join(targetJDKPath, "bin"))
-		}
-		if targetMvnPath != "" {
-			prefixes = append(prefixes, filepath.Join(targetMvnPath, "bin"))
-		}
-		if len(prefixes) > 0 {
-			env = append(env, fmt.Sprintf("PATH=%s:%s", strings.Join(prefixes, ":"), os.Getenv("PATH")))
-		}
-		cmd.Env = env
+		cmd := runner.Command(context.Background(), cfg, proj, cmdStr)
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -122,7 +62,7 @@ func SpawnBackgroundSession(ui *model.UI, proj config.Project, targetStep string
 			return
 		}
 
-		localCh <- fmt.Sprintf("$ %s %s", binPath, strings.Join(cmdArgs, " "))
+		localCh <- "$ " + cmdStr
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			localCh <- scanner.Text()
@@ -140,16 +80,29 @@ func SpawnBackgroundSession(ui *model.UI, proj config.Project, targetStep string
 
 func listenToSessionChannel(sID int, ch chan string) tea.Cmd {
 	if ch != nil {
+		sessionChannelsMu.Lock()
 		sessionChannels[sID] = ch
+		sessionChannelsMu.Unlock()
 	}
+	return ListenSession(sID)
+}
+
+// ListenSession waits for the next output line of a background session, or
+// its completion once the output channel is closed.
+func ListenSession(sID int) tea.Cmd {
 	return func() tea.Msg {
+		sessionChannelsMu.Lock()
 		activeCh, exists := sessionChannels[sID]
+		sessionChannelsMu.Unlock()
 		if !exists {
 			return componentmessage.BuildCompleteMsg{SessionID: sID, Err: fmt.Errorf("channel untracked")}
 		}
 
 		line, ok := <-activeCh
 		if !ok {
+			sessionChannelsMu.Lock()
+			delete(sessionChannels, sID)
+			sessionChannelsMu.Unlock()
 			return componentmessage.BuildCompleteMsg{SessionID: sID, Err: nil}
 		}
 		return componentmessage.BuildLogLineMsg{SessionID: sID, Line: line}

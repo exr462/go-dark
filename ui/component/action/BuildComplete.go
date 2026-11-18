@@ -23,6 +23,5 @@ func BuildComplete(ui *model.UI, msg componentmessage.BuildCompleteMsg) tea.Cmd 
 			ui.IsBuilding = false
 		}
 	}
-	delete(sessionChannels, msg.SessionID)
 	return nil
 }

@@ -7,23 +7,32 @@ import (
 	"github.com/exr462/go-dark/config"
 )
 
-func cloned(names ...string) []config.Project {
-	projects := make([]config.Project, len(names))
-	for i, n := range names {
-		projects[i] = config.Project{Name: n, Fetched: true}
+// workspace turns registry-style test fixtures into workspace projects: IDs are
+// the plain names (so DependsOn can reference them directly) and only the
+// listed projects count as cloned.
+func workspace(projects []config.Project, cloned ...string) []config.Project {
+	isCloned := make(map[string]bool, len(cloned))
+	for _, n := range cloned {
+		isCloned[n] = true
 	}
-	return projects
+	out := make([]config.Project, len(projects))
+	for i, p := range projects {
+		p.ID = p.Name
+		p.Fetched = isCloned[p.Name]
+		out[i] = p
+	}
+	return out
 }
 
 func TestResolveBuildOrder_RespectsDependencies(t *testing.T) {
-	registry := []config.AvailableProject{
+	registry := []config.Project{
 		{Name: "parent", Buildable: true},
-		{Name: "api", Buildable: true, Dependencies: []string{"parent"}},
-		{Name: "service-a", Buildable: true, Dependencies: []string{"api"}},
-		{Name: "service-b", Buildable: true, Dependencies: []string{"api"}},
+		{Name: "api", Buildable: true, DependsOn: []string{"parent"}},
+		{Name: "service-a", Buildable: true, DependsOn: []string{"api"}},
+		{Name: "service-b", Buildable: true, DependsOn: []string{"api"}},
 	}
 
-	order, err := ResolveBuildOrder(cloned("parent", "api", "service-a", "service-b"), registry)
+	order, err := ResolveBuildOrder(workspace(registry, "parent", "api", "service-a", "service-b"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -44,12 +53,12 @@ func TestResolveBuildOrder_RespectsDependencies(t *testing.T) {
 }
 
 func TestResolveBuildOrder_SkipsNotCloned(t *testing.T) {
-	registry := []config.AvailableProject{
+	registry := []config.Project{
 		{Name: "parent", Buildable: true},
-		{Name: "api", Buildable: true, Dependencies: []string{"parent"}},
+		{Name: "api", Buildable: true, DependsOn: []string{"parent"}},
 	}
 	// "api" was never fetched/cloned locally, so it must be excluded.
-	order, err := ResolveBuildOrder(cloned("parent"), registry)
+	order, err := ResolveBuildOrder(workspace(registry, "parent"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,10 +68,10 @@ func TestResolveBuildOrder_SkipsNotCloned(t *testing.T) {
 }
 
 func TestResolveBuildOrder_SkipsNotBuildable(t *testing.T) {
-	registry := []config.AvailableProject{
+	registry := []config.Project{
 		{Name: "docs", Buildable: false},
 	}
-	order, err := ResolveBuildOrder(cloned("docs"), registry)
+	order, err := ResolveBuildOrder(workspace(registry, "docs"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,11 +81,11 @@ func TestResolveBuildOrder_SkipsNotBuildable(t *testing.T) {
 }
 
 func TestResolveBuildOrder_DetectsCycle(t *testing.T) {
-	registry := []config.AvailableProject{
-		{Name: "a", Buildable: true, Dependencies: []string{"b"}},
-		{Name: "b", Buildable: true, Dependencies: []string{"a"}},
+	registry := []config.Project{
+		{Name: "a", Buildable: true, DependsOn: []string{"b"}},
+		{Name: "b", Buildable: true, DependsOn: []string{"a"}},
 	}
-	_, err := ResolveBuildOrder(cloned("a", "b"), registry)
+	_, err := ResolveBuildOrder(workspace(registry, "a", "b"))
 	if err == nil {
 		t.Fatal("expected a cyclic dependency error, got nil")
 	}
@@ -86,17 +95,17 @@ func TestResolveBuildOrder_DetectsCycle(t *testing.T) {
 }
 
 func TestResolveDeployOrder_GroupsIndependentServicesIntoWaves(t *testing.T) {
-	// Mirrors the real-world shape in config.AvailableProjects: several
+	// Mirrors the real-world belgiantrain shape: several
 	// independent deployable services sharing one non-deployable parent.
-	registry := []config.AvailableProject{
+	registry := []config.Project{
 		{Name: "contract-parent", Buildable: true, Deployable: false},
-		{Name: "til-purchase", Buildable: true, Deployable: true, Dependencies: []string{"contract-parent"}},
-		{Name: "til-product", Buildable: true, Deployable: true, Dependencies: []string{"contract-parent"}},
-		{Name: "til-order", Buildable: true, Deployable: true, Dependencies: []string{"til-purchase"}},
+		{Name: "til-purchase", Buildable: true, Deployable: true, DependsOn: []string{"contract-parent"}},
+		{Name: "til-product", Buildable: true, Deployable: true, DependsOn: []string{"contract-parent"}},
+		{Name: "til-order", Buildable: true, Deployable: true, DependsOn: []string{"til-purchase"}},
 	}
-	active := cloned("contract-parent", "til-purchase", "til-product", "til-order")
+	active := workspace(registry, "contract-parent", "til-purchase", "til-product", "til-order")
 
-	flat, waves, err := ResolveDeployOrder(active, registry)
+	flat, waves, err := ResolveDeployOrder(active)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,14 +133,45 @@ func TestResolveDeployOrder_GroupsIndependentServicesIntoWaves(t *testing.T) {
 }
 
 func TestResolveDeployOrder_NoDeployableProjectsReturnsEmpty(t *testing.T) {
-	registry := []config.AvailableProject{
+	registry := []config.Project{
 		{Name: "lib", Buildable: true, Deployable: false},
 	}
-	flat, waves, err := ResolveDeployOrder(cloned("lib"), registry)
+	flat, waves, err := ResolveDeployOrder(workspace(registry, "lib"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(flat) != 0 || len(waves) != 0 {
 		t.Fatalf("expected no deployable output, got flat=%v waves=%v", flat, waves)
+	}
+}
+
+func TestResolveBuildOrder_CrossTeamDependencies(t *testing.T) {
+	projects := []config.Project{
+		{ID: "rail/api", Name: "api", Buildable: true, Fetched: true, DependsOn: []string{"infra/base"}},
+		{ID: "infra/base", Name: "base", Buildable: true, Fetched: true},
+		{ID: "local/tool", Name: "tool", Buildable: true, Fetched: true, DependsOn: []string{"rail/api", "gone/missing"}},
+	}
+
+	order, err := ResolveBuildOrder(projects)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var ids []string
+	for _, p := range order {
+		ids = append(ids, p.ID)
+	}
+	if strings.Join(ids, ",") != "infra/base,rail/api,local/tool" {
+		t.Fatalf("expected cross-team order base -> api -> tool (unknown deps ignored), got %v", ids)
+	}
+}
+
+func TestResolveBuildOrder_SameNameInTwoTeamsAreDistinct(t *testing.T) {
+	projects := []config.Project{
+		{ID: "rail/common", Name: "common", Buildable: true, Fetched: true},
+		{ID: "infra/common", Name: "common", Buildable: true, Fetched: true, DependsOn: []string{"rail/common"}},
+	}
+	order, err := ResolveBuildOrder(projects)
+	if err != nil || len(order) != 2 || order[0].ID != "rail/common" {
+		t.Fatalf("projects must be keyed by ID, got %v, %v", order, err)
 	}
 }

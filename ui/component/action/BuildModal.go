@@ -42,6 +42,9 @@ func BuildModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			ui.SelectedBuildOption++
 		}
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save):
+		if ui.SelectedBuildOption >= len(ui.BuildOptions) {
+			return nil
+		}
 		ui.IsBuilding = true
 		chosenOpt := ui.BuildOptions[ui.SelectedBuildOption]
 		return session.SpawnBackgroundSession(ui, targetProj, chosenOpt)
