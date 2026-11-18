@@ -49,6 +49,7 @@ func RenderConfigDeckModal(ui *model.UI) string {
 		"[4] Edit your shortcuts",
 		"[5] Manage Team Manifests (Subscribe / Sync / Unsubscribe)",
 		"[6] Manage Projects (Add / Remove Local Projects)",
+		"[7] Align Workspace Versions (parent / inter-project versions)",
 	}
 
 	for i, opt := range options {

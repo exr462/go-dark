@@ -69,8 +69,8 @@ func RenderGraphModal(ui *model.UI) string {
 		}
 	}
 
-	b.WriteString("\n" + sessHintStyle.Render(fmt.Sprintf("[%s] Select | [%s] Pom details | [%s] Accept suggestions | [%s] Accept all | [%s] Rescan | [%s] Back",
-		sessKeyHint.Render("↑/↓"), sessKeyHint.Render("enter"), sessKeyHint.Render("a"), sessKeyHint.Render("A"), sessKeyHint.Render("r"),
+	b.WriteString("\n" + sessHintStyle.Render(fmt.Sprintf("[%s] Select | [%s] Pom details | [%s] Accept suggestions | [%s] Accept all | [%s] Align versions | [%s] Rescan | [%s] Back",
+		sessKeyHint.Render("↑/↓"), sessKeyHint.Render("enter"), sessKeyHint.Render("a"), sessKeyHint.Render("A"), sessKeyHint.Render("v"), sessKeyHint.Render("r"),
 		sessKeyHint.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)))))
 
 	return lipgloss.Place(

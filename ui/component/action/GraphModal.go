@@ -25,7 +25,13 @@ func ScanWorkspace(ui *model.UI) tea.Cmd {
 	projects := slices.Clone(ui.Config.Projects)
 	return func() tea.Msg {
 		w, errs := maven.Scan(projects)
-		return model.WorkspaceScannedMsg{Workspace: w, Errors: errs}
+		releases := map[string]string{}
+		for id, p := range w.Projects {
+			if tag := maven.LatestReleaseTag(p.Dir, p.ArtifactID); tag != "" {
+				releases[id] = tag
+			}
+		}
+		return model.WorkspaceScannedMsg{Workspace: w, Errors: errs, Releases: releases}
 	}
 }
 
@@ -33,6 +39,7 @@ func ScanWorkspace(ui *model.UI) tea.Cmd {
 func WorkspaceScanned(ui *model.UI, msg model.WorkspaceScannedMsg) {
 	ui.Workspace = msg.Workspace
 	ui.WorkspaceErrors = msg.Errors
+	ui.ReleaseTags = msg.Releases
 	ui.GraphScanning = false
 }
 
@@ -51,6 +58,8 @@ func GraphModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "r":
 		return ScanWorkspace(ui)
+	case "v":
+		return OpenAlign(ui, model.StateGraphModal)
 	}
 	if err != nil || len(rows) == 0 {
 		return nil

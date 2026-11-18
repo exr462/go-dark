@@ -76,4 +76,5 @@ func graphRow(wave int, p config.Project, w *maven.Workspace) GraphRow {
 type WorkspaceScannedMsg struct {
 	Workspace *maven.Workspace
 	Errors    []error
+	Releases  map[string]string // project ID -> newest release tag version
 }
