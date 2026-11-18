@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/ui/color"
@@ -58,5 +59,7 @@ func RenderMenu(ui *model.UI) string {
 		topMenuStyle = decorator.FocusedBorder.Background(color.Base)
 	}
 
+	// Cut rather than wrap: a wrapped top bar pushes the dashboard off screen.
+	unifiedTopBarText = ansi.Truncate(unifiedTopBarText, max(ui.WindowWidth-2, 1), "…")
 	return topMenuStyle.Width(ui.WindowWidth - 2 + decorator.BorderFrame).Render(unifiedTopBarText)
 }
