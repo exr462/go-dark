@@ -7,7 +7,9 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"context"
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
@@ -237,13 +239,19 @@ type UI struct {
 	// !!! GLOBAL DEPENDENCY SCREEN STATE MAPPINGS !!!
 	DepScreen DependencyScreenState
 
-	// !!! GLOBAL DEPLOY ENGINE STATE MAPPINGS (simulated Rancher/K8s rollout) !!!
-	DeployNamespace string
-	DeployScript    []string // Full pre-computed rollout transcript
-	DeployLogs      []string // Lines revealed so far (streamed for a live feel)
-	IsDeploying     bool
-	DeployDone      bool
-	DeployError     error
+	// !!! GLOBAL LOCAL DEPLOY STATE MAPPINGS (minikube / local Rancher) !!!
+	DeployWaves     [][]deploy.Target  // What will be deployed, in dependency waves
+	DeploySkipped   []deploy.Target    // Deployable projects that can't be deployed locally (and why)
+	DeployPlanErr   error              // e.g. a dependency cycle
+	DeployProgress  *deploy.Progress   // Live per-target status of the current/last run
+	DeployRunning   bool               // A deployment is in progress
+	DeployFinished  bool               // The last run ended (see DeployErr)
+	DeployErr       error              // Why the last run failed (nil on success)
+	DeployCancel    context.CancelFunc // Cancels the running deployment
+	ClusterChecked  bool               // The preflight finished at least once
+	ClusterRunning  bool               // minikube is up
+	ClusterErr      error              // minikube missing / guard refusal
+	MinikubeStartID int                // Session running `minikube start` (0 when none)
 }
 
 type FileLoadMsg string
@@ -270,3 +278,12 @@ func (ui *UI) ActiveTerminalSession() int {
 	}
 	return ui.TerminalTabs[ui.ActiveTerminalTab]
 }
+
+// DeployPreflightMsg reports the local cluster state.
+type DeployPreflightMsg struct {
+	Running bool
+	Err     error // minikube missing, or the guard refused the context
+}
+
+// DeployFinishedMsg ends a deployment run.
+type DeployFinishedMsg struct{ Err error }

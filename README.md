@@ -57,14 +57,23 @@ Lists every session: builds, the startup pipeline's per-module builds and termin
 with a live preview. Enter opens one in the terminal pane, d closes it (killing it if it is
 still running).
 
-### Deploying the workspace (simulated Rancher/Kubernetes)
+### Deploying to the local cluster
 Shortcut: ctrl+p\
-Resolves the `Deployable` dependency graph for your cloned projects
-(`model.ResolveDeployOrder`) and streams a simulated rollout transcript -
-namespace, manifests, scheduling, rollout status, service exposure - with
-independent services rolling out in parallel waves, just like independent
-Kubernetes Deployments would.\
-ctrl+s to start the simulated rollout, esc to leave
+Deploys every cloned, deployable service that has a `helm/<chart>/values.local-rancher.yaml`
+to the local cluster (minikube - the team's "local Rancher" - namespace `til-local`), in
+dependency waves:
+1. `docker build -t <main.image>:<main.version>` with minikube's docker env, so the image is
+   available to the cluster without a registry (the local values use `imagePullPolicy: Never`)
+2. `helm upgrade --install` of a temporary copy of the chart (with a valid version instead of
+   `{JENKINS_VERSION}`; the repo isn't touched) with the local values, waiting for the rollout
+
+If minikube is stopped the screen offers `s` to start it. Every step runs as a session (ctrl+o to
+watch it); the first failure stops the run and its log stays in the inspector. `x` cancels.
+
+**Safety:** go-dark only deploys to the `minikube` context, and only when its API server is a
+local address; every kubectl/helm call names the context and namespace explicitly. Other contexts
+in your kubeconfig - production included - are refused, even if configured. Change the target in
+`config.json` → `local_cluster` (`context`, `namespace`).
 
 ### Editing a file (Vim-style modal editor)
 Shortcut: ctrl+e (while a file is focused in the workspace tree)\
