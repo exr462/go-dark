@@ -22,6 +22,34 @@ type Config struct {
 	MaxListTag  int               `json:"max_list_tag"`
 	ShortCuts   []action.Shortcut `json:"short_cuts"`
 	Teams       []Team            `json:"teams"`
+	// LocalCluster is where the deploy screen deploys to. Only local
+	// contexts are accepted (see kube.Guard).
+	LocalCluster LocalCluster `json:"local_cluster"`
+}
+
+// LocalCluster names the local Kubernetes context and namespace.
+type LocalCluster struct {
+	Context   string `json:"context"`
+	Namespace string `json:"namespace"`
+}
+
+// Local cluster defaults, matching the services' values.local-rancher.yaml
+// convention (minikube acting as the local Rancher node).
+const (
+	DefaultLocalContext   = "minikube"
+	DefaultLocalNamespace = "til-local"
+)
+
+// Cluster returns the configured local cluster, filling in defaults.
+func (cfg Config) Cluster() LocalCluster {
+	c := cfg.LocalCluster
+	if c.Context == "" {
+		c.Context = DefaultLocalContext
+	}
+	if c.Namespace == "" {
+		c.Namespace = DefaultLocalNamespace
+	}
+	return c
 }
 
 func GetConfigPath() (string, error) {

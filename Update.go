@@ -14,7 +14,6 @@ import (
 	commandfile "github.com/exr462/go-dark/command/file"
 	commandpanel "github.com/exr462/go-dark/command/panel"
 	"github.com/exr462/go-dark/config"
-	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/lsp"
@@ -100,6 +99,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ui.StatusMsg = fmt.Sprintf("❌ Build failed: %s (exit code %d)", s.Title, s.ExitCode())
 			}
 		}
+		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == componentaction.TagMinikube {
+			return m, tea.Batch(m.listenSessions(), componentaction.MinikubeExited(m.ui, msg.ID))
+		}
 		return m, m.listenSessions()
 
 	case config.GitBranchesErrorMsg:
@@ -119,8 +121,13 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.DockerContainers = msg
 		return m, nil
 
-	case deploy.TickMsg:
-		return m, componentaction.DeployTick(m.ui)
+	case model.DeployPreflightMsg:
+		componentaction.ClusterChecked(m.ui, msg)
+		return m, nil
+
+	case model.DeployFinishedMsg:
+		componentaction.DeployFinished(m.ui, msg)
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		cmd := window.Size(m.ui, msg)

@@ -1,83 +1,144 @@
 package componentaction
 
 import (
-	"time"
+	"context"
+	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/deploy"
+	"github.com/exr462/go-dark/kube"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/shell"
 )
 
-// deployTickInterval controls how fast the simulated rollout "streams" its
-// pre-computed transcript into the UI - fast enough to feel responsive, slow
-// enough to actually read as it scrolls by.
-const deployTickInterval = 120 * time.Millisecond
+// TagMinikube marks the `minikube start` session.
+const TagMinikube = "minikube"
 
-// DeployModal drives the simulated Rancher/Kubernetes workspace rollout
-// screen: Save (ctrl+s) computes the dependency-ordered deploy plan and
-// streams it line-by-line; Escape cancels/leaves.
-//
-//goland:noinspection GoMixedReceiverTypes
+// OpenDeploy shows the local deploy screen: what would be deployed (in
+// dependency waves) and whether the local cluster is ready.
+func OpenDeploy(ui *model.UI) tea.Cmd {
+	ui.ViewState = model.StateDeployModal
+	PlanDeploy(ui)
+	return CheckCluster(ui)
+}
+
+// PlanDeploy resolves the deploy waves from the current projects.
+func PlanDeploy(ui *model.UI) {
+	_, waves, err := model.ResolveDeployOrder(ui.Config.Projects)
+	ui.DeployPlanErr = err
+	ui.DeployWaves, ui.DeploySkipped = deploy.Plan(waves)
+	if ui.DeployProgress == nil {
+		ui.DeployProgress = deploy.NewProgress()
+	}
+}
+
+func cluster(ui *model.UI) kube.Cluster {
+	c := ui.Config.Cluster()
+	return kube.Cluster{Context: c.Context, Namespace: c.Namespace}
+}
+
+// CheckCluster checks minikube and the context guard in the background.
+func CheckCluster(ui *model.UI) tea.Cmd {
+	c := cluster(ui)
+	return func() tea.Msg {
+		running, err := kube.MinikubeStatus()
+		if err == nil {
+			err = kube.Guard(c)
+		}
+		return model.DeployPreflightMsg{Running: running, Err: err}
+	}
+}
+
+// ClusterChecked stores the preflight result.
+func ClusterChecked(ui *model.UI, msg model.DeployPreflightMsg) {
+	ui.ClusterChecked = true
+	ui.ClusterRunning = msg.Running
+	ui.ClusterErr = msg.Err
+}
+
+// DeployModal: enter deploys, s starts minikube when it's stopped, x
+// cancels a running deployment, r re-checks the cluster, esc leaves (a
+// running deployment continues in the background).
 func DeployModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
-	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape):
-		ui.IsDeploying = false
+	case binding(ui, action.Escape):
 		ui.ViewState = model.StateDashboard
-		return nil
-	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save):
-		if ui.IsDeploying {
-			return nil
+	case "r":
+		PlanDeploy(ui)
+		return CheckCluster(ui)
+	case "s":
+		if ui.ClusterChecked && !ui.ClusterRunning && ui.MinikubeStartID == 0 && ui.Shells != nil {
+			id, err := ui.Shells.Start(shell.StartOptions{
+				ProjectName: "minikube", Title: "minikube start", Tag: TagMinikube,
+				Argv: []string{"minikube", "start"},
+			})
+			if err != nil {
+				ui.StatusMsg = fmt.Sprintf("❌ minikube start: %v", err)
+				return nil
+			}
+			ui.MinikubeStartID = id
+			ui.StatusMsg = "⏳ Starting minikube (watch it in the session inspector)..."
 		}
+	case "x":
+		if ui.DeployRunning && ui.DeployCancel != nil {
+			ui.DeployCancel()
+			ui.StatusMsg = "⏹ Cancelling deployment..."
+		}
+	case "enter", binding(ui, action.Save):
 		return startDeploy(ui)
 	}
 	return nil
 }
 
-// startDeploy computes the full simulated rollout transcript up-front (pure,
-// deterministic, unit-testable via deploy.Plan) and kicks off the streamed
-// reveal.
 func startDeploy(ui *model.UI) tea.Cmd {
-	namespace := ui.DeployNamespace
-	if namespace == "" {
-		namespace = deploy.DefaultNamespace
-	}
-
-	entries, err := deploy.Plan(ui.Config.Projects, namespace)
-	if err != nil {
-		ui.DeployError = err
-		ui.DeployDone = true
-		ui.StatusMsg = "❌ Deploy: " + err.Error()
+	switch {
+	case ui.DeployRunning:
+		return nil
+	case !ui.ClusterChecked || !ui.ClusterRunning || ui.ClusterErr != nil:
+		ui.StatusMsg = "❌ The local cluster isn't ready - see the checks above"
+		return nil
+	case ui.DeployPlanErr != nil || len(ui.DeployWaves) == 0 || ui.Shells == nil:
+		ui.StatusMsg = "❌ Nothing to deploy"
 		return nil
 	}
-
-	ui.DeployNamespace = namespace
-	ui.DeployScript = deploy.Lines(entries)
-	ui.DeployLogs = nil
-	ui.DeployError = nil
-	ui.DeployDone = false
-	ui.IsDeploying = true
-	return deployTick()
+	ctx, cancel := context.WithCancel(context.Background())
+	ui.DeployRunning, ui.DeployFinished, ui.DeployErr = true, false, nil
+	ui.DeployCancel = cancel
+	ui.DeployProgress = deploy.NewProgress()
+	w, h := ui.TerminalPaneSize()
+	opts := deploy.Options{
+		Sessions: ui.Shells, Cluster: cluster(ui), Parallel: max(ui.MaxParallelism, 1),
+		Width: w, Height: h, Progress: ui.DeployProgress,
+	}
+	waves := ui.DeployWaves
+	ui.StatusMsg = "🚢 Deploying to the local cluster..."
+	return func() tea.Msg {
+		defer cancel()
+		env, err := kube.DockerEnv()
+		if err != nil {
+			return model.DeployFinishedMsg{Err: err}
+		}
+		opts.DockerEnv = env
+		return model.DeployFinishedMsg{Err: deploy.Run(ctx, waves, opts)}
+	}
 }
 
-// DeployTick reveals the next pre-computed line of the simulated rollout and
-// schedules the next tick, or marks the simulation as finished once the
-// whole transcript has been streamed.
-func DeployTick(ui *model.UI) tea.Cmd {
-	if !ui.IsDeploying {
-		return nil
+// DeployFinished stores the outcome of a run.
+func DeployFinished(ui *model.UI, msg model.DeployFinishedMsg) {
+	ui.DeployRunning, ui.DeployFinished, ui.DeployErr, ui.DeployCancel = false, true, msg.Err, nil
+	if msg.Err != nil {
+		ui.StatusMsg = fmt.Sprintf("❌ Deploy failed: %v", msg.Err)
+	} else {
+		ui.StatusMsg = fmt.Sprintf("✅ Deployed to %s/%s", ui.Config.Cluster().Context, ui.Config.Cluster().Namespace)
 	}
-	if len(ui.DeployLogs) >= len(ui.DeployScript) {
-		ui.IsDeploying = false
-		ui.DeployDone = true
-		ui.StatusMsg = "🚢 Simulated workspace rollout complete."
-		return nil
-	}
-
-	ui.DeployLogs = append(ui.DeployLogs, ui.DeployScript[len(ui.DeployLogs)])
-	return deployTick()
 }
 
-func deployTick() tea.Cmd {
-	return tea.Tick(deployTickInterval, func(time.Time) tea.Msg { return deploy.TickMsg{} })
+// MinikubeExited re-checks the cluster after `minikube start` ends.
+func MinikubeExited(ui *model.UI, id int) tea.Cmd {
+	if id != ui.MinikubeStartID {
+		return nil
+	}
+	ui.MinikubeStartID = 0
+	return CheckCluster(ui)
 }
