@@ -399,10 +399,50 @@ error handling, cancel).
 
 ---
 
+## 🗂 Terminal tabs (replaces the fake `sh -c` console)
+
+- **State.** `model.UI` only holds `TerminalTabs` (session IDs), the active
+  tab, and the new-tab picker. Everything else lives in `shell.Manager`. The
+  old `TerminalLogs`/`ActiveTerminalSessionID`/`TerminalSessions` fields, the
+  `terminal` package, and `session.SpawnTerminalSession` (plus its global
+  channel and leaked context) are gone.
+- **Key routing.** `TerminalExecutionModal` checks the five terminal
+  shortcuts first (`TerminalDetach/NewTab/NextTab/PrevTab/CloseTab`, stored
+  by name like every other action). Everything else goes to
+  `Manager.SendKey`. The defaults (ctrl+], alt+t/n/p/w) avoid keys shells
+  and editors use. ctrl+t is handled in `Update` because the dashboard has
+  no access to the Manager. Paste goes to `Manager.Paste` (bracketed when
+  the program asks for it).
+- **Layout and cursor.** The pane is laid out explicitly, not centered with
+  `lipgloss.Place`: 2-column margin, border, 1-column padding, and a tab-bar
+  row. So the screen origin is always `(model.TerminalPaneLeft,
+  model.TerminalPaneTop)`, and `View()` can put the *real* terminal cursor
+  there via `tea.View.Cursor`. `UI.TerminalPaneSize()` is the single source
+  for session size; `WindowSizeMsg` resizes every tab.
+- **Shortcuts screen.** It was a hand-written 17-field format string: it
+  overflowed small windows, Tab never reached the last fields, and it
+  shared the `kbd.Terminal` input with the old terminal's command line
+  (typing a command changed the "Open Terminal" shortcut field). It's now a
+  scrolling list driven by `kbd.ShortcutFields`, and a test checks that
+  every default shortcut except Enter has a field. Opening it from the
+  config deck used to call `LoadShortcutsOnConfig`, copying stale input
+  values *into* the config; both entry points now share
+  `OpenShortcutsConfiguration`.
+- **Checked by hand in tmux (zsh and sh):**
+  - `cd` persists.
+  - vim edits and saves, and esc reaches it.
+  - ctrl+c interrupts `sleep`.
+  - Detach and reattach keep shell state.
+  - The picker, tab switching and the unseen marker work.
+  - Window resizes reach `stty size`.
+  - Rebinding detach via ctrl+k works.
+
+---
+
 ## 🖥 PTY session engine (`shell` package)
 
-This is the foundation for the embedded terminal tabs (PR 4) and for moving
-builds onto real terminals (PR 5). The UI doesn't use it yet.
+This is the foundation for the embedded terminal tabs and for moving builds
+onto real terminals (PR 5).
 
 - **Process.** `creack/pty` starts the process as a session leader with the
   PTY as its controlling terminal. We use it directly rather than

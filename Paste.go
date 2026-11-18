@@ -5,6 +5,7 @@ import (
 	"github.com/exr462/go-dark/fuzzy"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
+	componentaction "github.com/exr462/go-dark/ui/component/action"
 )
 
 // routePaste forwards a bracketed paste to whichever text component the
@@ -28,7 +29,9 @@ func (m *appModel) routePaste(msg tea.PasteMsg) tea.Cmd {
 			fuzzy.FuzzyPreviewPane(m.ui)
 		}
 	case model.StateTerminalCockpit:
-		m.ui.Inputs[kbd.Terminal], cmd = m.ui.Inputs[kbd.Terminal].Update(msg)
+		if m.sessions != nil {
+			componentaction.TerminalPaste(m.ui, m.sessions, msg.Content)
+		}
 	case model.StateGitConfigurationModal, model.StateShortcutConfigurationModal:
 		m.ui.Inputs[m.ui.FocusedInput], cmd = m.ui.Inputs[m.ui.FocusedInput].Update(msg)
 	case model.StateTeamsModal:

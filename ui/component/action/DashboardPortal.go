@@ -72,9 +72,7 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 		// Pass your max concurrency limit (e.g., 4 simultaneous builds)
 		return initializer.InitializeTriggerPipeline(ui).OnAction()
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEditShortcuts):
-		ui.PreviousViewState = model.StateDashboard
-		kbd.LoadShortcutsOnInputs(ui.Config.ShortCuts, ui.Inputs)
-		ui.ViewState = model.StateShortcutConfigurationModal
+		OpenShortcutsConfiguration(ui, model.StateDashboard)
 		return nil
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenFuzzy):
 		if len(ui.Config.Projects) > 0 {
@@ -192,11 +190,6 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 		ui.ViewState = model.StateEditorModal
 		ui.FocusedInput = kbd.EditContent
 		return commandfile.LoadFileCmd(ui, providerFactory)
-	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal):
-		ui.ViewState = model.StateTerminalCockpit
-		// Scrollback persists across reopen, like a real terminal session.
-		ui.FocusedInput = kbd.Terminal
-		return TerminalExecutionModal(ui, msg)
 	}
 
 	return tea.Batch(cmds...)

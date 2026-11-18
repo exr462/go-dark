@@ -11,7 +11,6 @@ import (
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
-	"github.com/exr462/go-dark/terminal"
 )
 
 type BuildSession struct {
@@ -123,29 +122,30 @@ const (
 // UI holds the shared application global model
 type UI struct {
 	// !!! GLOBAL VARIABLES MAPPINGS !!!
-	Config                  config.Config
-	ViewState               ApplicationViewState
-	PreviousViewState       ApplicationViewState
-	WindowWidth             int
-	WindowHeight            int
-	Editor                  textarea.Model
-	ActiveLanguageProvider  lsp.LanguageProvider
-	ActiveFilePath          string     // Absolute path of the file currently loaded into Editor
-	EditorOriginalContent   string     // Snapshot used to detect unsaved edits and to revert on Cancel
-	EditorDirty             bool       // True once Editor.Value() diverges from EditorOriginalContent
-	EditorMode              EditorMode // Vim-style mode: Normal, Insert or Command
-	EditorCommandBuffer     string     // Characters typed after ":" while in Command mode (without the leading ":")
-	EditorPendingKey        string     // Holds a leading key of a two-key Normal-mode combo (e.g. "g" before "gg", "d" before "dd")
-	IsFirstRun              bool
-	Index                   int
-	Spinner                 spinner.Model
-	Progress                progress.Model
-	Prechecks               []Precheck
-	Done                    bool
-	MaxParallelism          int
-	ActiveTerminalSessionID int                           // Tracks current terminal channel handle
-	TerminalLogs            []terminal.LogLine            // Active console feed store
-	TerminalSessions        map[int]terminal.SessionState // Global ongoing background routines registry
+	Config                 config.Config
+	ViewState              ApplicationViewState
+	PreviousViewState      ApplicationViewState
+	WindowWidth            int
+	WindowHeight           int
+	Editor                 textarea.Model
+	ActiveLanguageProvider lsp.LanguageProvider
+	ActiveFilePath         string     // Absolute path of the file currently loaded into Editor
+	EditorOriginalContent  string     // Snapshot used to detect unsaved edits and to revert on Cancel
+	EditorDirty            bool       // True once Editor.Value() diverges from EditorOriginalContent
+	EditorMode             EditorMode // Vim-style mode: Normal, Insert or Command
+	EditorCommandBuffer    string     // Characters typed after ":" while in Command mode (without the leading ":")
+	EditorPendingKey       string     // Holds a leading key of a two-key Normal-mode combo (e.g. "g" before "gg", "d" before "dd")
+	IsFirstRun             bool
+	Index                  int
+	Spinner                spinner.Model
+	Progress               progress.Model
+	Prechecks              []Precheck
+	Done                   bool
+	MaxParallelism         int
+	TerminalTabs           []int // shell.Manager session IDs shown as terminal tabs, in tab order
+	ActiveTerminalTab      int   // Index into TerminalTabs
+	TerminalPicking        bool  // True while choosing the project for a new tab
+	TerminalPickIndex      int   // Highlighted project in the new-tab picker
 
 	// !!! GLOBAL SCREEN ACTIVITIES VARIABLES MAPPINGS !!!
 	ActiveFocus       FocusArea
@@ -239,3 +239,25 @@ type UI struct {
 
 type FileLoadMsg string
 type ConfigRefreshedMsg config.Config
+
+// Terminal pane layout (see component.RenderTerminalExecution): one blank
+// row, then a bordered box (1-cell border, 1-column side padding) whose first
+// row is the tab bar, then the hint line at the very bottom.
+const (
+	TerminalPaneLeft = 4 // margin(2) + border(1) + padding(1)
+	TerminalPaneTop  = 3 // blank row(1) + border(1) + tab bar(1)
+)
+
+// TerminalPaneSize is the size, in cells, of the embedded terminal screen
+// for the current window. Sessions are started and resized to it.
+func (ui *UI) TerminalPaneSize() (width, height int) {
+	return max(ui.WindowWidth-2*TerminalPaneLeft, 20), max(ui.WindowHeight-TerminalPaneTop-3, 5)
+}
+
+// ActiveTerminalSession returns the session ID of the active tab, or 0.
+func (ui *UI) ActiveTerminalSession() int {
+	if ui.ActiveTerminalTab < 0 || ui.ActiveTerminalTab >= len(ui.TerminalTabs) {
+		return 0
+	}
+	return ui.TerminalTabs[ui.ActiveTerminalTab]
+}

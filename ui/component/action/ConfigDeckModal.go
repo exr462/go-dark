@@ -64,11 +64,7 @@ func ConfigDeckModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 
 		case 3:
-			ui.ViewState = model.StateShortcutConfigurationModal
-			ui.FocusedInput = kbd.FuzzyKey
-			kbd.LoadShortcutsOnConfig(ui.Config.ShortCuts, ui.Inputs)
-			ui.Inputs[kbd.FuzzyKey].Focus()
-			// Save dynamic values safely across memory pointers
+			OpenShortcutsConfiguration(ui, model.StateConfigDeckModal)
 			ui.SelectedMenuIndex = 0
 			return nil
 

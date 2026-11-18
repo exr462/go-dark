@@ -34,9 +34,15 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDocker), "Docker Control: Monitor container status, start/stop/restart"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenJdk), "JDK Manager: Register JAVA_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenMvn), "Maven Manager: Register MAVEN_HOME profiles and bind to projects"))
-	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Opens the terminal"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Terminal: real shells in tabs, one per project; they keep running in the background"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy), "Deploy Console: Simulate a dependency-ordered Rancher/Kubernetes rollout"))
 	body.WriteString("\n")
+
+	body.WriteString(decorator.Section.Render("🖥 TERMINAL (every other key goes to the shell)") + "\n")
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalDetach), "Back to the dashboard; shells keep running"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalNewTab), "New tab: pick any project"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalPrevTab)+" / "+action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalNextTab), "Previous / next tab"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.TerminalCloseTab), "Close tab (ends its shell)") + "\n")
 
 	body.WriteString(decorator.Section.Render("✍️ DIALOGS & FORMS NAVIGATION") + "\n")
 	body.WriteString(decorator.Row("Tab / Down", "Move cursor focus forward to next field"))

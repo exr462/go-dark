@@ -39,8 +39,6 @@ func (m *appModel) render() string {
 		return component.RenderOpenEditor(m.ui)
 	case model.StateSystemCheckModal:
 		return component.RenderSystemCheck(m.ui)
-	case model.StateTerminalCockpit:
-		return component.RenderTerminalExecution(m.ui)
 	case model.StateDeployModal:
 		return component.RenderDeployModal(m.ui)
 	case model.StateTeamsModal:
@@ -64,6 +62,13 @@ func (m *appModel) render() string {
 //
 //goland:noinspection GoMixedReceiverTypes
 func (m *appModel) View() tea.View {
+	if m.ui.ViewState == model.StateTerminalCockpit && m.sessions != nil {
+		content, cursor := component.RenderTerminalExecution(m.ui, m.sessions)
+		v := tea.NewView(content)
+		v.AltScreen = true
+		v.Cursor = cursor
+		return v
+	}
 	v := tea.NewView(m.render())
 	v.AltScreen = true
 	return v

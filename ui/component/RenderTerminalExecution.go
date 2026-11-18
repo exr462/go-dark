@@ -2,128 +2,149 @@ package component
 
 import (
 	"fmt"
-	"github.com/exr462/go-dark/ui/decorator"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/exr462/go-dark/action"
-	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/model"
+	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/ui/color"
+	"github.com/exr462/go-dark/ui/decorator"
 )
 
 var (
-	// termGlassStyle is the "glass pane" of the emulator: a near-black
-	// background with a rounded border, styled to look like a real Linux
-	// terminal window rather than a plain modal box.
-	termGlassStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#11111B")).
+	termBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(color.Mauve).
 			Padding(0, 1)
-
-	termChromeStyle = lipgloss.NewStyle().Foreground(color.Overlay0)
-	termPromptStyle = lipgloss.NewStyle().Foreground(color.Green).Bold(true)
-	termOutStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4"))
-	termErrStyle    = lipgloss.NewStyle().Foreground(color.Red)
-	termHintStyle   = lipgloss.NewStyle().Foreground(color.Overlay0)
-	termKeyStyle    = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
-	termWelcomeMsg  = lipgloss.NewStyle().Foreground(color.Overlay0).Italic(true)
+	termTabStyle       = lipgloss.NewStyle().Foreground(color.Subtext0)
+	termActiveTabStyle = lipgloss.NewStyle().Foreground(color.Crust).Background(color.Mauve).Bold(true)
+	termHintStyle      = lipgloss.NewStyle().Foreground(color.Overlay0)
+	termKeyStyle       = lipgloss.NewStyle().Foreground(color.Yellow).Bold(true)
+	termExitedStyle    = lipgloss.NewStyle().Foreground(color.Red).Bold(true)
 )
 
-// RenderTerminalExecution draws a large, real-terminal-style interactive
-// console: previously run commands and their output scroll by above a live
-// shell prompt at the bottom, just like a genuine Linux terminal emulator -
-// instead of two small, separately-labelled "input" and "output" boxes.
-func RenderTerminalExecution(ui *model.UI) string {
-	ui.Inputs[kbd.Terminal].Focus()
+// RenderTerminalExecution draws the embedded terminal: a tab bar and the
+// active session's screen inside a bordered pane, plus a hint line. It
+// returns where the real terminal cursor belongs (nil to hide it). The
+// layout matches model.TerminalPaneLeft/Top and model.UI.TerminalPaneSize.
+func RenderTerminalExecution(ui *model.UI, sessions *shell.Manager) (string, *tea.Cursor) {
+	paneW, paneH := ui.TerminalPaneSize()
+	active := sessions.Get(ui.ActiveTerminalSession())
 
-	projectName := "go-dark"
-	if ui.SelectedGitProject >= 0 && ui.SelectedGitProject < len(ui.Config.Projects) {
-		projectName = ui.Config.Projects[ui.SelectedGitProject].Name
-	}
-
-	promptPrefix := fmt.Sprintf("dev@%s:~$ ", projectName)
-	ui.Inputs[kbd.Terminal].Prompt = ""
-
-	// Use almost the entire available viewport so the console feels like a
-	// real, maximized terminal window rather than a cramped popup.
-	glassWidth := max(ui.WindowWidth-6, 20)
-	glassHeight := max(ui.WindowHeight-4, 10)
-	innerWidth := max(glassWidth-4, 16)  // minus border(2) + horizontal padding(2)
-	innerHeight := max(glassHeight-2, 6) // minus border(2)
-
-	titleBar := termChromeStyle.Render(fmt.Sprintf("● ● ●  %s — bash — %dx%d", projectName, innerWidth, innerHeight))
-	hint := termHintStyle.Render(fmt.Sprintf(
-		"[%s] run command   [%s] exit terminal",
-		termKeyStyle.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Enter)),
-		termKeyStyle.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Escape)),
-	))
-
-	// Reserve rows for: title bar, blank separator, live prompt line.
-	scrollbackHeight := max(innerHeight-3, 3)
-
-	var rendered []string
-	if len(ui.TerminalLogs) == 0 {
-		rendered = append(rendered, termWelcomeMsg.Render("Welcome to the go-dark shell. Type a command below and press Enter to run it in the selected project's directory."))
-	}
-	for _, log := range ui.TerminalLogs {
-		for _, wrapped := range wrapTerminalLine(log.Text, innerWidth) {
-			switch {
-			case log.IsPrompt:
-				rendered = append(rendered, termPromptStyle.Render(wrapped))
-			case log.IsErr:
-				rendered = append(rendered, termErrStyle.Render(wrapped))
-			default:
-				rendered = append(rendered, termOutStyle.Render(wrapped))
-			}
+	var body []string
+	var cursor *tea.Cursor
+	switch {
+	case ui.TerminalPicking:
+		body = renderTerminalPicker(ui, paneH)
+	case active != nil:
+		body = strings.Split(active.Render(), "\n")
+		if x, y, visible := active.Cursor(); visible && active.Running() && x < paneW && y < paneH {
+			cursor = tea.NewCursor(model.TerminalPaneLeft+x, model.TerminalPaneTop+y)
 		}
+	default:
+		body = []string{decorator.Meta.Render("No terminal open.")}
 	}
 
-	startIdx := 0
-	if len(rendered) > scrollbackHeight {
-		startIdx = len(rendered) - scrollbackHeight
+	lines := make([]string, 0, paneH+1)
+	lines = append(lines, fitLine(renderTerminalTabs(ui, sessions), paneW))
+	for i := range paneH {
+		line := ""
+		if i < len(body) {
+			line = body[i]
+		}
+		lines = append(lines, fitLine(line, paneW))
 	}
-	visible := append([]string{}, rendered[startIdx:]...)
-	for len(visible) < scrollbackHeight {
-		visible = append([]string{""}, visible...)
+
+	box := termBoxStyle.
+		Width(paneW + 2 + decorator.BorderFrame).
+		Height(paneH + 1 + decorator.BorderFrame).
+		Render(strings.Join(lines, "\n"))
+
+	margin := strings.Repeat(" ", model.TerminalPaneLeft-2)
+	var out strings.Builder
+	out.WriteString("\n")
+	for _, l := range strings.Split(box, "\n") {
+		out.WriteString(margin + l + "\n")
 	}
-
-	livePrompt := termPromptStyle.Render(promptPrefix) + ui.Inputs[kbd.Terminal].View()
-
-	content := strings.Join([]string{
-		titleBar,
-		strings.Join(visible, "\n"),
-		livePrompt,
-	}, "\n")
-
-	termBox := termGlassStyle.Width(innerWidth + decorator.BorderFrame).Height(innerHeight + decorator.BorderFrame).Render(content)
-
-	return lipgloss.Place(
-		ui.WindowWidth, ui.WindowHeight,
-		lipgloss.Center, lipgloss.Center,
-		lipgloss.JoinVertical(lipgloss.Center, termBox, hint),
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(color.Crust)),
-	)
+	out.WriteString(margin + ansi.Truncate(renderTerminalHint(ui, active), max(ui.WindowWidth-len(margin), 0), "…"))
+	return out.String(), cursor
 }
 
-// wrapTerminalLine hard-wraps a single log line to the console width so long
-// output (stack traces, long paths, etc.) doesn't get silently truncated,
-// matching how a real terminal emulator soft-wraps overflowing lines.
-func wrapTerminalLine(text string, width int) []string {
-	if width <= 0 {
-		return []string{text}
+// fitLine truncates or pads an ANSI-styled line to exactly width cells.
+func fitLine(line string, width int) string {
+	line = ansi.Truncate(line, width, "")
+	if pad := width - ansi.StringWidth(line); pad > 0 {
+		line += "\x1b[m" + strings.Repeat(" ", pad)
 	}
-	if text == "" {
-		return []string{""}
-	}
+	return line + "\x1b[m"
+}
 
-	var lines []string
-	for len(text) > width {
-		lines = append(lines, text[:width])
-		text = text[width:]
+func renderTerminalTabs(ui *model.UI, sessions *shell.Manager) string {
+	var tabs []string
+	for i, id := range ui.TerminalTabs {
+		s := sessions.Get(id)
+		if s == nil {
+			continue
+		}
+		label := fmt.Sprintf(" %d %s ", i+1, s.Title)
+		switch {
+		case !s.Running():
+			label = fmt.Sprintf(" %d %s ✗ ", i+1, s.Title)
+		case s.Unseen() && i != ui.ActiveTerminalTab:
+			label = fmt.Sprintf(" %d %s* ", i+1, s.Title)
+		}
+		if i == ui.ActiveTerminalTab && !ui.TerminalPicking {
+			tabs = append(tabs, termActiveTabStyle.Render(label))
+		} else {
+			tabs = append(tabs, termTabStyle.Render(label))
+		}
 	}
-	lines = append(lines, text)
+	if ui.TerminalPicking {
+		tabs = append(tabs, termActiveTabStyle.Render(" + new tab "))
+	}
+	return strings.Join(tabs, termTabStyle.Render("│"))
+}
+
+func renderTerminalPicker(ui *model.UI, height int) []string {
+	lines := []string{decorator.Title.Render("Open a new terminal in:"), ""}
+	if len(ui.Config.Projects) == 0 {
+		return append(lines, decorator.Meta.Render("  (no projects - enter opens a shell in your home directory)"))
+	}
+	visible := max(height-len(lines), 1)
+	start := max(min(ui.TerminalPickIndex-visible/2, len(ui.Config.Projects)-visible), 0)
+	end := min(start+visible, len(ui.Config.Projects))
+	for i := start; i < end; i++ {
+		p := ui.Config.Projects[i]
+		row := fmt.Sprintf("%s  %s", p.ID, p.Path)
+		if i == ui.TerminalPickIndex {
+			lines = append(lines, decorator.Selected.Render("> "+row))
+		} else {
+			lines = append(lines, decorator.InactivePlain.Render("  "+row))
+		}
+	}
 	return lines
+}
+
+func renderTerminalHint(ui *model.UI, active *shell.Session) string {
+	key := func(a action.Action) string {
+		return termKeyStyle.Render(action.GetShortcutKeyBinding(ui.Config.ShortCuts, a))
+	}
+	if ui.TerminalPicking {
+		return termHintStyle.Render(fmt.Sprintf("[%s/%s] choose  [%s] open  [%s] cancel",
+			termKeyStyle.Render("↑"), termKeyStyle.Render("↓"), termKeyStyle.Render("enter"), termKeyStyle.Render("esc")))
+	}
+	hint := termHintStyle.Render(fmt.Sprintf("[%s] dashboard  [%s] new tab  [%s/%s] switch  [%s] close tab",
+		key(action.TerminalDetach), key(action.TerminalNewTab),
+		key(action.TerminalPrevTab), key(action.TerminalNextTab), key(action.TerminalCloseTab)))
+	if active != nil && !active.Running() {
+		status := "process exited"
+		if err := active.ExitErr(); err != nil {
+			status = fmt.Sprintf("process exited: %v", err)
+		}
+		hint = termExitedStyle.Render(status+" - enter closes the tab") + "  " + hint
+	}
+	return hint
 }

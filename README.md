@@ -79,12 +79,21 @@ cursor's line in view.
 
 ### Interactive terminal
 Shortcut: ctrl+t\
-Opens a full-size, real-terminal-style console (prompt, scrolling
-command/output history, dark "glass" window chrome) that runs shell
-commands inside the selected project's directory. Output streams in live
-underneath the command you just ran, and scrollback persists across
-reopens like a real shell session. Enter runs the command, esc exits
-(blocked while a command is still running).
+Opens a real shell (your `$SHELL`, as a login shell) in the selected project's folder, with that
+project's JDK/Maven profile on `PATH`. It is a genuine terminal: `cd` and exported variables stick,
+`vim`, `less`, `htop` and friends work, and esc / ctrl+c / ctrl+d reach the program as usual.
+Shells keep running when you go back to the dashboard (the footer shows how many), so you can
+come back to a long-running command later.
+
+| Key (default) | Action |
+|---|---|
+| ctrl+] | back to the dashboard (shells keep running) |
+| alt+t | new tab - pick any project |
+| alt+n / alt+p | next / previous tab |
+| alt+w | close the tab (ends its shell) |
+
+All of these can be changed with ctrl+k. A `*` on a tab means it printed something you haven't
+seen; `✗` means its shell exited (enter closes it). Not available on Windows yet.
 
 ### Teams & projects
 Shortcut: ctrl+y → "Manage Team Manifests" / "Manage Projects"\

@@ -17,15 +17,12 @@ import (
 	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/docker"
 	"github.com/exr462/go-dark/initializer"
-	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/model"
-	"github.com/exr462/go-dark/session"
 	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/state"
 	"github.com/exr462/go-dark/task"
 	"github.com/exr462/go-dark/team"
-	"github.com/exr462/go-dark/terminal"
 	componentaction "github.com/exr462/go-dark/ui/component/action"
 	componentmessage "github.com/exr462/go-dark/ui/component/message"
 	"github.com/exr462/go-dark/window"
@@ -89,24 +86,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.SelectedGitBranch = 0
 		return m, nil
 
-	case session.LogStreamMsg:
-		// 1. Thread-safely append the log message directly inside the main UI loop!
-		m.ui.TerminalLogs = append(m.ui.TerminalLogs, terminal.LogLine{
-			Text:  msg.Text,
-			IsErr: msg.IsErr,
-		})
-
-		// 2. CRITICAL: Continue listening for the NEXT log block line by re-calling the command loop!
-		return m, session.ListenForLogs()
-
 	case shell.OutputMsg, shell.ExitedMsg:
 		// The terminal pane renders straight from the session on the next
 		// frame; here we only keep the event loop going.
 		return m, m.listenSessions()
-
-	case session.LogProcessFinishedMsg:
-		m.ui.IsBuilding = false
-		return m, nil
 
 	case config.GitBranchesErrorMsg:
 		m.ui.AvailableBranches = []string{"main"}
@@ -129,7 +112,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, componentaction.DeployTick(m.ui)
 
 	case tea.WindowSizeMsg:
-		return m, window.Size(m.ui, msg)
+		cmd := window.Size(m.ui, msg)
+		if m.sessions != nil {
+			componentaction.ResizeTerminals(m.ui, m.sessions)
+		}
+		return m, cmd
 
 	case model.FileLoadMsg:
 		cmds = commandfile.FileLoad(m.ui, cmds)
@@ -294,14 +281,11 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateProjectsModal:
 			return m, componentaction.ProjectsModal(m.ui, msg)
 		case model.StateTerminalCockpit:
-			var cmd tea.Cmd
-
-			// 1. ALWAYS unconditionally forward EVERY message (blinks, ticks, etc.) to the input component
-			m.ui.Inputs[kbd.Terminal], cmd = m.ui.Inputs[kbd.Terminal].Update(msg)
-
-			// 2. Intercept keys explicitly for shortcuts and actions
-			actionCmd := componentaction.TerminalExecutionModal(m.ui, msg)
-			return m, tea.Batch(cmd, actionCmd)
+			if m.sessions == nil {
+				m.ui.ViewState = model.StateDashboard
+				return m, nil
+			}
+			return m, componentaction.TerminalExecutionModal(m.ui, m.sessions, msg)
 		case model.StateDependencyConfigModal:
 			// 🔍 SAFE VALIDATION INSIDE TARGET CONTEXT
 			if config.FindProject(m.ui.Config.Projects, m.ui.DepScreen.ActiveProjectID) < 0 {
@@ -312,6 +296,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case model.StateDashboard:
 			fallthrough
 		default:
+			if m.sessions != nil && msg.String() == action.GetShortcutKeyBinding(m.ui.Config.ShortCuts, action.OpenTerminal) {
+				return m, componentaction.OpenTerminal(m.ui, m.sessions)
+			}
 			return m, componentaction.DashboardPortal(m.ui, m.providerFactory, msg)
 		}
 	}
