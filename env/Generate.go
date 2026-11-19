@@ -329,10 +329,18 @@ spec:
         app.kubernetes.io/name: oracle
     spec:
       # hostPath ignores fsGroup: hand the directory to the image's oracle user.
+      # The image counts the database as created once dbconfig/FREE exists;
+      # data files without it are an interrupted first unpack (a full disk,
+      # a restart), which 7z would stop on ("Break signaled"), so they go.
       initContainers:
         - name: chown
           image: busybox:1.36
-          command: ["sh", "-c", "chown -R 54321:54321 /opt/oracle/oradata"]
+          command:
+            - sh
+            - -c
+            - |
+              [ -d /opt/oracle/oradata/dbconfig/FREE ] || rm -rf /opt/oracle/oradata/FREE
+              chown -R 54321:54321 /opt/oracle/oradata
           volumeMounts:
             - name: data
               mountPath: /opt/oracle/oradata

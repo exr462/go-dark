@@ -144,10 +144,16 @@ func TestPreflight_PortsHeldByTheOldSandboxNameItAndHowToStopIt(t *testing.T) {
 
 func TestPreflight_OwnContainerHoldingThePortsIsFine(t *testing.T) {
 	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "8 8345035776", "docker compose version": "v2",
-		"docker ps":   "go-dark-rail-rancher|go-dark-rail|0.0.0.0:80->30080/tcp, 0.0.0.0:443->30443/tcp, 127.0.0.1:6550->6443/tcp\n",
-		"docker port": "0.0.0.0:80\n"}, "80", "443", "6550")
+		"docker ps": "go-dark-rail-rancher|go-dark-rail|0.0.0.0:80->30080/tcp, 0.0.0.0:443->30443/tcp, 127.0.0.1:6550->6443/tcp\n",
+		// Real output: container port -> host address; host 80 is container 30080.
+		"docker port": "6443/tcp -> 127.0.0.1:6550\n30080/tcp -> 0.0.0.0:80\n30080/tcp -> [::]:80\n30443/tcp -> 0.0.0.0:443\n30443/tcp -> [::]:443\n"}, "80", "443", "6550")
 	checks := Preflight(e)
-	if Blocking(checks) || byName(checks)["port 80"].Detail != "published by go-dark-rail-rancher" {
+	if Blocking(checks) {
 		t.Fatalf("repairing a running environment must pass: %+v", checks)
+	}
+	for _, port := range []string{"port 80", "port 443", "port 6550"} {
+		if byName(checks)[port].Detail != "published by go-dark-rail-rancher" {
+			t.Errorf("%s: %+v", port, byName(checks)[port])
+		}
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"github.com/exr462/go-dark/examples"
 )
 
 func writeManifest(t *testing.T, team Team, body string) {
@@ -228,4 +230,70 @@ func TestLoadConfig_DependencyEditSurvivesRestart(t *testing.T) {
 	if api := reloaded.Projects[FindProject(reloaded.Projects, "rail/api")]; len(api.DependsOn) != 0 {
 		t.Fatalf("dependency edit must survive a restart, got %v", api.DependsOn)
 	}
+}
+
+func TestRefreshProjects_FreshProfileGetsTheBuiltinTeam(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ensureConfigDir(t)
+	builtin, err := LoadManifest(writeTemp(t, examples.Belgiantrain))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// What the first-run form does once the workspace path is entered.
+	cfg := Config{BasePath: "/ws", Projects: []Project{}}
+	cfg.RefreshProjects()
+
+	if len(cfg.Teams) != 1 || !cfg.Teams[0].Builtin || cfg.Teams[0].Manifest != builtin.Team {
+		t.Fatalf("a fresh profile must start with the built-in team, got %+v", cfg.Teams)
+	}
+	if len(cfg.Projects) != len(builtin.Projects) || FindProject(cfg.Projects, "belgiantrain/til-order") < 0 {
+		t.Fatalf("expected the %d built-in projects, got %d", len(builtin.Projects), len(cfg.Projects))
+	}
+	if p := cfg.Projects[FindProject(cfg.Projects, "belgiantrain/til-order")]; p.Path != filepath.Join("/ws", "til-order") {
+		t.Fatalf("projects resolve against the workspace, got %q", p.Path)
+	}
+	if len(cfg.Environments) != 1 {
+		t.Fatalf("the built-in manifest's environment must be available, got %d", len(cfg.Environments))
+	}
+
+	// Saved and loaded again: still there, not duplicated.
+	_ = SaveConfig(cfg)
+	again, firstRun := LoadConfig()
+	if firstRun || len(again.Teams) != 1 || len(again.Projects) != len(builtin.Projects) {
+		t.Fatalf("reload must keep one built-in team and its projects, got %d teams, %d projects", len(again.Teams), len(again.Projects))
+	}
+}
+
+func TestRefreshProjects_NoBuiltinWhenTheProfileHasProjects(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ensureConfigDir(t)
+	cfg := Config{BasePath: "/ws", Projects: []Project{{ID: "local/tool", Source: LocalSource, Name: "tool", Type: "go"}}}
+	cfg.RefreshProjects()
+	if len(cfg.Teams) != 0 || len(cfg.Projects) != 1 {
+		t.Fatalf("a profile with its own projects is left alone, got %+v", cfg.Teams)
+	}
+}
+
+func TestRefreshProjects_GitTeamReplacesTheBuiltin(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ensureConfigDir(t)
+	real := Team{Name: "go-dark-team", GitURL: "git@host:bt/go-dark-team.git", Manifest: "belgiantrain"}
+	writeManifest(t, real, `{"team":"belgiantrain","projects":[{"name":"til-order","type":"maven"}]}`)
+
+	cfg := Config{BasePath: "/ws", Teams: []Team{BuiltinTeam(), real}}
+	cfg.RefreshProjects()
+
+	if len(cfg.Teams) != 1 || cfg.Teams[0].Builtin || len(cfg.Projects) != 1 {
+		t.Fatalf("the subscribed repo replaces the built-in team, got %+v / %d projects", cfg.Teams, len(cfg.Projects))
+	}
+}
+
+func writeTemp(t *testing.T, data []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), ManifestFileName)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

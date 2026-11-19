@@ -34,7 +34,7 @@ case "$*" in
   "compose version") echo v2;;
   "ps "*) echo "other|otherproj|0.0.0.0:8080->80/tcp";;
   "inspect "*) echo true;;
-  "port "*) echo "0.0.0.0:80";;
+  "port "*) printf "6443/tcp -> 127.0.0.1:6550\n30080/tcp -> 0.0.0.0:80\n30443/tcp -> 0.0.0.0:443\n";;
   *"cat /etc/rancher/k3s/k3s.yaml") printf '%s' "$(cat <<'EOF'
 ` + kubeconfig + `EOF
 )";;
@@ -50,8 +50,7 @@ case "$*" in
   *"get --raw /metrics"*) echo 'apiserver_storage_size_bytes{cluster="etcd-0"} 2.3e+07';;
   *"get nodes"*) echo 172.18.0.2;;
   *"get configmap coredns"*) printf '.:53 {\n    forward . /etc/resolv.conf\n}\n';;
-  *"create configmap coredns"*) echo "apiVersion: v1\nkind: ConfigMap\ndata:\n  Corefile: patched";;
-  *"current-context") echo azr-prd-idas-aks01;;
+  *"current-context}") echo azr-prd-idas-aks01;;
   *"exec -i oracle-0"*) case "$in" in *"select count(*)"*) echo 2;; esac;;
   *"get deployment"*|*"get statefulset"*) echo "1/1";;
 esac`,
@@ -109,7 +108,9 @@ func TestInstall_RunsEveryStepThroughTheExplicitContext(t *testing.T) {
 		"kubectl config set-credentials go-dark-rail --client-certificate",
 		"kubectl config set-context go-dark-rail --cluster go-dark-rail --user go-dark-rail --namespace til-lcl",
 		"kubectl --context go-dark-rail get --raw /readyz",
-		"kubectl --context go-dark-rail -n kube-system apply -f - <<< apiVersion",
+		// The patched Corefile itself, not an empty one.
+		`kubectl --context go-dark-rail -n kube-system patch configmap coredns --type merge -p {"data":{"Corefile":".:53 {`,
+		"    forward . 192.168.65.7",
 		"kubectl --context go-dark-rail -n kube-system rollout restart deploy/coredns",
 		"kubectl --context go-dark-rail apply -f " + dir + "/platform",
 		"kubectl --context go-dark-rail -n nginx-ingress rollout status deploy/nginx-ingress-controller",
@@ -201,7 +202,8 @@ func TestStartStopUninstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := calls(t, log)
-	for _, want := range []string{"docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml start", "docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml stop\n",
+	for _, want := range []string{"docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml start",
+		"kubectl --context go-dark-rail -n kube-system patch configmap coredns", "docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml stop\n",
 		"docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml down\n", "kubectl config delete-context go-dark-rail", "kubectl config delete-cluster go-dark-rail"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
@@ -284,5 +286,37 @@ func TestCLI(t *testing.T) {
 	argv := Argv("/bin/go-dark", "install", manifest, Inputs{Dir: dir, ProjectDirs: []string{"/ws/til-order"}}, "pw", false)
 	if strings.Join(argv, " ") != "/bin/go-dark env install --manifest "+manifest+" --dir "+dir+" --project-dir /ws/til-order --db-password pw" {
 		t.Fatalf("argv %q", argv)
+	}
+}
+
+func TestPressures(t *testing.T) {
+	got := pressures("EtcdIsVoter=True\nMemoryPressure=False\nDiskPressure=True\nPIDPressure=False\nReady=True\n")
+	if len(got) != 1 || got[0] != "DiskPressure" {
+		t.Fatalf("pressures %v", got)
+	}
+	if pressures("172.18.0.2") != nil {
+		t.Fatal("no conditions, no pressure")
+	}
+}
+
+func TestWaitPods_NamesTheNodePressure(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\ncase \"$*\" in *\"get nodes\"*) printf 'DiskPressure=True\\nReady=True\\n';; esac\n"
+	if err := os.WriteFile(filepath.Join(bin, "kubectl"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	orig := pollInterval
+	pollInterval = time.Millisecond
+	t.Cleanup(func() { pollInterval = orig })
+	var out bytes.Buffer
+	r := &runner{ctx: context.Background(), w: &out}
+
+	err := r.waitPods(rail, "nginx ingress", 50*time.Millisecond, func() bool { return false })
+	if err == nil || !strings.Contains(err.Error(), "not ready after") || !strings.Contains(err.Error(), "the node reports DiskPressure") {
+		t.Fatalf("error %v", err)
+	}
+	if n := strings.Count(out.String(), "the node reports DiskPressure"); n != 1 {
+		t.Fatalf("reported %d times, want once:\n%s", n, out.String())
 	}
 }

@@ -124,6 +124,7 @@ func TestFiles_GeneratesTheInstallDirectory(t *testing.T) {
 
 	oracle := yamlDocs(t, files["platform/40-oracle.yaml"])
 	if len(oracle) != 3 || oracle[2]["kind"] != "StatefulSet" || !strings.Contains(string(files["platform/40-oracle.yaml"]), "chown -R 54321:54321") ||
+		!strings.Contains(string(files["platform/40-oracle.yaml"]), "[ -d /opt/oracle/oradata/dbconfig/FREE ] || rm -rf /opt/oracle/oradata/FREE") ||
 		!strings.Contains(string(files["platform/40-oracle.yaml"]), "path: /var/lib/rancher/go-dark/oracle") || !strings.Contains(string(files["platform/40-oracle.yaml"]), "password: changeit_local") {
 		t.Fatalf("oracle manifests: %s", files["platform/40-oracle.yaml"])
 	}
