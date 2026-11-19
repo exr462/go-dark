@@ -50,8 +50,7 @@ case "$*" in
   *"get --raw /metrics"*) echo 'apiserver_storage_size_bytes{cluster="etcd-0"} 2.3e+07';;
   *"get nodes"*) echo 172.18.0.2;;
   *"get configmap coredns"*) printf '.:53 {\n    forward . /etc/resolv.conf\n}\n';;
-  *"create configmap coredns"*) echo "apiVersion: v1\nkind: ConfigMap\ndata:\n  Corefile: patched";;
-  *"current-context") echo azr-prd-idas-aks01;;
+  *"current-context}") echo azr-prd-idas-aks01;;
   *"exec -i oracle-0"*) case "$in" in *"select count(*)"*) echo 2;; esac;;
   *"get deployment"*|*"get statefulset"*) echo "1/1";;
 esac`,
@@ -109,7 +108,9 @@ func TestInstall_RunsEveryStepThroughTheExplicitContext(t *testing.T) {
 		"kubectl config set-credentials go-dark-rail --client-certificate",
 		"kubectl config set-context go-dark-rail --cluster go-dark-rail --user go-dark-rail --namespace til-lcl",
 		"kubectl --context go-dark-rail get --raw /readyz",
-		"kubectl --context go-dark-rail -n kube-system apply -f - <<< apiVersion",
+		// The patched Corefile itself, not an empty one.
+		`kubectl --context go-dark-rail -n kube-system patch configmap coredns --type merge -p {"data":{"Corefile":".:53 {`,
+		"    forward . 192.168.65.7",
 		"kubectl --context go-dark-rail -n kube-system rollout restart deploy/coredns",
 		"kubectl --context go-dark-rail apply -f " + dir + "/platform",
 		"kubectl --context go-dark-rail -n nginx-ingress rollout status deploy/nginx-ingress-controller",
@@ -201,7 +202,8 @@ func TestStartStopUninstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := calls(t, log)
-	for _, want := range []string{"docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml start", "docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml stop\n",
+	for _, want := range []string{"docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml start",
+		"kubectl --context go-dark-rail -n kube-system patch configmap coredns", "docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml stop\n",
 		"docker compose -p go-dark-rail -f " + dir + "/docker-compose.yaml down\n", "kubectl config delete-context go-dark-rail", "kubectl config delete-cluster go-dark-rail"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)

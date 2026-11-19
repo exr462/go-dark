@@ -3,6 +3,7 @@ package env
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -293,8 +294,13 @@ func writeContext(r *runner, e Env) error {
 	}); err != nil {
 		return fmt.Errorf("%w: context written but the API doesn't answer on 127.0.0.1:%d (is the port published?)", err, APIPort)
 	}
-	current, _ := r.capture("", "kubectl", "config", "current-context")
-	r.info("kubectl --context %s works; current context unchanged (%s)", ctx, strings.TrimSpace(current))
+	// config view prints nothing when no current context is set, where
+	// `config current-context` would log an error.
+	current, _ := r.capture("", "kubectl", "config", "view", "-o", "jsonpath={.current-context}")
+	if current = strings.TrimSpace(current); current == "" {
+		current = "none set"
+	}
+	r.info("kubectl --context %s works; current context unchanged (%s)", ctx, current)
 	return nil
 }
 
@@ -334,21 +340,13 @@ func fixCoreDNS(r *runner, e Env) error {
 		return nil
 	}
 	r.info("forwarding to %s", upstream)
-	manifest, err := r.capture("", "kubectl", e.kubectl("-n", "kube-system", "create", "configmap", "coredns", "--from-file=Corefile=/dev/stdin", "--dry-run=client", "-o", "yaml")...)
-	if err != nil || !strings.Contains(manifest, "Corefile") {
-		// /dev/stdin isn't available everywhere; write the file instead.
-		tmp, werr := os.CreateTemp("", "Corefile")
-		if werr != nil {
-			return werr
-		}
-		defer os.Remove(tmp.Name())
-		_, _ = tmp.WriteString(patched)
-		_ = tmp.Close()
-		if manifest, err = r.capture("", "kubectl", e.kubectl("-n", "kube-system", "create", "configmap", "coredns", "--from-file=Corefile="+tmp.Name(), "--dry-run=client", "-o", "yaml")...); err != nil {
-			return err
-		}
+	// A merge patch carries the Corefile inline: no stdin, no temp file, and
+	// it works the same on Windows.
+	patch, err := json.Marshal(map[string]any{"data": map[string]string{"Corefile": patched}})
+	if err != nil {
+		return err
 	}
-	if err := r.run(manifest, "kubectl", e.kubectl("-n", "kube-system", "apply", "-f", "-")...); err != nil {
+	if err := r.run("", "kubectl", e.kubectl("-n", "kube-system", "patch", "configmap", "coredns", "--type", "merge", "-p", string(patch))...); err != nil {
 		return err
 	}
 	if err := r.run("", "kubectl", e.kubectl("-n", "kube-system", "rollout", "restart", "deploy/coredns")...); err != nil {
@@ -407,7 +405,8 @@ func installed(in Inputs) bool {
 	return err == nil
 }
 
-// Start starts a stopped environment and waits for its API.
+// Start starts a stopped environment, waits for its API and re-applies the
+// CoreDNS upstream, which k3s resets to its stock Corefile when it boots.
 func Start(ctx context.Context, e Env, in Inputs, w io.Writer) error {
 	r := &runner{ctx: ctx, w: w, dir: in.Dir}
 	r.step("Starting %s", e.Container())
@@ -421,9 +420,12 @@ func Start(ctx context.Context, e Env, in Inputs, w io.Writer) error {
 	if err := waitK3s(r, e); err != nil {
 		return err
 	}
-	return r.waitFor("API on 127.0.0.1", time.Minute, func() bool {
+	if err := r.waitFor("API on 127.0.0.1", time.Minute, func() bool {
 		return r.quiet("kubectl", e.kubectl("get", "--raw", "/readyz")...)
-	})
+	}); err != nil {
+		return err
+	}
+	return fixCoreDNS(r, e)
 }
 
 // Stop stops the environment; the cluster and its data are kept.
