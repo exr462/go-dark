@@ -47,12 +47,16 @@ func JDKModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			switcheroo(ui, kbd.JdkName, kbd.JdkPath)
 		case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save):
 			jName, jPath := getValues(ui, kbd.JdkName, kbd.JdkPath)
-			if jName != "" && jPath != "" {
-				ui.Config.JDKs = append(ui.Config.JDKs, config.Profile{Name: jName, Path: jPath})
-				_ = config.SaveConfig(ui.Config)
-				ui.StatusMsg = fmt.Sprintf("✅ Added Java Profile: %s", jName)
+			if jName == "" || jPath == "" {
+				return nil // both fields are required; stay on the form
 			}
+			ui.Config.JDKs = append(ui.Config.JDKs, config.Profile{Name: jName, Path: jPath})
+			_ = config.SaveConfig(ui.Config)
+			ui.StatusMsg = fmt.Sprintf("✅ Added Java Profile: %s", jName)
+			// Leave the screen like assigning does, so the save is visible
+			// (the status bar is hidden behind the modal).
 			ui.JDKStep = model.StepSelectJDKAction
+			ui.ViewState = ui.PreviousViewState
 			return nil
 		}
 		var cmd tea.Cmd
