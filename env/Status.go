@@ -13,11 +13,12 @@ import (
 
 // Status is what the installer screen shows about an environment.
 type Status struct {
-	Installed bool   // the install directory has a compose file
-	Container string // "running", "stopped" or "missing"
-	K3sReady  bool   // the API answers through the kube context
-	EtcdBytes int64  // apiserver storage size (0 when unknown)
-	Ingress   string // controller rollout, e.g. "ready", "not ready", "not installed"
+	Installed bool     // the install directory has a compose file
+	Container string   // "running", "stopped" or "missing"
+	K3sReady  bool     // the API answers through the kube context
+	EtcdBytes int64    // apiserver storage size (0 when unknown)
+	Pressure  []string // node conditions evicting pods, e.g. "DiskPressure"
+	Ingress   string   // controller rollout, e.g. "ready", "not ready", "not installed"
 	Database  string
 	Releases  []string // helm releases in the namespace
 	Missing   []string // hosts not yet in the hosts file
@@ -47,6 +48,9 @@ func Describe(e Env, dir string) Status {
 	st.K3sReady = true
 	if out, err := output("kubectl", e.kubectl("get", "--raw", "/metrics")...); err == nil {
 		st.EtcdBytes = storageSize(string(out))
+	}
+	if out, err := output("kubectl", e.kubectl("get", "nodes", "-o", nodeConditions)...); err == nil {
+		st.Pressure = pressures(string(out))
 	}
 	st.Ingress = rollout(e, "nginx-ingress", "deployment", "nginx-ingress-controller")
 	if e.HasDatabase() {

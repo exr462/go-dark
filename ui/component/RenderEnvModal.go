@@ -125,6 +125,9 @@ func envStatusLines(ui *model.UI, e env.Env, width int) string {
 			line += decorator.Meta.Render("   etcd " + env.HumanBytes(st.EtcdBytes))
 		}
 		b.WriteString(line + "\n")
+		for _, kind := range st.Pressure {
+			b.WriteString(ansi.Truncate(decorator.Error.Render(fmt.Sprintf("  ⚠ Node %s, pods are evicted: %s", kind, env.PressureHint(kind))), width, "…") + "\n")
+		}
 		if st.K3sReady {
 			b.WriteString(fmt.Sprintf("  %s %s   %s %s\n", decorator.Bold.Render("Ingress    "), readyStyle(st.Ingress), decorator.Bold.Render("Database"), readyStyle(st.Database)))
 			releases := "none"

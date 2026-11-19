@@ -167,6 +167,9 @@ func printStatus(w io.Writer, e Env, st Status) {
 	if st.EtcdBytes > 0 {
 		fmt.Fprintf(w, "  etcd        %s\n", HumanBytes(st.EtcdBytes))
 	}
+	for _, kind := range st.Pressure {
+		fmt.Fprintf(w, "  node        %s: %s\n", kind, PressureHint(kind))
+	}
 	fmt.Fprintf(w, "  ingress     %s\n  database    %s\n", st.Ingress, st.Database)
 	fmt.Fprintf(w, "  releases    %s\n", strings.Join(st.Releases, ", "))
 	fmt.Fprintf(w, "  urls        %s/<service>  https://%s\n", e.APIURL(), e.RancherHost())

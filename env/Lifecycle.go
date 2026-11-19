@@ -102,6 +102,65 @@ func (r *runner) waitFor(what string, timeout time.Duration, check func() bool) 
 	}
 }
 
+// nodeConditions prints "Type=Status" per node condition.
+const nodeConditions = `jsonpath={range .items[*].status.conditions[*]}{.type}={.status}{"\n"}{end}`
+
+// nodePressure lists the node conditions that keep pods off the node or
+// evict them ("DiskPressure"), empty when there are none.
+func nodePressure(r *runner, e Env) []string {
+	out, err := r.capture("", "kubectl", e.kubectl("get", "nodes", "-o", nodeConditions)...)
+	if err != nil {
+		return nil
+	}
+	return pressures(out)
+}
+
+func pressures(conditions string) []string {
+	var found []string
+	for _, line := range strings.Fields(conditions) {
+		if kind, ok := strings.CutSuffix(line, "Pressure=True"); ok {
+			found = append(found, kind+"Pressure")
+		}
+	}
+	return found
+}
+
+// PressureHint says what to do about a node condition.
+func PressureHint(kind string) string {
+	switch kind {
+	case "DiskPressure":
+		return "docker's disk is nearly full: free space (docker system df; docker builder prune; remove unused images and volumes) or raise the disk limit (Docker Desktop: Settings > Resources)"
+	case "MemoryPressure":
+		return "docker is short of memory: stop other containers or give docker more memory (Docker Desktop: Settings > Resources)"
+	}
+	return "the node is short of resources"
+}
+
+// waitPods is waitFor for workloads: a node under pressure evicts pods and
+// takes no new ones, so it is reported as soon as it is seen and named in
+// the timeout error rather than leaving a bare "not ready".
+func (r *runner) waitPods(e Env, what string, timeout time.Duration, check func() bool) error {
+	seen := map[string]bool{}
+	var last []string
+	err := r.waitFor(what, timeout, func() bool {
+		if check() {
+			return true
+		}
+		last = nodePressure(r, e)
+		for _, kind := range last {
+			if !seen[kind] {
+				seen[kind] = true
+				r.info("the node reports %s: pods are evicted and new ones not scheduled until it clears. %s", kind, PressureHint(kind))
+			}
+		}
+		return false
+	})
+	if err != nil && len(last) > 0 {
+		return fmt.Errorf("%w: the node reports %s (%s)", err, strings.Join(last, ", "), PressureHint(last[0]))
+	}
+	return err
+}
+
 // kubectl prefixes the explicit context every call carries.
 func (e Env) kubectl(args ...string) []string {
 	return append([]string{"--context", e.Context()}, args...)
@@ -200,12 +259,12 @@ func Install(ctx context.Context, e Env, in Inputs, w io.Writer) error {
 		return err
 	}
 	r.info("waiting for the ingress controller (the helm-controller fetches the chart first)...")
-	if err := r.waitFor("nginx ingress", 7*time.Minute, func() bool {
+	if err := r.waitPods(e, "nginx ingress", 7*time.Minute, func() bool {
 		return r.quiet("kubectl", e.kubectl("-n", "nginx-ingress", "rollout", "status", "deploy/nginx-ingress-controller", "--timeout=5s")...)
 	}); err != nil {
-		return fmt.Errorf("%w (kubectl --context %s -n kube-system logs job/helm-install-nginx-ingress)", err, e.Context())
+		return fmt.Errorf("%w (kubectl --context %s -n nginx-ingress describe pods; the chart install: -n kube-system logs job/helm-install-nginx-ingress)", err, e.Context())
 	}
-	if err := r.waitFor("reloader", 5*time.Minute, func() bool {
+	if err := r.waitPods(e, "reloader", 5*time.Minute, func() bool {
 		return r.quiet("kubectl", e.kubectl("-n", "reloader", "rollout", "status", "deploy/reloader-reloader", "--timeout=5s")...)
 	}); err != nil {
 		return err
@@ -352,7 +411,7 @@ func fixCoreDNS(r *runner, e Env) error {
 	if err := r.run("", "kubectl", e.kubectl("-n", "kube-system", "rollout", "restart", "deploy/coredns")...); err != nil {
 		return err
 	}
-	return r.waitFor("coredns", 3*time.Minute, func() bool {
+	return r.waitPods(e, "coredns", 3*time.Minute, func() bool {
 		return r.quiet("kubectl", e.kubectl("-n", "kube-system", "rollout", "status", "deploy/coredns", "--timeout=5s")...)
 	})
 }
@@ -361,7 +420,7 @@ func fixCoreDNS(r *runner, e Env) error {
 func installDatabase(r *runner, e Env, in Inputs) error {
 	r.step("Database: Oracle Free in %s", e.Namespace)
 	r.info("waiting for the database (the first start creates it, a few minutes)...")
-	if err := r.waitFor("oracle", 15*time.Minute, func() bool {
+	if err := r.waitPods(e, "oracle", 15*time.Minute, func() bool {
 		return r.quiet("kubectl", e.kubectl("-n", e.Namespace, "rollout", "status", "statefulset/oracle", "--timeout=5s")...)
 	}); err != nil {
 		return fmt.Errorf("%w (kubectl --context %s -n %s logs oracle-0)", err, e.Context(), e.Namespace)

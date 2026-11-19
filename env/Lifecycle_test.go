@@ -288,3 +288,35 @@ func TestCLI(t *testing.T) {
 		t.Fatalf("argv %q", argv)
 	}
 }
+
+func TestPressures(t *testing.T) {
+	got := pressures("EtcdIsVoter=True\nMemoryPressure=False\nDiskPressure=True\nPIDPressure=False\nReady=True\n")
+	if len(got) != 1 || got[0] != "DiskPressure" {
+		t.Fatalf("pressures %v", got)
+	}
+	if pressures("172.18.0.2") != nil {
+		t.Fatal("no conditions, no pressure")
+	}
+}
+
+func TestWaitPods_NamesTheNodePressure(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\ncase \"$*\" in *\"get nodes\"*) printf 'DiskPressure=True\\nReady=True\\n';; esac\n"
+	if err := os.WriteFile(filepath.Join(bin, "kubectl"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	orig := pollInterval
+	pollInterval = time.Millisecond
+	t.Cleanup(func() { pollInterval = orig })
+	var out bytes.Buffer
+	r := &runner{ctx: context.Background(), w: &out}
+
+	err := r.waitPods(rail, "nginx ingress", 50*time.Millisecond, func() bool { return false })
+	if err == nil || !strings.Contains(err.Error(), "not ready after") || !strings.Contains(err.Error(), "the node reports DiskPressure") {
+		t.Fatalf("error %v", err)
+	}
+	if n := strings.Count(out.String(), "the node reports DiskPressure"); n != 1 {
+		t.Fatalf("reported %d times, want once:\n%s", n, out.String())
+	}
+}
