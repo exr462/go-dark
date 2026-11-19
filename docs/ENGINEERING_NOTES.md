@@ -599,12 +599,85 @@ v2's renderer makes it look worse (duplicated rows).
 
 ---
 
+## 🏗 Local environment (`env` package) and the umbrella release
+
+Replaces the bash sandbox in `~/infrastructure/local-cicd-sandbox` (Traefik
+front proxy, Forgejo, Sonar, `deploy/cluster.sh`). What stayed, what changed,
+and the lessons the bash version taught - so they aren't relearned.
+
+### Shape
+- **Team manifest `environment`** (`config/Environment.go`): generic schema
+  (name, application, config_from, domain, hosts with `{domain}`
+  placeholders, namespace, values_files, ingress, database), defaulted and
+  validated in `LoadManifest`; `Config.Environments` is rebuilt from the
+  cached manifests on every refresh (`json:"-"`).
+- **`env.Env`** derives every name from the team: compose project / kube
+  context `go-dark-<team>`, container `go-dark-<team>-rancher`, IngressClass
+  `nginx-<env>`, install dir `~/.local/share/go-dark/env/<team>/`. Nothing
+  clashes with the old `rancher`/`traefik` containers or `rancher-lcl`.
+- **`env.Files`** is pure: the install dir (compose, k3s config, trust root,
+  platform manifests, README) is generated from templates and tested as
+  parsed YAML. NGINX `$variables` are literal text to `text/template`.
+- **Lifecycle** (`Install`/`Start`/`Stop`/`Uninstall`/`Describe`) is plain
+  Go + `exec`, streamed to one `io.Writer`. The TUI runs each action as a
+  session of `go-dark env <action> …` (this executable re-invoked, `main.go`)
+  so the log is inspectable, it works without a PTY (Windows), and users can
+  run the same commands by hand. Tests re-exec the test binary (`TestMain`).
+- **Umbrella** (`deploy/Umbrella.go`): `<application>-umbrella` with every
+  service chart as a staged subchart (`PrepareChart` unchanged) and a values
+  file nesting each subchart's layers under its name - the charts all use
+  `main`/`ypto`/`data`, so top-level merging would collide. `<chart>.enabled`
+  conditions carry the per-user switches (`config.json` → `ship_disabled`).
+  Verified with the real `helm template` in `deploy/umbrella_test.go`.
+
+### Safety rules kept
+- `kube.Guard`: allowlisted context (`go-dark-<team>` or legacy `rancher-lcl`)
+  **and** a literal loopback server; hostnames refused without resolving.
+- Every kubectl/helm call names `--context`/`--kube-context` and `--namespace`
+  (the install test asserts it for every logged kubectl call).
+- The kube context is written with `set-cluster/set-credentials/set-context`;
+  `use-context` never runs. The hosts file is only touched through `sudo tee`
+  in the embedded terminal. go-dark installs no software (preflight + hints).
+- The old sandbox is only ever `docker compose -p local-cicd-sandbox stop`ped.
+
+### Lessons from the bash version (now encoded)
+- `rewrite=/` + path `/order` makes NGINX Inc send `//x` upstream → the
+  controller-wide `location-snippets` strip + `X-Forwarded-Prefix`. The
+  Rancher UI ingress overrides it with its own `nginx.org/location-snippets`
+  (annotation beats ConfigMap key), since Rancher serves the whole path.
+- Rancher's k3s has no `k3s ctr`; the image ships `/usr/bin/ctr`, which
+  `kube.ImportImage` pipes `docker save` into (`docker exec -i`).
+- Let's Encrypt's YR intermediates: helm.nginx.com and github.io chain to
+  **ISRG Root YR**, which the rancher image lacks → mounted by subject hash
+  (`05e55783.0`, `558fe057.0`) and `SSL_CERT_DIR` pointed at the real store.
+- `sqlplus` exits 0 on empty stdin → the users are counted after creation.
+- hostPath ignores `fsGroup` → chown init container for Oracle (uid 54321).
+- CoreDNS must forward to Docker Desktop's resolver on hosts that block
+  public DNS; detected from the container's `/etc/resolv.conf` (comments
+  included), left alone when nothing is found.
+- Helm refuses to adopt resources owned by another release → per-service
+  releases are detected (`PerServiceReleases`) and uninstalled (`m`) before
+  the first umbrella install.
+- Quick iteration = re-import + `kubectl rollout restart`, not a second
+  release (a per-service `helm upgrade` would clash with the umbrella).
+
+### Known limits / follow-ups
+- Subcharts' named templates (`ypto.*`) are global in Helm; the TIL charts
+  define identical helpers so last-wins is harmless - a chart with a
+  different `_helpers.tpl` would need a prefix.
+- The Rancher UI `Endpoints` carries the node's InternalIP at install time;
+  re-run install / repair if the container's IP changes.
+- `env.Preflight` detects busy ports by connecting to `127.0.0.1:<port>`;
+  a service bound to another interface only is not seen.
+
 ## 🧪 Test coverage map
 
 | Package | What's covered |
 |---|---|
 | `model` | Dependency engine (build order + deploy waves), cycle detection |
-| `deploy` | Rollout plan generation, ordering, error propagation |
+| `deploy` | Plan, chart staging, per-service and umbrella runs, migration, iterate, `helm template` of the umbrella |
+| `env` | Generated install dir (parsed YAML), DB users/SQL, preflight with fake tools/ports/OS, install/start/stop/uninstall/status/CLI with fake docker/kubectl/helm/mkcert |
+| `kube` | Guard allowlist + loopback rule, image import pipe, scale down/restore |
 | `config` | Load/Save round trip, first-run detection, shortcut backfill |
 | `ui/component/action` | Vim-editor modes/commands, Deploy start/tick/cancel, Terminal history/running-guard |
 | `ui/component` | Terminal console rendering/wrapping, editor mode indicator/scroll |
