@@ -48,8 +48,13 @@ esac`,
   "get --raw"*) [ "$(cat ` + state + `)" = true ] || exit 1; echo ok;;
   "get nodes"*) echo arm64;;
   "get deployments"*) echo '{"items":[]}';;
+  rollout*) echo "kubectl $*" >> ` + log + `;;
 esac`,
-		"helm": `echo "helm $*" >> ` + log,
+		"helm": `echo "helm $*" >> ` + log + `
+case "$1" in
+  list) [ -f ` + bin + `/migrated ] && echo '[]' || echo '[{"name":"til-order","status":"deployed"}]';;
+  uninstall) touch ` + bin + `/migrated;;
+esac`,
 	}
 	for name, body := range scripts {
 		_ = os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755)
@@ -161,13 +166,15 @@ func TestDeploy_ConfiguredProductionContextIsRefused(t *testing.T) {
 // screen deploys to go-dark-<team> / its namespace, configured from the
 // manifest (values file, database URL), and the legacy config is ignored.
 func TestDeploy_TargetsTheTeamEnvironment(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	log := fakeCluster(t, true, "https://127.0.0.1:6550")
+	_ = os.WriteFile(filepath.Join(filepath.Dir(log), "migrated"), nil, 0o644) // no old per-service releases
 	ui := deployTestUI(t)
 	ui.Config.LocalCluster = config.LocalCluster{Context: "rancher-lcl", Namespace: "legacy"}
 	ui.Config.Environments = []config.TeamEnvironment{{Team: "rail", Environment: config.Environment{Application: "til", Domain: "lcl.local",
 		ValuesFiles: map[string]string{"dev": "values.Dev.yaml"}}.WithDefaults()}}
 	chart := filepath.Join(ui.Config.Projects[0].Path, "helm", "til-order")
-	_ = os.WriteFile(filepath.Join(chart, "values.Dev.yaml"), []byte("main:\n  minReplicas: 2\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(chart, "values.Dev.yaml"), []byte("main:\n  elasticSearchHost: dev-es\n"), 0o644)
 
 	OpenDeploy(ui)
 	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
@@ -185,7 +192,94 @@ func TestDeploy_TargetsTheTeamEnvironment(t *testing.T) {
 	}
 	calls, _ := os.ReadFile(log)
 	if !strings.Contains(string(calls), "docker exec -i go-dark-rail-rancher /usr/bin/ctr") || !strings.Contains(string(calls), "--kube-context go-dark-rail --namespace til-lcl\n") ||
-		!strings.Contains(string(calls), "values.Dev.yaml") || strings.Contains(string(calls), "legacy") {
+		strings.Contains(string(calls), "legacy") {
 		t.Fatalf("unexpected calls:\n%s", calls)
+	}
+	values, _ := os.ReadFile(filepath.Join(ui.Umbrella().ChartDir(), deploy.UmbrellaValuesFile))
+	if !strings.Contains(string(values), "elasticSearchHost: dev-es") {
+		t.Fatalf("the manifest's values file must be layered in:\n%s", values)
+	}
+}
+
+// TestDeploy_UmbrellaToggleMigrateIterate: with a team environment the ship
+// screen deploys one umbrella release; an old per-service release has to go
+// first (m), services can be switched off (space, remembered in config.json)
+// and i rebuilds + restarts one service.
+func TestDeploy_UmbrellaToggleMigrateIterate(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	log := fakeCluster(t, true, "https://127.0.0.1:6550")
+	ui := deployTestUI(t)
+	ui.Config.Environments = []config.TeamEnvironment{{Team: "rail", Environment: config.Environment{Application: "til", Domain: "lcl.local"}.WithDefaults()}}
+	report := ui.Config.Projects[1]
+	report.Path = filepath.Join(filepath.Dir(ui.Config.Projects[0].Path), "til-report")
+	chart := filepath.Join(report.Path, "helm", "til-report")
+	_ = os.MkdirAll(chart, 0o755)
+	_ = os.MkdirAll(filepath.Join(report.Path, "svc"), 0o755)
+	_ = os.WriteFile(filepath.Join(chart, "Chart.yaml"), []byte("apiVersion: v2\nname: til-report\nversion: 1.0.0\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(chart, "values.yaml"), []byte("main:\n  name: til-report\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(chart, deploy.LocalValuesFile), []byte("main:\n  image: local/til-report\n  version: 1.0.0\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(report.Path, "svc", "Dockerfile"), []byte("FROM scratch\n"), 0o644)
+	ui.Config.Projects[1] = report
+
+	OpenDeploy(ui)
+	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
+	if len(ui.DeployMigrate) != 1 || ui.DeployMigrate[0] != "til-order" {
+		t.Fatalf("the old til-order release must be detected, got %v", ui.DeployMigrate)
+	}
+	// The box wraps long lines: compare on collapsed whitespace.
+	out := strings.Join(strings.Fields(strings.ReplaceAll(ansi.Strip(component.RenderDeployModal(ui)), "│", " ")), " ")
+	if !strings.Contains(out, "per-service release from before the umbrella (til-order)") || !strings.Contains(out, "[m] Uninstall old releases") ||
+		!strings.Contains(out, "[x] til-order") || !strings.Contains(out, `one release "til" (umbrella chart til-umbrella`) {
+		t.Fatalf("screen:\n%s", out)
+	}
+	if DeployModal(ui, testKeyMsg("d")) != nil || !strings.Contains(ui.StatusMsg, "m uninstalls them first") {
+		t.Fatal("the umbrella can't install over the old releases")
+	}
+
+	migrate := DeployModal(ui, testKeyMsg("m"))
+	if migrate == nil || !ui.DeployMigrating {
+		t.Fatal("m starts the uninstall")
+	}
+	recheck := DeployMigrated(ui, migrate().(model.DeployMigratedMsg))
+	ClusterChecked(ui, recheck().(model.DeployPreflightMsg))
+	calls, _ := os.ReadFile(log)
+	if !strings.Contains(string(calls), "helm uninstall til-order --wait --kube-context go-dark-rail --namespace til-lcl") || len(ui.DeployMigrate) != 0 {
+		t.Fatalf("expected the uninstall and a clean re-check, got %v:\n%s", ui.DeployMigrate, calls)
+	}
+
+	// Switch til-report off: remembered in config.json.
+	DeployModal(ui, testKeyMsg("down"))
+	DeployModal(ui, testKeyMsg("space"))
+	if !ui.ShipEnabled(ui.ShipTargets()[0]) || ui.ShipEnabled(ui.ShipTargets()[1]) {
+		t.Fatalf("space switches the highlighted service off, disabled=%v", ui.Config.ShipDisabled)
+	}
+	if saved, _ := config.LoadConfig(); len(saved.ShipDisabled) != 1 || saved.ShipDisabled[0] != "til/til-report" {
+		t.Fatalf("the switch must be saved, got %v", saved.ShipDisabled)
+	}
+	if out := ansi.Strip(component.RenderDeployModal(ui)); !strings.Contains(out, "[ ] til-report") {
+		t.Fatalf("screen:\n%s", out)
+	}
+
+	run := DeployModal(ui, testKeyMsg("d"))
+	DeployFinished(ui, run().(model.DeployFinishedMsg))
+	if ui.DeployErr != nil {
+		t.Fatalf("deploy: %v", ui.DeployErr)
+	}
+	calls, _ = os.ReadFile(log)
+	umbrellaDir := filepath.Join(os.Getenv("HOME"), ".local", "share", "go-dark", "env", "rail", "charts", "til-umbrella")
+	if !strings.Contains(string(calls), "helm upgrade --install til "+umbrellaDir+" -f "+filepath.Join(umbrellaDir, deploy.UmbrellaValuesFile)) ||
+		strings.Contains(string(calls), "docker build -t local/til-report") || !strings.Contains(string(calls), "docker build -t tfc/til-order") {
+		t.Fatalf("one umbrella release of the switched-on services:\n%s", calls)
+	}
+	if st := ui.DeployProgress.Get("til/til-report"); st.Deploy != deploy.StepSkipped {
+		t.Fatalf("switched-off service %+v", st)
+	}
+
+	DeployModal(ui, testKeyMsg("up"))
+	iterate := DeployModal(ui, testKeyMsg("i"))
+	DeployFinished(ui, iterate().(model.DeployFinishedMsg))
+	calls, _ = os.ReadFile(log)
+	if ui.DeployErr != nil || !strings.Contains(string(calls), "kubectl rollout restart deployment/til-order --context go-dark-rail --namespace til-lcl") {
+		t.Fatalf("i restarts the service after re-importing its image: %v\n%s", ui.DeployErr, calls)
 	}
 }

@@ -42,8 +42,9 @@ case "$1" in
   exec) cat > /dev/null; echo "unpacking $*" ;;
   *) echo "Successfully tagged" ;;
 esac`,
-		"kubectl": `echo "https://127.0.0.1:6550"`,
+		"kubectl": `case "$1" in rollout) echo "kubectl $*" >> ` + log + `;; *) echo "https://127.0.0.1:6550";; esac`,
 		"helm": `echo "helm $*" >> ` + log + `
+[ "$1" = list ] && { echo '[{"name":"til-order","status":"deployed"},{"name":"til","status":"deployed"},{"name":"other","status":"failed"}]'; exit 0; }
 for c in ` + fail + `; do [ "$3" = "$c" ] && { echo "Error: release $c failed"; exit 1; }; done
 echo "STATUS: deployed"`,
 	}
@@ -57,6 +58,8 @@ echo "STATUS: deployed"`,
 }
 
 var local = kube.Cluster{Context: "rancher-lcl", Namespace: "til-lcl", Container: "rancher"}
+
+var kubeProd = kube.Cluster{Context: "azr-prd-idas-aks01", Namespace: "til-lcl"}
 
 var lcl = deploy.Env{Name: "lcl", ConfigFrom: "dev", DBURL: "jdbc:oracle:thin:@oracle.til-lcl.svc:1521/FREEPDB1", DBPassword: "changeit_local", Arch: "arm64"}
 

@@ -133,6 +133,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		componentaction.DeployFinished(m.ui, msg)
 		return m, nil
 
+	case model.DeployMigratedMsg:
+		return m, componentaction.DeployMigrated(m.ui, msg)
+
 	case model.ScaledMsg:
 		componentaction.Scaled(m.ui, msg)
 		return m, nil
