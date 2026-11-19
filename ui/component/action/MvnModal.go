@@ -48,12 +48,16 @@ func MvnModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 			switcheroo(ui, kbd.MvnName, kbd.MvnPath)
 		case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.Save):
 			mvnName, mvnPath := getValues(ui, kbd.MvnName, kbd.MvnPath)
-			if mvnName != "" && mvnPath != "" {
-				ui.Config.Mavens = append(ui.Config.Mavens, config.Profile{Name: mvnName, Path: mvnPath})
-				_ = config.SaveConfig(ui.Config)
-				ui.StatusMsg = fmt.Sprintf("✅ Added Maven Profile: %s", mvnName)
+			if mvnName == "" || mvnPath == "" {
+				return nil // both fields are required; stay on the form
 			}
+			ui.Config.Mavens = append(ui.Config.Mavens, config.Profile{Name: mvnName, Path: mvnPath})
+			_ = config.SaveConfig(ui.Config)
+			ui.StatusMsg = fmt.Sprintf("✅ Added Maven Profile: %s", mvnName)
+			// Leave the screen like assigning does, so the save is visible
+			// (the status bar is hidden behind the modal).
 			ui.MavenStep = model.StepSelectMvnAction
+			ui.ViewState = ui.PreviousViewState
 			return nil
 		}
 		var cmd tea.Cmd
