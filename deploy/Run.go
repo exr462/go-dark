@@ -58,13 +58,13 @@ func (p *Progress) update(projectID string, fn func(*Status)) {
 
 // Options configures a deployment run.
 type Options struct {
-	Sessions  *shell.Manager
-	Cluster   kube.Cluster
-	DockerEnv []string // minikube docker-env
-	Parallel  int
-	Width     int // session terminal size
-	Height    int
-	Progress  *Progress
+	Sessions *shell.Manager
+	Cluster  kube.Cluster
+	Env      Env // how the charts are configured
+	Parallel int
+	Width    int // session terminal size
+	Height   int
+	Progress *Progress
 	// SkipImages deploys charts only (images already built).
 	SkipImages bool
 }
@@ -73,7 +73,8 @@ type Options struct {
 var ErrCancelled = errors.New("deployment cancelled")
 
 // Run deploys the waves in order; targets inside a wave run in parallel (up
-// to opts.Parallel). Each target builds its image, then installs its chart.
+// to opts.Parallel). Each target builds its image, loads it into the
+// cluster, then installs its chart.
 // The first failure stops the run: running steps are killed (their logs are
 // kept in the session inspector) and the rest are marked cancelled.
 func Run(ctx context.Context, waves [][]Target, opts Options) error {
@@ -146,7 +147,10 @@ func deployTarget(ctx context.Context, t Target, tmp string, opts Options) error
 	id := t.Project.ID
 	if !opts.SkipImages {
 		opts.Progress.update(id, func(s *Status) { s.Image = StepRunning })
-		err := runStep(ctx, opts, t, "image", ImageArgv(t), append(os.Environ(), opts.DockerEnv...))
+		err := runStep(ctx, opts, t, "image", ImageArgv(t), nil)
+		if err == nil {
+			err = runStep(ctx, opts, t, "load image", kube.ImportImageArgv(opts.Cluster, t.Ref()), nil)
+		}
 		opts.Progress.update(id, func(s *Status) { s.Image, s.Err = result(err), err })
 		if err != nil {
 			return fmt.Errorf("image: %w", err)
@@ -156,12 +160,12 @@ func deployTarget(ctx context.Context, t Target, tmp string, opts Options) error
 	}
 
 	opts.Progress.update(id, func(s *Status) { s.Deploy = StepRunning })
-	chartDir, hasDeps, err := PrepareChart(t, tmp)
-	if err == nil && hasDeps {
-		err = runStep(ctx, opts, t, "chart deps", DependencyBuildArgv(chartDir), nil)
+	st, err := PrepareChart(t, tmp, opts.Env)
+	if err == nil && st.HasDeps {
+		err = runStep(ctx, opts, t, "chart deps", DependencyBuildArgv(st.Dir), nil)
 	}
 	if err == nil {
-		err = runStep(ctx, opts, t, "helm", HelmArgv(opts.Cluster, t, chartDir), nil)
+		err = runStep(ctx, opts, t, "helm", HelmArgv(opts.Cluster, t, st), nil)
 	}
 	opts.Progress.update(id, func(s *Status) { s.Deploy, s.Err = result(err), err })
 	if err != nil {

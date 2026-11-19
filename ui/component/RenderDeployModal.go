@@ -21,7 +21,7 @@ func RenderDeployModal(ui *model.UI) string {
 	var b strings.Builder
 	b.WriteString(decorator.Title.Render(fmt.Sprintf("🚢 Ship to the local cluster (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy))) + "\n")
 	b.WriteString(decorator.Description.Render(fmt.Sprintf(
-		"Builds the workspace in dependency waves, builds each service's image into minikube's docker daemon and installs its chart with %s into %s/%s.", deploy.LocalValuesFile, c.Context, c.Namespace)) + "\n\n")
+		"Builds the workspace in dependency waves, loads each service's image into the local Rancher and installs its chart configured like %s (local database) as %s into %s/%s.", c.ConfigFrom, c.Env, c.Context, c.Namespace)) + "\n\n")
 
 	b.WriteString(clusterLine(ui) + "\n")
 	if n := len(ui.ScaledDown); n > 0 {
@@ -33,7 +33,7 @@ func RenderDeployModal(ui *model.UI) string {
 	case ui.DeployPlanErr != nil:
 		b.WriteString(decorator.Error.Render("❌ "+ui.DeployPlanErr.Error()) + "\n")
 	case len(ui.DeployWaves) == 0:
-		b.WriteString(decorator.Meta.Render("  (No cloned, deployable project has a "+deploy.LocalValuesFile+")") + "\n")
+		b.WriteString(decorator.Meta.Render("  (No cloned, deployable project has a helm chart)") + "\n")
 	default:
 		rows := max(ui.WindowHeight-18, 4)
 		shown := 0
@@ -49,7 +49,7 @@ func RenderDeployModal(ui *model.UI) string {
 				}
 				st := ui.DeployProgress.Get(t.Project.ID)
 				line := fmt.Sprintf("%s %-24s %-44s image %s  deploy %s", graphWaveStyle.Render(label), t.Project.Name,
-					t.Image+":"+t.Tag, stepBadge(st.Image), stepBadge(st.Deploy))
+					t.Ref(), stepBadge(st.Image), stepBadge(st.Deploy))
 				if st.SessionID != 0 && (st.Image == deploy.StepFailed || st.Deploy == deploy.StepFailed) {
 					line += decorator.Meta.Render(fmt.Sprintf("  log: session #%d", st.SessionID))
 				}
@@ -63,7 +63,7 @@ func RenderDeployModal(ui *model.UI) string {
 		for _, t := range ui.DeploySkipped {
 			names = append(names, t.Project.Name)
 		}
-		b.WriteString(ansi.Truncate(decorator.Meta.Render(fmt.Sprintf("  Skipped (no local chart values): %s", strings.Join(names, ", "))), width, "…") + "\n")
+		b.WriteString(ansi.Truncate(decorator.Meta.Render(fmt.Sprintf("  Skipped (no deployable chart): %s", strings.Join(names, ", "))), width, "…") + "\n")
 	}
 
 	b.WriteString("\n")
@@ -77,8 +77,8 @@ func RenderDeployModal(ui *model.UI) string {
 	}
 
 	var hints []string
-	if ui.ClusterChecked && !ui.ClusterRunning && ui.MinikubeStartID == 0 {
-		hints = append(hints, fmt.Sprintf("[%s] Start minikube", sessKeyHint.Render("s")))
+	if ui.ClusterChecked && !ui.ClusterRunning && ui.ClusterErr == nil && ui.ClusterStartID == 0 {
+		hints = append(hints, fmt.Sprintf("[%s] Start %s", sessKeyHint.Render("s"), c.Container))
 	}
 	if ui.DeployRunning || ui.ShipStage == model.ShipBuilding {
 		hints = append(hints, fmt.Sprintf("[%s] Cancel", sessKeyHint.Render("x")))
@@ -112,10 +112,10 @@ func clusterLine(ui *model.UI) string {
 		return decorator.Meta.Render("⏳ Checking the local cluster...")
 	case ui.ClusterErr != nil:
 		return decorator.Error.Render("❌ " + ui.ClusterErr.Error())
-	case ui.MinikubeStartID != 0:
-		return decorator.Warning.Render(fmt.Sprintf("⏳ Starting minikube (session #%d)...", ui.MinikubeStartID))
+	case ui.ClusterStartID != 0:
+		return decorator.Warning.Render(fmt.Sprintf("⏳ Starting %s (session #%d)...", c.Container, ui.ClusterStartID))
 	case !ui.ClusterRunning:
-		return decorator.Warning.Render("⏸ minikube is stopped - press s to start it")
+		return decorator.Warning.Render(fmt.Sprintf("⏸ %s is stopped or still booting - press s to start it, r to re-check", c.Container))
 	}
 	return decorator.Success.Render(fmt.Sprintf("✅ %s is running and local (namespace %s)", c.Context, c.Namespace))
 }

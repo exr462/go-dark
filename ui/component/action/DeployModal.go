@@ -12,8 +12,8 @@ import (
 	"github.com/exr462/go-dark/shell"
 )
 
-// TagMinikube marks the `minikube start` session.
-const TagMinikube = "minikube"
+// TagCluster marks the session that starts the local cluster's container.
+const TagCluster = "cluster"
 
 // OpenDeploy shows the local deploy screen: what would be deployed (in
 // dependency waves) and whether the local cluster is ready.
@@ -35,16 +35,18 @@ func PlanDeploy(ui *model.UI) {
 
 func cluster(ui *model.UI) kube.Cluster {
 	c := ui.Config.Cluster()
-	return kube.Cluster{Context: c.Context, Namespace: c.Namespace}
+	return kube.Cluster{Context: c.Context, Namespace: c.Namespace, Container: c.Container}
 }
 
-// CheckCluster checks minikube and the context guard in the background.
+// CheckCluster checks the local cluster and the context guard in the
+// background.
 func CheckCluster(ui *model.UI) tea.Cmd {
 	c := cluster(ui)
 	return func() tea.Msg {
-		running, err := kube.MinikubeStatus()
+		err := kube.Guard(c)
+		running := false
 		if err == nil {
-			err = kube.Guard(c)
+			running, err = kube.Status(c)
 		}
 		var scaled []string
 		if err == nil && running {
@@ -64,7 +66,7 @@ func ClusterChecked(ui *model.UI, msg model.DeployPreflightMsg) {
 
 // DeployModal is the ship screen: enter runs the full train (build ->
 // images -> deploy), d deploys without rebuilding, v aligns versions, s
-// starts minikube when it's stopped, x cancels, r re-checks, esc leaves (a
+// starts the local cluster when it's stopped, x cancels, r re-checks, esc leaves (a
 // running train continues in the background).
 func DeployModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 	switch msg.String() {
@@ -74,17 +76,18 @@ func DeployModal(ui *model.UI, msg tea.KeyPressMsg) tea.Cmd {
 		PlanDeploy(ui)
 		return CheckCluster(ui)
 	case "s":
-		if ui.ClusterChecked && !ui.ClusterRunning && ui.MinikubeStartID == 0 && ui.Shells != nil {
+		if ui.ClusterChecked && !ui.ClusterRunning && ui.ClusterErr == nil && ui.ClusterStartID == 0 && ui.Shells != nil {
+			c := cluster(ui)
 			id, err := ui.Shells.Start(shell.StartOptions{
-				ProjectName: "minikube", Title: "minikube start", Tag: TagMinikube,
-				Argv: []string{"minikube", "start"},
+				ProjectName: c.Container, Title: "start " + c.Container, Tag: TagCluster,
+				Argv: kube.StartArgv(c),
 			})
 			if err != nil {
-				ui.StatusMsg = fmt.Sprintf("❌ minikube start: %v", err)
+				ui.StatusMsg = fmt.Sprintf("❌ start %s: %v", c.Container, err)
 				return nil
 			}
-			ui.MinikubeStartID = id
-			ui.StatusMsg = "⏳ Starting minikube (watch it in the session inspector)..."
+			ui.ClusterStartID = id
+			ui.StatusMsg = fmt.Sprintf("⏳ Starting %s (k3s takes a minute; r re-checks)...", c.Container)
 		}
 	case "x":
 		cancelShip(ui)
@@ -137,15 +140,16 @@ func startDeploy(ui *model.UI) tea.Cmd {
 		Sessions: ui.Shells, Cluster: cluster(ui), Parallel: max(ui.MaxParallelism, 1),
 		Width: w, Height: h, Progress: ui.DeployProgress,
 	}
+	local := ui.Config.Cluster()
 	waves := ui.DeployWaves
 	ui.StatusMsg = "🚢 Deploying to the local cluster..."
 	return func() tea.Msg {
 		defer cancel()
-		env, err := kube.DockerEnv()
+		arch, err := kube.NodeArch(opts.Cluster)
 		if err != nil {
 			return model.DeployFinishedMsg{Err: err}
 		}
-		opts.DockerEnv = env
+		opts.Env = deploy.EnvFromConfig(local, arch)
 		return model.DeployFinishedMsg{Err: deploy.Run(ctx, waves, opts)}
 	}
 }
@@ -161,11 +165,11 @@ func DeployFinished(ui *model.UI, msg model.DeployFinishedMsg) {
 	}
 }
 
-// MinikubeExited re-checks the cluster after `minikube start` ends.
-func MinikubeExited(ui *model.UI, id int) tea.Cmd {
-	if id != ui.MinikubeStartID {
+// ClusterStartExited re-checks the cluster after its start session ends.
+func ClusterStartExited(ui *model.UI, id int) tea.Cmd {
+	if id != ui.ClusterStartID {
 		return nil
 	}
-	ui.MinikubeStartID = 0
+	ui.ClusterStartID = 0
 	return CheckCluster(ui)
 }

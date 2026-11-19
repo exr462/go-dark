@@ -27,28 +27,50 @@ type Config struct {
 	LocalCluster LocalCluster `json:"local_cluster"`
 }
 
-// LocalCluster names the local Kubernetes context and namespace.
+// LocalCluster is the local Rancher sandbox go-dark deploys to, and how the
+// charts are configured there: like ConfigFrom (dev) except for the
+// database, which is the sandbox's own.
 type LocalCluster struct {
-	Context   string `json:"context"`
-	Namespace string `json:"namespace"`
+	Context    string        `json:"context"`
+	Namespace  string        `json:"namespace"`
+	Container  string        `json:"container"`   // docker container running the cluster
+	Env        string        `json:"env"`         // chart environment (ypto.env)
+	ConfigFrom string        `json:"config_from"` // environment whose values, config and secrets are copied
+	Database   LocalDatabase `json:"database"`
 }
 
-// Local cluster defaults, matching the team's local-rancher convention:
-// minikube acting as the local Rancher node, services in namespace "til".
+// LocalDatabase replaces the environment's database in the copied config.
+type LocalDatabase struct {
+	URL      string `json:"url"`
+	Password string `json:"password"`
+}
+
+// Local cluster defaults, matching the sandbox's deploy/env.sh.
 const (
-	DefaultLocalContext   = "minikube"
-	DefaultLocalNamespace = "til"
+	DefaultLocalContext    = "rancher-lcl"
+	DefaultLocalNamespace  = "til-lcl"
+	DefaultLocalContainer  = "rancher"
+	DefaultLocalEnv        = "lcl"
+	DefaultLocalConfigFrom = "dev"
+	DefaultLocalDBURL      = "jdbc:oracle:thin:@oracle.til-lcl.svc:1521/FREEPDB1"
+	DefaultLocalDBPassword = "changeit_local"
 )
 
 // Cluster returns the configured local cluster, filling in defaults.
 func (cfg Config) Cluster() LocalCluster {
 	c := cfg.LocalCluster
-	if c.Context == "" {
-		c.Context = DefaultLocalContext
+	set := func(v *string, def string) {
+		if *v == "" {
+			*v = def
+		}
 	}
-	if c.Namespace == "" {
-		c.Namespace = DefaultLocalNamespace
-	}
+	set(&c.Context, DefaultLocalContext)
+	set(&c.Namespace, DefaultLocalNamespace)
+	set(&c.Container, DefaultLocalContainer)
+	set(&c.Env, DefaultLocalEnv)
+	set(&c.ConfigFrom, DefaultLocalConfigFrom)
+	set(&c.Database.URL, DefaultLocalDBURL)
+	set(&c.Database.Password, DefaultLocalDBPassword)
 	return c
 }
 

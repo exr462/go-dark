@@ -100,8 +100,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ui.StatusMsg = fmt.Sprintf("❌ Build failed: %s (exit code %d)", s.Title, s.ExitCode())
 			}
 		}
-		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == componentaction.TagMinikube {
-			return m, tea.Batch(m.listenSessions(), componentaction.MinikubeExited(m.ui, msg.ID))
+		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == componentaction.TagCluster {
+			return m, tea.Batch(m.listenSessions(), componentaction.ClusterStartExited(m.ui, msg.ID))
 		}
 		return m, m.listenSessions()
 

@@ -67,27 +67,40 @@ enter runs the whole train: **versions → build → images → deploy**.
 
 The train keeps going if you leave the screen; `x` cancels whatever stage is running.
 
-Deploying covers every cloned, deployable service that has a `helm/<chart>/values.local-rancher.yaml`
-to the local cluster (minikube - the team's "local Rancher" - namespace `til`, so existing
-local releases are upgraded in place), in
-dependency waves:
-1. `docker build -t <main.image>:<main.version>` with minikube's docker env, so the image is
-   available to the cluster without a registry (the local values use `imagePullPolicy: Never`)
-2. `helm upgrade --install` of a temporary copy of the chart (its version set to the service
-   version instead of `{JENKINS_VERSION}`; the repo isn't touched) with the local values, waiting
-   for the rollout
+Deploying targets the **local Rancher sandbox**: Rancher with its embedded k3s cluster in a
+docker container, set up like the AKS clusters behind dev/tst/acc/prd (NGINX Inc ingress with a
+mergeable master for `api.til.lcl-intern-belgiantrain.be`, one namespace `til-lcl`, node label
+`belgiantrain.be/env-lcl`, Stakater Reloader) plus an Oracle Free database with the services'
+schema users. The sandbox's `deploy/cluster.sh up` builds that platform and adds the kube context
+`rancher-lcl` (API on `127.0.0.1:6550`).
 
-A single minikube node fills up quickly (every service requests CPU). `z` scales the other
+Every cloned, deployable service with a ypto-style `helm/<chart>` goes out in dependency waves:
+1. `docker build -t <image>:<version>` with your normal docker, then the image is loaded into the
+   cluster's containerd (`docker save | docker exec -i rancher ctr -n k8s.io images import -`, using the `ctr` the sandbox installs), so no
+   registry is involved. The image is `main.image`/`main.version` from the chart's untracked
+   `values.local-rancher.yaml` if there is one, else `local/<chart>:<pom version>`.
+2. `helm upgrade --install` of a staged copy of the chart (the repo isn't touched), configured
+   **like dev, except the database**:
+   - values layered like the pipeline: `values.yaml`, `values.Development.yaml`, your
+     `values.local-rancher.yaml` (optional), then go-dark's overlay (`ypto.env`/`main.env` =
+     `lcl`, the local image with `imagePullPolicy: Never`, the node's architecture, one replica,
+     no Dynatrace, the local database password for the `data:` secrets that name a database);
+   - `config/dev` and `secrets/dev` copied to `config/lcl` and `secrets/lcl`, with the JDBC URLs
+     pointed at the sandbox's Oracle (`spring.datasource.url`, ...);
+   - waiting for the rollout (`--wait`, Spring + Liquibase can take minutes).
+
+The service is then on `https://api.til.lcl-intern-belgiantrain.be/<path>` (e.g. `/order`).
+
+If the `rancher` container is stopped the screen offers `s` to start it. `z` scales the other
 deployments in the namespace to 0 to make room - their replica counts are recorded on the
-deployments - and `u` scales them back.
+deployments - and `u` scales them back. Every step runs as a session (ctrl+o to watch it); the
+first failure stops the run and its log stays in the inspector. `x` cancels.
 
-If minikube is stopped the screen offers `s` to start it. Every step runs as a session (ctrl+o to
-watch it); the first failure stops the run and its log stays in the inspector. `x` cancels.
-
-**Safety:** go-dark only deploys to the `minikube` context, and only when its API server is a
-local address; every kubectl/helm call names the context and namespace explicitly. Other contexts
-in your kubeconfig - production included - are refused, even if configured. Change the target in
-`config.json` → `local_cluster` (`context`, `namespace`).
+**Safety:** go-dark only deploys to the `rancher-lcl` context, and only when its API server is a
+loopback address; every kubectl/helm call names the context and namespace explicitly. Other
+contexts in your kubeconfig - production included - are refused, even if configured. The target
+lives in `config.json` → `local_cluster` (`context`, `namespace`, `container`, `env`,
+`config_from`, `database.url`, `database.password`).
 
 ### Editing a file (Vim-style modal editor)
 Shortcut: ctrl+e (while a file is focused in the workspace tree)\

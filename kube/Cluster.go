@@ -7,7 +7,6 @@ package kube
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -17,13 +16,16 @@ import (
 	"time"
 )
 
-// AllowedContexts are the only contexts go-dark will deploy to.
-var AllowedContexts = []string{"minikube"}
+// AllowedContexts are the only contexts go-dark will deploy to: the local
+// Rancher sandbox (k3s inside the `rancher` container, API published on
+// 127.0.0.1).
+var AllowedContexts = []string{"rancher-lcl"}
 
 // Cluster is the local deployment target.
 type Cluster struct {
 	Context   string
 	Namespace string
+	Container string // docker container running the cluster
 }
 
 // runner executes a command and returns its stdout; replaced in tests.
@@ -38,9 +40,8 @@ func run(name string, args ...string) ([]byte, error) {
 }
 
 // Guard returns an error unless c is an allowlisted context whose API server
-// is a literal loopback address or the minikube VM's own address. Hostnames
-// are refused without being resolved: internal hostnames resolve to private
-// addresses too.
+// is a literal loopback address. Hostnames are refused without being
+// resolved: internal hostnames resolve to private addresses too.
 func Guard(c Cluster) error {
 	if !slices.Contains(AllowedContexts, c.Context) {
 		return fmt.Errorf("refusing kube context %q: only local contexts %v are allowed", c.Context, AllowedContexts)
@@ -50,7 +51,7 @@ func Guard(c Cluster) error {
 	}
 	out, err := run("kubectl", "config", "view", "--minify", "--context", c.Context, "-o", "jsonpath={.clusters[0].cluster.server}")
 	if err != nil {
-		return fmt.Errorf("kube context %q not found: %v", c.Context, err)
+		return fmt.Errorf("kube context %q not found (create it with the sandbox's deploy/cluster.sh kubeconfig): %v", c.Context, err)
 	}
 	server := strings.TrimSpace(string(out))
 	u, err := url.Parse(server)
@@ -63,55 +64,54 @@ func Guard(c Cluster) error {
 		return fmt.Errorf("refusing context %q: server %s is a hostname, not a local address", c.Context, u.Hostname())
 	case ip.IsLoopback():
 		return nil
-	case ip.IsPrivate() && ip.Equal(minikubeIP()):
-		return nil
 	}
-	return fmt.Errorf("refusing context %q: server %s is not a local address", c.Context, u.Hostname())
+	return fmt.Errorf("refusing context %q: server %s is not a loopback address", c.Context, u.Hostname())
 }
 
-func minikubeIP() net.IP {
-	out, err := run("minikube", "ip")
+// Status reports whether the cluster's container runs and its API answers.
+// A stopped container is not an error (StartArgv starts it); a missing one
+// or a missing docker is.
+func Status(c Cluster) (running bool, err error) {
+	out, err := run("docker", "inspect", "-f", "{{.State.Running}}", c.Container)
 	if err != nil {
-		return nil
+		return false, fmt.Errorf("docker container %q not found - is the local Rancher sandbox set up? (%v)", c.Container, err)
 	}
-	return net.ParseIP(strings.TrimSpace(string(out)))
-}
-
-// MinikubeStatus reports whether minikube's API server is running. A
-// stopped minikube - or one whose profile doesn't exist yet, which
-// `minikube start` creates - is not an error; a missing minikube binary is.
-func MinikubeStatus() (running bool, err error) {
-	out, err := run("minikube", "status", "-o", "json")
-	var st struct{ Host, APIServer string }
-	if jerr := json.Unmarshal(out, &st); jerr == nil {
-		return st.Host == "Running" && st.APIServer == "Running", nil
-	}
-	var exitErr *exec.ExitError
-	if err == nil || errors.As(err, &exitErr) {
+	if strings.TrimSpace(string(out)) != "true" {
 		return false, nil
 	}
-	return false, fmt.Errorf("minikube not available: %v", err)
+	if _, err := run("kubectl", "get", "--raw", "/readyz", "--context", c.Context); err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
-// DockerEnv returns the environment that points docker at minikube's
-// daemon, so images built with it are available to the cluster without a
-// registry (the local-rancher charts use imagePullPolicy: Never).
-func DockerEnv() ([]string, error) {
-	out, err := run("minikube", "docker-env", "--shell", "none")
+// StartArgv starts the cluster's container.
+func StartArgv(c Cluster) []string {
+	return []string{"docker", "start", c.Container}
+}
+
+// ContainerdSocket is the k3s node's containerd inside the cluster container.
+const ContainerdSocket = "/run/k3s/containerd/containerd.sock"
+
+// ImportImageArgv copies a locally built image into the cluster node's
+// containerd, so pods find it without a registry (imagePullPolicy: Never).
+// Rancher's embedded k3s has no `k3s ctr`; the sandbox's cluster.sh installs
+// a standalone ctr into the container.
+func ImportImageArgv(c Cluster, image string) []string {
+	script := `command -v docker >/dev/null || { echo "docker not found"; exit 1; }
+docker exec "$2" sh -c 'command -v ctr' >/dev/null || { echo "no ctr in container $2 - run the sandbox's deploy/cluster.sh up"; exit 1; }
+docker save "$1" | docker exec -i "$2" ctr -a "$3" -n k8s.io images import -`
+	return []string{"sh", "-c", script, "go-dark", image, c.Container, ContainerdSocket}
+}
+
+// NodeArch is the architecture of the cluster's node (charts pin
+// kubernetes.io/arch in their nodeSelector).
+func NodeArch(c Cluster) (string, error) {
+	out, err := run("kubectl", "get", "nodes", "--context", c.Context, "-o", "jsonpath={.items[0].status.nodeInfo.architecture}")
 	if err != nil {
-		return nil, fmt.Errorf("minikube docker-env: %v", err)
+		return "", fmt.Errorf("kubectl get nodes: %v", err)
 	}
-	var env []string
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if k, _, ok := strings.Cut(line, "="); ok && (strings.HasPrefix(k, "DOCKER_") || strings.HasPrefix(k, "MINIKUBE_")) {
-			env = append(env, line)
-		}
-	}
-	if len(env) == 0 {
-		return nil, fmt.Errorf("minikube docker-env returned nothing")
-	}
-	return env, nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 // Args appends the explicit context and namespace flags every kubectl and
