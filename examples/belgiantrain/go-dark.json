@@ -1,6 +1,31 @@
 {
   "team": "belgiantrain",
   "base_git_url": "git@bitbucket.org:belgiantrain/",
+  "environment": {
+    "name": "lcl",
+    "application": "til",
+    "config_from": "dev",
+    "domain": "lcl-intern-belgiantrain.be",
+    "hosts": {
+      "api": "api.til.{domain}",
+      "rancher": "rancher.{domain}"
+    },
+    "namespace": "til-lcl",
+    "values_files": {
+      "dev": "values.Development.yaml",
+      "tst": "values.Test.yaml",
+      "acc": "values.Acceptance.yaml",
+      "prd": "values.Production.yaml"
+    },
+    "ingress": {
+      "controller": "nginx-inc",
+      "strip_prefix": true
+    },
+    "database": {
+      "type": "oracle-free",
+      "users_from": "config"
+    }
+  },
   "projects": [
     {
       "name": "ypto-maven-parent",

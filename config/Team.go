@@ -25,6 +25,9 @@ type Manifest struct {
 	Team       string            `json:"team"`
 	BaseGitURL string            `json:"base_git_url,omitempty"`
 	Projects   []ManifestProject `json:"projects"`
+	// Environment is the team's local environment (see Environment); nil
+	// when the team doesn't declare one.
+	Environment *Environment `json:"environment,omitempty"`
 }
 
 // ManifestProject is one project as declared by a team. DependsOn entries are
@@ -87,6 +90,13 @@ func LoadManifest(path string) (Manifest, error) {
 		if p.GitURL == "" && m.BaseGitURL != "" {
 			m.Projects[i].GitURL = m.BaseGitURL + p.Name + ".git"
 		}
+	}
+	if m.Environment != nil {
+		env := m.Environment.WithDefaults()
+		if err := env.Validate(); err != nil {
+			return Manifest{}, fmt.Errorf("%s: %w", path, err)
+		}
+		m.Environment = &env
 	}
 	return m, nil
 }
