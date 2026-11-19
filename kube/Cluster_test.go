@@ -95,15 +95,34 @@ func TestStatus(t *testing.T) {
 		t.Fatalf("a booting API is not running yet, not an error: %v %v", running, err)
 	}
 	fake(t, map[string]string{})
-	if _, err := Status(c); err == nil || !strings.Contains(err.Error(), "sandbox") {
+	if _, err := Status(c); err == nil || !strings.Contains(err.Error(), "install the local environment") {
 		t.Fatalf("a missing container is an error, got %v", err)
 	}
 }
 
-func TestImportImageArgvPassesValuesAsArguments(t *testing.T) {
+func TestImportImageArgvRunsThisProgramWithoutAShell(t *testing.T) {
+	orig := Executable
+	Executable = func() (string, error) { return "/opt/go-dark", nil }
+	defer func() { Executable = orig }()
 	argv := ImportImageArgv(Cluster{Container: "rancher"}, "local/til-order:1.0; rm -rf /")
-	if argv[0] != "sh" || strings.Contains(argv[2], "til-order") || argv[4] != "local/til-order:1.0; rm -rf /" || argv[5] != "rancher" || argv[6] != ContainerdSocket {
-		t.Fatalf("image and container must be positional args, not script text: %q", argv)
+	if strings.Join(argv, "|") != "/opt/go-dark|env|import-image|--container|rancher|local/til-order:1.0; rm -rf /" {
+		t.Fatalf("image and container must be plain arguments: %q", argv)
+	}
+}
+
+func TestAllowed_GoDarkContextsAndLegacyOnly(t *testing.T) {
+	for ctx, want := range map[string]bool{"go-dark-belgiantrain": true, "rancher-lcl": true, "go-dark-": false, "azr-prd-idas-aks01": false, "rancher-desktop": false, "xgo-dark-team": false} {
+		if Allowed(ctx) != want {
+			t.Errorf("Allowed(%q) = %v", ctx, !want)
+		}
+	}
+	fake(t, map[string]string{"kubectl config view --minify --context go-dark-rail": "https://127.0.0.1:6550"})
+	if err := Guard(Cluster{Context: "go-dark-rail", Namespace: "til-lcl"}); err != nil {
+		t.Fatal(err)
+	}
+	fake(t, map[string]string{"kubectl config view --minify --context go-dark-rail": "https://rancher.intern-belgiantrain.be/k8s/clusters/c-x"})
+	if err := Guard(Cluster{Context: "go-dark-rail", Namespace: "til-lcl"}); err == nil || !strings.Contains(err.Error(), "hostname") {
+		t.Fatalf("a go-dark context on a hostname must still be refused, got %v", err)
 	}
 }
 

@@ -13,10 +13,20 @@ import (
 	"github.com/exr462/go-dark/action"
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/deploy"
+	"github.com/exr462/go-dark/env"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/shell"
 	"github.com/exr462/go-dark/ui/component"
 )
+
+// TestMain lets the image side-load re-run this binary as `go-dark env
+// import-image` (kube.ImportImageArgv), exactly like the real program.
+func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == "env" {
+		os.Exit(env.CLI(os.Args[2:], os.Stdout))
+	}
+	os.Exit(m.Run())
+}
 
 // fakeCluster puts docker/kubectl/helm scripts on PATH. docker reports the
 // rancher container as running or stopped; `docker start` flips it.
@@ -30,7 +40,7 @@ func fakeCluster(t *testing.T, running bool, server string) string {
 		"docker": `case "$1" in
   inspect) cat ` + state + `;;
   start) echo rancher; echo true > ` + state + `;;
-  exec) case "$*" in *"command -v ctr"*) exit 0;; esac; cat > /dev/null; echo "docker $*" >> ` + log + `;;
+  exec) cat > /dev/null; echo "docker $*" >> ` + log + `;;
   *) echo "docker $*" >> ` + log + `;;
 esac`,
 		"kubectl": `case "$*" in
@@ -111,7 +121,7 @@ func TestDeploy_StartsTheClusterThenDeploys(t *testing.T) {
 	}
 	calls, _ := os.ReadFile(log)
 	if !strings.Contains(string(calls), "docker build -t tfc/til-order:1.16.2-SNAPSHOT") || !strings.Contains(string(calls), "docker save tfc/til-order:1.16.2-SNAPSHOT") ||
-		!strings.Contains(string(calls), "docker exec -i rancher ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -") || !strings.Contains(string(calls), "--kube-context rancher-lcl --namespace til-lcl\n") {
+		!strings.Contains(string(calls), "docker exec -i rancher /usr/bin/ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -") || !strings.Contains(string(calls), "--kube-context rancher-lcl --namespace til-lcl\n") {
 		t.Fatalf("unexpected calls:\n%s", calls)
 	}
 	if out := ansi.Strip(component.RenderDeployModal(ui)); !strings.Contains(out, "image ✅  deploy ✅") {
@@ -144,5 +154,38 @@ func TestDeploy_ConfiguredProductionContextIsRefused(t *testing.T) {
 
 	if ui.ClusterErr == nil || !strings.Contains(ui.ClusterErr.Error(), "only local contexts") {
 		t.Fatalf("a non-allowlisted context must be refused even on a local address, got %v", ui.ClusterErr)
+	}
+}
+
+// TestDeploy_TargetsTheTeamEnvironment: with a manifest environment the ship
+// screen deploys to go-dark-<team> / its namespace, configured from the
+// manifest (values file, database URL), and the legacy config is ignored.
+func TestDeploy_TargetsTheTeamEnvironment(t *testing.T) {
+	log := fakeCluster(t, true, "https://127.0.0.1:6550")
+	ui := deployTestUI(t)
+	ui.Config.LocalCluster = config.LocalCluster{Context: "rancher-lcl", Namespace: "legacy"}
+	ui.Config.Environments = []config.TeamEnvironment{{Team: "rail", Environment: config.Environment{Application: "til", Domain: "lcl.local",
+		ValuesFiles: map[string]string{"dev": "values.Dev.yaml"}}.WithDefaults()}}
+	chart := filepath.Join(ui.Config.Projects[0].Path, "helm", "til-order")
+	_ = os.WriteFile(filepath.Join(chart, "values.Dev.yaml"), []byte("main:\n  minReplicas: 2\n"), 0o644)
+
+	OpenDeploy(ui)
+	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
+	if ui.ClusterErr != nil || !ui.ClusterRunning {
+		t.Fatalf("the environment's context must pass the guard: %v", ui.ClusterErr)
+	}
+	out := ansi.Strip(component.RenderDeployModal(ui))
+	if !strings.Contains(out, `environment "lcl" of team rail`) || !strings.Contains(out, "go-dark-rail is running and local (namespace til-lcl)") {
+		t.Fatalf("screen:\n%s", out)
+	}
+	run := DeployModal(ui, testKeyMsg("d"))
+	DeployFinished(ui, run().(model.DeployFinishedMsg))
+	if ui.DeployErr != nil || !strings.Contains(ui.StatusMsg, "Deployed to go-dark-rail/til-lcl") {
+		t.Fatalf("expected success, got %v / %q", ui.DeployErr, ui.StatusMsg)
+	}
+	calls, _ := os.ReadFile(log)
+	if !strings.Contains(string(calls), "docker exec -i go-dark-rail-rancher /usr/bin/ctr") || !strings.Contains(string(calls), "--kube-context go-dark-rail --namespace til-lcl\n") ||
+		!strings.Contains(string(calls), "values.Dev.yaml") || strings.Contains(string(calls), "legacy") {
+		t.Fatalf("unexpected calls:\n%s", calls)
 	}
 }

@@ -8,18 +8,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 )
 
-// AllowedContexts are the only contexts go-dark will deploy to: the local
-// Rancher sandbox (k3s inside the `rancher` container, API published on
-// 127.0.0.1).
+// ContextPrefix marks the kube contexts go-dark writes itself, one per team
+// environment (go-dark-<team>, see the env package): the only contexts it
+// deploys to, besides the legacy sandbox's.
+const ContextPrefix = "go-dark-"
+
+// AllowedContexts are legacy contexts go-dark still deploys to: the bash
+// sandbox's rancher-lcl (k3s inside the `rancher` container, API published
+// on 127.0.0.1).
 var AllowedContexts = []string{"rancher-lcl"}
+
+// Allowed reports whether a context name is one go-dark may deploy to. The
+// server address is checked separately (Guard).
+func Allowed(context string) bool {
+	return strings.HasPrefix(context, ContextPrefix) && len(context) > len(ContextPrefix) || slices.Contains(AllowedContexts, context)
+}
 
 // Cluster is the local deployment target.
 type Cluster struct {
@@ -43,15 +57,15 @@ func run(name string, args ...string) ([]byte, error) {
 // is a literal loopback address. Hostnames are refused without being
 // resolved: internal hostnames resolve to private addresses too.
 func Guard(c Cluster) error {
-	if !slices.Contains(AllowedContexts, c.Context) {
-		return fmt.Errorf("refusing kube context %q: only local contexts %v are allowed", c.Context, AllowedContexts)
+	if !Allowed(c.Context) {
+		return fmt.Errorf("refusing kube context %q: only local contexts (%s<team>, %s) are allowed", c.Context, ContextPrefix, strings.Join(AllowedContexts, ", "))
 	}
 	if c.Namespace == "" || strings.ContainsAny(c.Namespace, " /") {
 		return fmt.Errorf("invalid namespace %q", c.Namespace)
 	}
 	out, err := run("kubectl", "config", "view", "--minify", "--context", c.Context, "-o", "jsonpath={.clusters[0].cluster.server}")
 	if err != nil {
-		return fmt.Errorf("kube context %q not found (create it with the sandbox's deploy/cluster.sh kubeconfig): %v", c.Context, err)
+		return fmt.Errorf("kube context %q not found (install the environment first, ctrl+l): %v", c.Context, err)
 	}
 	server := strings.TrimSpace(string(out))
 	u, err := url.Parse(server)
@@ -74,7 +88,7 @@ func Guard(c Cluster) error {
 func Status(c Cluster) (running bool, err error) {
 	out, err := run("docker", "inspect", "-f", "{{.State.Running}}", c.Container)
 	if err != nil {
-		return false, fmt.Errorf("docker container %q not found - is the local Rancher sandbox set up? (%v)", c.Container, err)
+		return false, fmt.Errorf("docker container %q not found - install the local environment first (%v)", c.Container, err)
 	}
 	if strings.TrimSpace(string(out)) != "true" {
 		return false, nil
@@ -93,16 +107,89 @@ func StartArgv(c Cluster) []string {
 // ContainerdSocket is the k3s node's containerd inside the cluster container.
 const ContainerdSocket = "/run/k3s/containerd/containerd.sock"
 
-// ImportImageArgv copies a locally built image into the cluster node's
-// containerd, so pods find it without a registry (imagePullPolicy: Never).
-// Rancher's embedded k3s has no `k3s ctr`; the sandbox's cluster.sh installs
-// a standalone ctr into the container.
+// Ctr is the containerd client in the rancher image. Rancher's embedded k3s
+// has no `k3s ctr`, but the image ships /usr/bin/ctr.
+const Ctr = "/usr/bin/ctr"
+
+// Executable is this program; replaced in tests.
+var Executable = os.Executable
+
+// ImportImageArgv is the session command that copies a locally built image
+// into the cluster node's containerd, so pods find it without a registry
+// (imagePullPolicy: Never). It runs ImportImage through this executable
+// (`go-dark env import-image`), which pipes docker save into docker exec in
+// Go - no shell, so it works the same on Windows.
 func ImportImageArgv(c Cluster, image string) []string {
-	script := `command -v docker >/dev/null || { echo "docker not found"; exit 1; }
-docker exec "$2" sh -c 'command -v ctr' >/dev/null || { echo "no ctr in container $2 - run the sandbox's deploy/cluster.sh up"; exit 1; }
-docker save "$1" | docker exec -i "$2" ctr -a "$3" -n k8s.io images import -`
-	return []string{"sh", "-c", script, "go-dark", image, c.Container, ContainerdSocket}
+	exe, err := Executable()
+	if err != nil {
+		exe = "go-dark"
+	}
+	return []string{exe, "env", "import-image", "--container", c.Container, image}
 }
+
+// ImportImage streams `docker save image` into `ctr images import -` inside
+// the cluster container, reporting progress on w.
+func ImportImage(ctx context.Context, container, image string, out io.Writer) error {
+	// Both processes and the counter write to the log concurrently.
+	w := &syncWriter{w: out}
+	save := exec.CommandContext(ctx, "docker", "save", image)
+	load := exec.CommandContext(ctx, "docker", "exec", "-i", container, Ctr, "-a", ContainerdSocket, "-n", "k8s.io", "images", "import", "-")
+	pr, pw := io.Pipe()
+	counter := &progressWriter{w: w}
+	save.Stdout = io.MultiWriter(pw, counter)
+	save.Stderr = w
+	load.Stdin = pr
+	load.Stdout, load.Stderr = w, w
+
+	fmt.Fprintf(w, "docker save %s | docker exec -i %s ctr -n k8s.io images import -\n", image, container)
+	if err := load.Start(); err != nil {
+		_ = pw.Close()
+		return fmt.Errorf("docker exec: %w", err)
+	}
+	saveErr := save.Run()
+	_ = pw.CloseWithError(saveErr)
+	loadErr := load.Wait()
+	counter.finish()
+	if saveErr != nil {
+		return fmt.Errorf("docker save %s: %w", image, saveErr)
+	}
+	if loadErr != nil {
+		return fmt.Errorf("ctr images import in %s: %w", container, loadErr)
+	}
+	fmt.Fprintf(w, "%s imported into %s\n", image, container)
+	return nil
+}
+
+// syncWriter serializes writes from the two processes' output pumps.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(b []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(b)
+}
+
+// progressWriter reports the bytes streamed so far every few MB.
+type progressWriter struct {
+	w        io.Writer
+	n, shown int64
+}
+
+const progressStep = 64 << 20
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	p.n += int64(len(b))
+	if p.n-p.shown >= progressStep {
+		p.shown = p.n
+		fmt.Fprintf(p.w, "  %d MB...\n", p.n>>20)
+	}
+	return len(b), nil
+}
+
+func (p *progressWriter) finish() { fmt.Fprintf(p.w, "  %d MB streamed\n", p.n>>20) }
 
 // NodeArch is the architecture of the cluster's node (charts pin
 // kubernetes.io/arch in their nodeSelector).
