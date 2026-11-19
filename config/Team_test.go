@@ -253,6 +253,9 @@ func TestRefreshProjects_FreshProfileGetsTheBuiltinTeam(t *testing.T) {
 	if p := cfg.Projects[FindProject(cfg.Projects, "belgiantrain/til-order")]; p.Path != filepath.Join("/ws", "til-order") {
 		t.Fatalf("projects resolve against the workspace, got %q", p.Path)
 	}
+	if len(cfg.Environments) != 1 {
+		t.Fatalf("the built-in manifest's environment must be available, got %d", len(cfg.Environments))
+	}
 
 	// Saved and loaded again: still there, not duplicated.
 	_ = SaveConfig(cfg)
