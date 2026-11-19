@@ -34,7 +34,7 @@ case "$*" in
   "compose version") echo v2;;
   "ps "*) echo "other|otherproj|0.0.0.0:8080->80/tcp";;
   "inspect "*) echo true;;
-  "port "*) echo "0.0.0.0:80";;
+  "port "*) printf "6443/tcp -> 127.0.0.1:6550\n30080/tcp -> 0.0.0.0:80\n30443/tcp -> 0.0.0.0:443\n";;
   *"cat /etc/rancher/k3s/k3s.yaml") printf '%s' "$(cat <<'EOF'
 ` + kubeconfig + `EOF
 )";;

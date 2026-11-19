@@ -111,10 +111,32 @@ func conflictProject(c Conflict) string {
 	return " (compose project " + c.Project + ")"
 }
 
-// ownPort reports whether the environment's own container publishes port.
+// ownPort reports whether the environment's own container publishes port
+// on the host. `docker port <c> <port>` would look up the container side
+// (host 80 is container 30080), so every mapping is listed and the host
+// side compared: "30080/tcp -> 0.0.0.0:80".
 func ownPort(e Env, port int) bool {
-	out, err := output("docker", "port", e.Container(), strconv.Itoa(port))
-	return err == nil && strings.TrimSpace(string(out)) != ""
+	out, err := output("docker", "port", e.Container())
+	if err != nil {
+		return false
+	}
+	return hostPorts(string(out))[port]
+}
+
+// hostPorts parses `docker port` output into the published host ports.
+func hostPorts(out string) map[int]bool {
+	ports := map[int]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		_, host, ok := strings.Cut(line, "->")
+		if !ok {
+			continue
+		}
+		host = strings.TrimSpace(host)
+		if p, err := strconv.Atoi(host[strings.LastIndex(host, ":")+1:]); err == nil {
+			ports[p] = true
+		}
+	}
+	return ports
 }
 
 // dockerCheck wants a running daemon with MinCPUs and MinMemBytes; less is a
