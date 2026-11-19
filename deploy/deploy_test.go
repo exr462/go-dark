@@ -12,11 +12,21 @@ import (
 
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/deploy"
+	"github.com/exr462/go-dark/env"
 	"github.com/exr462/go-dark/kube"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/shell"
 	"gopkg.in/yaml.v3"
 )
+
+// TestMain lets the image side-load re-run this binary as `go-dark env
+// import-image` (kube.ImportImageArgv), exactly like the real program.
+func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == "env" {
+		os.Exit(env.CLI(os.Args[2:], os.Stdout))
+	}
+	os.Exit(m.Run())
+}
 
 // fakeTools puts docker/helm/kubectl scripts on PATH that append their
 // arguments to log. helm fails for any chart named in failCharts.
@@ -29,7 +39,7 @@ func fakeTools(t *testing.T, failCharts ...string) (log string) {
 		"docker": `echo "docker $*" >> ` + log + `
 case "$1" in
   save) echo "image-tar" ;;
-  exec) case "$*" in *"command -v ctr"*) exit 0;; esac; cat > /dev/null; echo "unpacking $*" ;;
+  exec) cat > /dev/null; echo "unpacking $*" ;;
   *) echo "Successfully tagged" ;;
 esac`,
 		"kubectl": `echo "https://127.0.0.1:6550"`,
@@ -58,10 +68,10 @@ func service(t *testing.T, root, name string, withLocal bool, deps ...string) co
 	dir := filepath.Join(root, name)
 	chart := filepath.Join(dir, "helm", name)
 	files := map[string]string{
-		filepath.Join(chart, "Chart.yaml"):                "apiVersion: v2\nname: " + name + "\nversion: {JENKINS_VERSION}\n",
-		filepath.Join(chart, "values.yaml"):               "ypto:\n  env: dev\nmain:\n  name: " + name + "\n  env: dev\n  image: azpswenmbsacr01.azurecr.io/bict4058/" + name + "\n  version: {JENKINS_VERSION}\n",
-		filepath.Join(chart, "values.Development.yaml"):   "main:\n  minReplicas: 2\n  dynatrace: true\ndata:\n  applicationDbPwd: \"???????\"\n  jmsOmsQPwd1: \"???????\"\n  keyStorePwd: \"???????\"\n",
-		filepath.Join(chart, "values.Production.yaml"):    "main:\n  minReplicas: 4\n",
+		filepath.Join(chart, "Chart.yaml"):              "apiVersion: v2\nname: " + name + "\nversion: {JENKINS_VERSION}\n",
+		filepath.Join(chart, "values.yaml"):             "ypto:\n  env: dev\nmain:\n  name: " + name + "\n  env: dev\n  image: azpswenmbsacr01.azurecr.io/bict4058/" + name + "\n  version: {JENKINS_VERSION}\n",
+		filepath.Join(chart, "values.Development.yaml"): "main:\n  minReplicas: 2\n  dynatrace: true\ndata:\n  applicationDbPwd: \"???????\"\n  jmsOmsQPwd1: \"???????\"\n  keyStorePwd: \"???????\"\n",
+		filepath.Join(chart, "values.Production.yaml"):  "main:\n  minReplicas: 4\n",
 		filepath.Join(chart, "config", "dev", "application-k8s.properties"): "spring.datasource.url=jdbc:oracle:thin:@db.til.dev-intern-belgiantrain.be:1525/CDBNPD03\n" +
 			"spring.datasource.username=TORA\nspring.liquibase.url=${spring.datasource.url}\nbelgiantrain.jms.connectionFactories[0].connection-string=Endpoint=sb://dev\n",
 		filepath.Join(chart, "config", "prd", "application-k8s.properties"): "spring.datasource.url=jdbc:oracle:thin:@db.prd\n",
@@ -205,7 +215,6 @@ func TestRun_BuildsLoadsAndInstallsWithExplicitContext(t *testing.T) {
 	}
 	data, _ := os.ReadFile(log)
 	calls := strings.Split(strings.TrimSpace(string(data)), "\n")
-	calls = slices.DeleteFunc(calls, func(c string) bool { return strings.Contains(c, "command -v ctr") })
 	if len(calls) != 8 {
 		t.Fatalf("expected build, save, import, helm per service, got:\n%s", data)
 	}
@@ -214,7 +223,7 @@ func TestRun_BuildsLoadsAndInstallsWithExplicitContext(t *testing.T) {
 		// save and import run as one pipe, so either may log first.
 		load := []string{c[1], c[2]}
 		slices.Sort(load)
-		if !strings.HasPrefix(c[0], "docker build -t "+svc+" ") || load[0] != "docker exec -i rancher ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -" ||
+		if !strings.HasPrefix(c[0], "docker build -t "+svc+" ") || load[0] != "docker exec -i rancher /usr/bin/ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -" ||
 			load[1] != "docker save "+svc {
 			t.Fatalf("%s must be built then loaded into the cluster, got:\n%s", svc, data)
 		}

@@ -33,10 +33,9 @@ func PlanDeploy(ui *model.UI) {
 	}
 }
 
-func cluster(ui *model.UI) kube.Cluster {
-	c := ui.Config.Cluster()
-	return kube.Cluster{Context: c.Context, Namespace: c.Namespace, Container: c.Container}
-}
+// cluster is the local target: the team environment, or the legacy
+// config.json cluster when no manifest declares one.
+func cluster(ui *model.UI) kube.Cluster { return ui.DeployTarget().Cluster }
 
 // CheckCluster checks the local cluster and the context guard in the
 // background.
@@ -140,7 +139,7 @@ func startDeploy(ui *model.UI) tea.Cmd {
 		Sessions: ui.Shells, Cluster: cluster(ui), Parallel: max(ui.MaxParallelism, 1),
 		Width: w, Height: h, Progress: ui.DeployProgress,
 	}
-	local := ui.Config.Cluster()
+	envFor := ui.DeployEnv
 	waves := ui.DeployWaves
 	ui.StatusMsg = "🚢 Deploying to the local cluster..."
 	return func() tea.Msg {
@@ -149,7 +148,7 @@ func startDeploy(ui *model.UI) tea.Cmd {
 		if err != nil {
 			return model.DeployFinishedMsg{Err: err}
 		}
-		opts.Env = deploy.EnvFromConfig(local, arch)
+		opts.Env = envFor(arch)
 		return model.DeployFinishedMsg{Err: deploy.Run(ctx, waves, opts)}
 	}
 }
@@ -161,7 +160,8 @@ func DeployFinished(ui *model.UI, msg model.DeployFinishedMsg) {
 	if msg.Err != nil {
 		ui.StatusMsg = fmt.Sprintf("❌ Deploy failed: %v", msg.Err)
 	} else {
-		ui.StatusMsg = fmt.Sprintf("✅ Deployed to %s/%s", ui.Config.Cluster().Context, ui.Config.Cluster().Namespace)
+		c := cluster(ui)
+		ui.StatusMsg = fmt.Sprintf("✅ Deployed to %s/%s", c.Context, c.Namespace)
 	}
 }
 

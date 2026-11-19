@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/env"
 	"github.com/exr462/go-dark/kube"
 	"github.com/exr462/go-dark/maven"
 	"gopkg.in/yaml.v3"
@@ -28,13 +29,8 @@ const LocalValuesFile = "values.local-rancher.yaml"
 const OverlayFile = "values.go-dark.yaml"
 
 // EnvValuesFiles maps an environment to the chart values file its pipeline
-// deploys with.
-var EnvValuesFiles = map[string]string{
-	"dev": "values.Development.yaml",
-	"tst": "values.Test.yaml",
-	"acc": "values.Acceptance.yaml",
-	"prd": "values.Production.yaml",
-}
+// deploys with, when the team manifest doesn't say.
+var EnvValuesFiles = config.DefaultValuesFiles
 
 // Target is one service to deploy.
 type Target struct {
@@ -212,14 +208,29 @@ var semver = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 type Env struct {
 	Name       string // chart environment, e.g. lcl
 	ConfigFrom string // environment whose values/config/secrets are copied, e.g. dev
+	ValuesFile string // the ConfigFrom environment's values file (default: EnvValuesFiles)
 	DBURL      string
 	DBPassword string
 	Arch       string // node architecture
 }
 
-// EnvFromConfig turns the configured local cluster into an Env.
+// EnvFromConfig turns the legacy local cluster of config.json into an Env
+// (used when no team manifest declares an environment).
 func EnvFromConfig(c config.LocalCluster, arch string) Env {
 	return Env{Name: c.Env, ConfigFrom: c.ConfigFrom, DBURL: c.Database.URL, DBPassword: c.Database.Password, Arch: arch}
+}
+
+// EnvFromLocal turns a team environment into an Env.
+func EnvFromLocal(e env.Env, arch string) Env {
+	return Env{Name: e.Name, ConfigFrom: e.ConfigFrom, ValuesFile: e.ValuesFile(), DBURL: e.DBURL(), DBPassword: e.DBPassword, Arch: arch}
+}
+
+// valuesFile is the values file of the environment the chart is copied from.
+func (e Env) valuesFile() string {
+	if e.ValuesFile != "" {
+		return e.ValuesFile
+	}
+	return EnvValuesFiles[e.ConfigFrom]
 }
 
 // Staged is a chart copy ready to install.
@@ -263,7 +274,7 @@ func PrepareChart(t Target, dir string, env Env) (Staged, error) {
 	}
 
 	var layers []map[string]any
-	if f := EnvValuesFiles[env.ConfigFrom]; f != "" && fileExists(filepath.Join(chartDir, f)) {
+	if f := env.valuesFile(); f != "" && fileExists(filepath.Join(chartDir, f)) {
 		st.Values = append(st.Values, filepath.Join(chartDir, f))
 	}
 	for _, f := range append([]string{filepath.Join(chartDir, "values.yaml")}, st.Values...) {

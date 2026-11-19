@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/exr462/go-dark/config"
+	"github.com/exr462/go-dark/kube"
 )
 
 // CLI is `go-dark env <install|start|stop|uninstall|status> ...`. The
@@ -30,6 +31,9 @@ func CLI(args []string, stdout io.Writer) int {
 	action, args := args[0], args[1:]
 	fs := flag.NewFlagSet("go-dark env "+action, flag.ContinueOnError)
 	fs.SetOutput(stdout)
+	if action == "import-image" {
+		return importImage(fs, args, stdout)
+	}
 	manifest := fs.String("manifest", "", "team manifest (go-dark.json) declaring the environment")
 	team := fs.String("team", "", "subscribed team whose environment to use (reads config.json)")
 	workspace := fs.String("workspace", "", "workspace holding the services (default: config.json's)")
@@ -72,7 +76,29 @@ func CLI(args []string, stdout io.Writer) int {
 	return 0
 }
 
-const cliUsage = `usage: go-dark env <install|start|stop|uninstall|status> (--manifest go-dark.json [--workspace DIR] [--project-dir DIR]... | --team NAME) [--dir DIR] [--db-password PW] [--volumes]`
+const cliUsage = `usage: go-dark env <install|start|stop|uninstall|status> (--manifest go-dark.json [--workspace DIR] [--project-dir DIR]... | --team NAME) [--dir DIR] [--db-password PW] [--volumes]
+       go-dark env import-image --container NAME IMAGE`
+
+// importImage is `go-dark env import-image --container NAME IMAGE`: the
+// deploy's side-load of a locally built image into the cluster's containerd,
+// as a plain process so it runs as a session on every platform.
+func importImage(fs *flag.FlagSet, args []string, stdout io.Writer) int {
+	container := fs.String("container", "", "the environment's rancher container")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *container == "" || fs.NArg() != 1 {
+		fmt.Fprintln(stdout, cliUsage)
+		return 2
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if err := kube.ImportImage(ctx, *container, fs.Arg(0), stdout); err != nil {
+		fmt.Fprintf(stdout, "\nFAIL %v\n", err)
+		return 1
+	}
+	return 0
+}
 
 type stringList []string
 

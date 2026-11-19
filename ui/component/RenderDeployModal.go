@@ -17,11 +17,18 @@ import (
 // service with its image and Helm step, grouped in dependency waves.
 func RenderDeployModal(ui *model.UI) string {
 	width := max(ui.WindowWidth-8, 20)
-	c := ui.Config.Cluster()
+	t := ui.DeployTarget()
+	c := t.Cluster
 	var b strings.Builder
 	b.WriteString(decorator.Title.Render(fmt.Sprintf("🚢 Ship to the local cluster (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy))) + "\n")
 	b.WriteString(decorator.Description.Render(fmt.Sprintf(
-		"Builds the workspace in dependency waves, loads each service's image into the local Rancher and installs its chart configured like %s (local database) as %s into %s/%s.", c.ConfigFrom, c.Env, c.Context, c.Namespace)) + "\n\n")
+		"Builds the workspace in dependency waves, loads each service's image into the local Rancher and installs its chart configured like %s (local database) as %s into %s/%s.", t.ConfigFrom, t.Env, c.Context, c.Namespace)) + "\n")
+	if t.Legacy {
+		b.WriteString(decorator.Meta.Render("  Target: config.json local_cluster (no subscribed team manifest declares an environment; "+action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv)+" installs one once it does)") + "\n")
+	} else {
+		b.WriteString(decorator.Meta.Render(fmt.Sprintf("  Target: environment %q of team %s (%s installs, starts and stops it)", t.Env, t.Team, action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv))) + "\n")
+	}
+	b.WriteString("\n")
 
 	b.WriteString(clusterLine(ui) + "\n")
 	if n := len(ui.ScaledDown); n > 0 {
@@ -106,7 +113,7 @@ func RenderDeployModal(ui *model.UI) string {
 }
 
 func clusterLine(ui *model.UI) string {
-	c := ui.Config.Cluster()
+	c := ui.DeployTarget().Cluster
 	switch {
 	case !ui.ClusterChecked:
 		return decorator.Meta.Render("⏳ Checking the local cluster...")
