@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,19 +15,24 @@ import (
 	"github.com/exr462/go-dark/kube"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/shell"
+	"gopkg.in/yaml.v3"
 )
 
-// fakeTools puts docker/helm/kubectl/minikube scripts on PATH that append
-// their arguments to log. helm fails for any chart named in failCharts.
+// fakeTools puts docker/helm/kubectl scripts on PATH that append their
+// arguments to log. helm fails for any chart named in failCharts.
 func fakeTools(t *testing.T, failCharts ...string) (log string) {
 	t.Helper()
 	bin := t.TempDir()
 	log = filepath.Join(t.TempDir(), "calls.log")
 	fail := strings.Join(failCharts, " ")
 	scripts := map[string]string{
-		"docker":   `echo "docker $*" >> ` + log + `; echo "Successfully tagged"`,
-		"kubectl":  `echo "https://127.0.0.1:53846"`,
-		"minikube": `echo "192.168.49.2"`,
+		"docker": `echo "docker $*" >> ` + log + `
+case "$1" in
+  save) echo "image-tar" ;;
+  exec) case "$*" in *"command -v ctr"*) exit 0;; esac; cat > /dev/null; echo "unpacking $*" ;;
+  *) echo "Successfully tagged" ;;
+esac`,
+		"kubectl": `echo "https://127.0.0.1:6550"`,
 		"helm": `echo "helm $*" >> ` + log + `
 for c in ` + fail + `; do [ "$3" = "$c" ] && { echo "Error: release $c failed"; exit 1; }; done
 echo "STATUS: deployed"`,
@@ -40,19 +46,33 @@ echo "STATUS: deployed"`,
 	return log
 }
 
-func service(t *testing.T, root, name string, deps ...string) config.Project {
+var local = kube.Cluster{Context: "rancher-lcl", Namespace: "til-lcl", Container: "rancher"}
+
+var lcl = deploy.Env{Name: "lcl", ConfigFrom: "dev", DBURL: "jdbc:oracle:thin:@oracle.til-lcl.svc:1521/FREEPDB1", DBPassword: "changeit_local", Arch: "arm64"}
+
+// service writes a project shaped like the TIL services: a ypto chart with
+// per-environment values, config and secrets, a pom and a Dockerfile.
+// withLocal adds the developer's values.local-rancher.yaml.
+func service(t *testing.T, root, name string, withLocal bool, deps ...string) config.Project {
 	t.Helper()
 	dir := filepath.Join(root, name)
 	chart := filepath.Join(dir, "helm", name)
-	_ = os.MkdirAll(filepath.Join(chart, "templates"), 0o755)
-	_ = os.MkdirAll(filepath.Join(dir, name+"-service"), 0o755)
 	files := map[string]string{
 		filepath.Join(chart, "Chart.yaml"):                "apiVersion: v2\nname: " + name + "\nversion: {JENKINS_VERSION}\n",
-		filepath.Join(chart, "values.yaml"):               "main:\n  replicas: 2\n",
-		filepath.Join(chart, deploy.LocalValuesFile):      "main:\n  image: tfc/" + name + "\n  version: 1.2.0-SNAPSHOT\n  imagePullPolicy: Never\n",
-		filepath.Join(chart, "templates", "main.yaml"):    "kind: ConfigMap\n",
-		filepath.Join(dir, name+"-service", "Dockerfile"): "FROM scratch\n",
-		filepath.Join(dir, "target", "Dockerfile"):        "FROM ignored\n",
+		filepath.Join(chart, "values.yaml"):               "ypto:\n  env: dev\nmain:\n  name: " + name + "\n  env: dev\n  image: azpswenmbsacr01.azurecr.io/bict4058/" + name + "\n  version: {JENKINS_VERSION}\n",
+		filepath.Join(chart, "values.Development.yaml"):   "main:\n  minReplicas: 2\n  dynatrace: true\ndata:\n  applicationDbPwd: \"???????\"\n  jmsOmsQPwd1: \"???????\"\n  keyStorePwd: \"???????\"\n",
+		filepath.Join(chart, "values.Production.yaml"):    "main:\n  minReplicas: 4\n",
+		filepath.Join(chart, "config", "dev", "application-k8s.properties"): "spring.datasource.url=jdbc:oracle:thin:@db.til.dev-intern-belgiantrain.be:1525/CDBNPD03\n" +
+			"spring.datasource.username=TORA\nspring.liquibase.url=${spring.datasource.url}\nbelgiantrain.jms.connectionFactories[0].connection-string=Endpoint=sb://dev\n",
+		filepath.Join(chart, "config", "prd", "application-k8s.properties"): "spring.datasource.url=jdbc:oracle:thin:@db.prd\n",
+		filepath.Join(chart, "secrets", "dev", "client-certificate.pfx"):    "dev-cert",
+		filepath.Join(chart, "templates", "main.yaml"):                      "kind: ConfigMap\n",
+		filepath.Join(dir, "pom.xml"):                                       "<project><groupId>be.til</groupId><artifactId>" + name + "</artifactId><version>1.16.2-SNAPSHOT</version></project>",
+		filepath.Join(dir, name+"-service", "Dockerfile"):                   "FROM scratch\n",
+		filepath.Join(dir, "target", "Dockerfile"):                          "FROM ignored\n",
+	}
+	if withLocal {
+		files[filepath.Join(chart, deploy.LocalValuesFile)] = "ypto:\n  env: dev\nmain:\n  image: tfc/" + name + "\n  version: 1.2.0-SNAPSHOT\ndata:\n  jmsOmsQPwd1: my-local-jms\n"
 	}
 	for path, content := range files {
 		_ = os.MkdirAll(filepath.Dir(path), 0o755)
@@ -86,8 +106,8 @@ func manager(t *testing.T) *shell.Manager {
 
 func TestPlan_DiscoversTargetsWavesAndSkips(t *testing.T) {
 	root := t.TempDir()
-	order := service(t, root, "til-order")
-	purchase := service(t, root, "til-purchase", "til/til-order")
+	order := service(t, root, "til-order", true)
+	purchase := service(t, root, "til-purchase", false, "til/til-order")
 	plain := config.Project{ID: "til/til-global-aks", Name: "til-global-aks", Path: filepath.Join(root, "aks"), Fetched: true, Deployable: true}
 	_ = os.MkdirAll(plain.Path, 0o755)
 
@@ -96,28 +116,70 @@ func TestPlan_DiscoversTargetsWavesAndSkips(t *testing.T) {
 		t.Fatalf("expected order then purchase, got %+v", waves)
 	}
 	o := waves[0][0]
-	if o.Image != "tfc/til-order" || o.Tag != "1.2.0-SNAPSHOT" || o.ChartName != "til-order" || filepath.Base(o.DockerDir) != "til-order-service" {
-		t.Fatalf("unexpected target %+v", o)
+	if o.Ref() != "tfc/til-order:1.2.0-SNAPSHOT" || o.ChartName != "til-order" || filepath.Base(o.DockerDir) != "til-order-service" {
+		t.Fatalf("the developer's local values name the image: %+v", o)
 	}
-	if len(skipped) != 1 || !strings.Contains(skipped[0].Skip, deploy.LocalValuesFile) {
-		t.Fatalf("a project without local values must be skipped, got %+v", skipped)
+	if p := waves[1][0]; p.Ref() != "local/til-purchase:1.16.2-SNAPSHOT" || p.LocalValues != "" {
+		t.Fatalf("without local values the image is local/<chart>:<pom version>, got %+v", p)
+	}
+	if len(skipped) != 1 || !strings.Contains(skipped[0].Skip, "no helm") {
+		t.Fatalf("a project without a chart must be skipped, got %+v", skipped)
 	}
 }
 
-func TestPrepareChart_ValidVersionInCopyOnly(t *testing.T) {
-	waves, _ := planFor(t, service(t, t.TempDir(), "til-order"))
+func TestPrepareChart_StagesTheEnvironmentLikeDev(t *testing.T) {
+	waves, _ := planFor(t, service(t, t.TempDir(), "til-order", true))
 	tgt := waves[0][0]
-	dir, hasDeps, err := deploy.PrepareChart(tgt, t.TempDir())
-	if err != nil || hasDeps {
-		t.Fatalf("prepare: %v deps=%v", err, hasDeps)
+	st, err := deploy.PrepareChart(tgt, t.TempDir(), lcl)
+	if err != nil || st.HasDeps {
+		t.Fatalf("prepare: %v deps=%v", err, st.HasDeps)
 	}
-	copied, _ := os.ReadFile(filepath.Join(dir, "Chart.yaml"))
-	original, _ := os.ReadFile(filepath.Join(tgt.ChartDir, "Chart.yaml"))
-	if !strings.Contains(string(copied), "version: 1.2.0-SNAPSHOT") || !strings.Contains(string(original), "{JENKINS_VERSION}") {
-		t.Fatalf("the copy gets a valid version, the original stays:\n%s\n---\n%s", copied, original)
+	read := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "templates", "main.yaml")); err != nil {
-		t.Fatal("templates must be copied")
+	if !strings.Contains(read(filepath.Join(st.Dir, "Chart.yaml")), "version: 1.2.0-SNAPSHOT") ||
+		!strings.Contains(read(filepath.Join(tgt.ChartDir, "Chart.yaml")), "{JENKINS_VERSION}") {
+		t.Fatal("the copy gets a valid version, the original stays")
+	}
+
+	props := read(filepath.Join(st.Dir, "config", "lcl", "application-k8s.properties"))
+	for _, want := range []string{"spring.datasource.url=" + lcl.DBURL + "\n", "spring.datasource.username=TORA", "spring.liquibase.url=${spring.datasource.url}", "Endpoint=sb://dev"} {
+		if !strings.Contains(props, want) {
+			t.Errorf("config/lcl must be config/dev with the local database, missing %q in:\n%s", want, props)
+		}
+	}
+	if read(filepath.Join(st.Dir, "secrets", "lcl", "client-certificate.pfx")) != "dev-cert" {
+		t.Error("secrets/lcl must be a copy of secrets/dev")
+	}
+	if strings.Contains(read(filepath.Join(tgt.ChartDir, "config", "dev", "application-k8s.properties")), "oracle.til-lcl") {
+		t.Error("the project's config must stay untouched")
+	}
+
+	var names []string
+	for _, f := range st.Values {
+		names = append(names, filepath.Base(f))
+	}
+	if strings.Join(names, ",") != "values.Development.yaml,"+deploy.LocalValuesFile+","+deploy.OverlayFile {
+		t.Fatalf("values must layer dev, then the developer's, then go-dark's, got %v", names)
+	}
+
+	var overlay map[string]any
+	if err := yaml.Unmarshal([]byte(read(filepath.Join(st.Dir, deploy.OverlayFile))), &overlay); err != nil {
+		t.Fatal(err)
+	}
+	main := overlay["main"].(map[string]any)
+	data := overlay["data"].(map[string]any)
+	if overlay["ypto"].(map[string]any)["env"] != "lcl" || main["env"] != "lcl" || main["image"] != "tfc/til-order" ||
+		main["version"] != "1.2.0-SNAPSHOT" || main["imagePullPolicy"] != "Never" || main["arch"] != "arm64" ||
+		main["dynatrace"] != false || main["minReplicas"] != 1 {
+		t.Fatalf("unexpected overlay main: %v", main)
+	}
+	if data["applicationDbPwd"] != "changeit_local" || data["jmsOmsQPwd1"] != "my-local-jms" || data["keyStorePwd"] != "changeit-local" {
+		t.Fatalf("db secrets get the local password, the developer's values win elsewhere, placeholders get a dummy: %v", data)
 	}
 }
 
@@ -129,31 +191,36 @@ func TestChartVersion_ServiceVersionOrFallback(t *testing.T) {
 	}
 }
 
-func TestRun_BuildsImagesThenInstallsChartsWithExplicitContext(t *testing.T) {
+func TestRun_BuildsLoadsAndInstallsWithExplicitContext(t *testing.T) {
 	log := fakeTools(t)
 	root := t.TempDir()
-	waves, _ := planFor(t, service(t, root, "til-order"), service(t, root, "til-purchase", "til/til-order"))
+	waves, _ := planFor(t, service(t, root, "til-order", true), service(t, root, "til-purchase", false, "til/til-order"))
 	progress := deploy.NewProgress()
 
 	err := deploy.Run(context.Background(), waves, deploy.Options{
-		Sessions: manager(t), Cluster: kube.Cluster{Context: "minikube", Namespace: "til-local"},
-		DockerEnv: []string{"DOCKER_HOST=tcp://127.0.0.1:1"}, Parallel: 2, Progress: progress,
+		Sessions: manager(t), Cluster: local, Env: lcl, Parallel: 2, Progress: progress,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(log)
 	calls := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(calls) != 4 {
-		t.Fatalf("expected 4 calls, got:\n%s", data)
+	calls = slices.DeleteFunc(calls, func(c string) bool { return strings.Contains(c, "command -v ctr") })
+	if len(calls) != 8 {
+		t.Fatalf("expected build, save, import, helm per service, got:\n%s", data)
 	}
-	if !strings.HasPrefix(calls[0], "docker build -t tfc/til-order:1.2.0-SNAPSHOT ") || !strings.HasPrefix(calls[2], "docker build -t tfc/til-purchase:") {
-		t.Fatalf("images must be built per wave, got:\n%s", data)
-	}
-	for _, c := range []string{calls[1], calls[3]} {
-		if !strings.HasPrefix(c, "helm upgrade --install til-") || !strings.Contains(c, "--kube-context minikube --namespace til-local") ||
-			!strings.Contains(c, deploy.LocalValuesFile) || !strings.Contains(c, "--wait") {
-			t.Fatalf("helm must target the local cluster explicitly, got %q", c)
+	for i, svc := range []string{"tfc/til-order:1.2.0-SNAPSHOT", "local/til-purchase:1.16.2-SNAPSHOT"} {
+		c := calls[i*4:]
+		// save and import run as one pipe, so either may log first.
+		load := []string{c[1], c[2]}
+		slices.Sort(load)
+		if !strings.HasPrefix(c[0], "docker build -t "+svc+" ") || load[0] != "docker exec -i rancher ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -" ||
+			load[1] != "docker save "+svc {
+			t.Fatalf("%s must be built then loaded into the cluster, got:\n%s", svc, data)
+		}
+		if !strings.HasPrefix(c[3], "helm upgrade --install til-") || !strings.Contains(c[3], "--kube-context rancher-lcl --namespace til-lcl") ||
+			!strings.Contains(c[3], deploy.OverlayFile) || !strings.Contains(c[3], "--wait") {
+			t.Fatalf("helm must target the local cluster explicitly, got %q", c[3])
 		}
 	}
 	if s := progress.Get("til/til-purchase"); s.Image != deploy.StepDone || s.Deploy != deploy.StepDone || s.SessionID == 0 {
@@ -164,11 +231,11 @@ func TestRun_BuildsImagesThenInstallsChartsWithExplicitContext(t *testing.T) {
 func TestRun_StopsAtFirstFailure(t *testing.T) {
 	log := fakeTools(t, "til-order")
 	root := t.TempDir()
-	waves, _ := planFor(t, service(t, root, "til-order"), service(t, root, "til-purchase", "til/til-order"))
+	waves, _ := planFor(t, service(t, root, "til-order", true), service(t, root, "til-purchase", true, "til/til-order"))
 	progress := deploy.NewProgress()
 	m := manager(t)
 
-	err := deploy.Run(context.Background(), waves, deploy.Options{Sessions: m, Cluster: kube.Cluster{Context: "minikube", Namespace: "til-local"}, Parallel: 1, Progress: progress})
+	err := deploy.Run(context.Background(), waves, deploy.Options{Sessions: m, Cluster: local, Env: lcl, Parallel: 1, Progress: progress})
 
 	if err == nil || !strings.Contains(err.Error(), "til-order: deploy: helm exited with 1") {
 		t.Fatalf("expected the helm failure, got %v", err)
@@ -200,10 +267,10 @@ func TestRun_RefusesNonLocalCluster(t *testing.T) {
 func TestRun_Cancel(t *testing.T) {
 	fakeTools(t)
 	root := t.TempDir()
-	waves, _ := planFor(t, service(t, root, "til-order"))
+	waves, _ := planFor(t, service(t, root, "til-order", true))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := deploy.Run(ctx, waves, deploy.Options{Sessions: manager(t), Cluster: kube.Cluster{Context: "minikube", Namespace: "x"}, Progress: deploy.NewProgress()})
+	err := deploy.Run(ctx, waves, deploy.Options{Sessions: manager(t), Cluster: kube.Cluster{Context: "rancher-lcl", Namespace: "x", Container: "rancher"}, Progress: deploy.NewProgress()})
 	if err == nil {
 		t.Fatal("a cancelled run must report it")
 	}

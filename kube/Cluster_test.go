@@ -3,7 +3,6 @@ package kube
 import (
 	"context"
 	"errors"
-	"os/exec"
 	"slices"
 	"strings"
 	"testing"
@@ -28,95 +27,92 @@ func fake(t *testing.T, responses map[string]string, failing ...string) {
 	}
 }
 
-const viewMinikube = "kubectl config view --minify --context minikube"
+const viewLocal = "kubectl config view --minify --context rancher-lcl"
 
-func TestGuard_AllowsMinikubeOnLoopback(t *testing.T) {
-	fake(t, map[string]string{viewMinikube: "https://127.0.0.1:53846"})
-	if err := Guard(Cluster{Context: "minikube", Namespace: "til-local"}); err != nil {
+func TestGuard_AllowsRancherOnLoopback(t *testing.T) {
+	fake(t, map[string]string{viewLocal: "https://127.0.0.1:6550"})
+	if err := Guard(Cluster{Context: "rancher-lcl", Namespace: "til-lcl"}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestGuard_AllowsMinikubeVMAddressOnly(t *testing.T) {
-	fake(t, map[string]string{viewMinikube: "https://192.168.49.2:8443", "minikube ip": "192.168.49.2\n"})
-	if err := Guard(Cluster{Context: "minikube", Namespace: "til-local"}); err != nil {
-		t.Fatal(err)
-	}
-	fake(t, map[string]string{viewMinikube: "https://10.82.0.5:443", "minikube ip": "192.168.49.2\n"})
-	if err := Guard(Cluster{Context: "minikube", Namespace: "til-local"}); err == nil {
-		t.Fatal("a private address that isn't the minikube VM must be refused")
+func TestGuard_RefusesNonLoopbackAddresses(t *testing.T) {
+	for _, server := range []string{"https://172.19.0.250:6443", "https://10.82.0.5:443", "https://192.168.49.2:8443"} {
+		fake(t, map[string]string{viewLocal: server})
+		if err := Guard(Cluster{Context: "rancher-lcl", Namespace: "til-lcl"}); err == nil {
+			t.Fatalf("%s is not loopback and must be refused", server)
+		}
 	}
 }
 
 func TestGuard_RefusesProductionAndHostnames(t *testing.T) {
 	fake(t, map[string]string{
 		"kubectl config view --minify --context azr-prd-idas-aks01": "https://rancher.intern-belgiantrain.be/k8s/clusters/c-dfjlf",
-		viewMinikube: "https://rancher.intern-belgiantrain.be/k8s/clusters/c-dfjlf",
+		viewLocal: "https://rancher.intern-belgiantrain.be/k8s/clusters/c-dfjlf",
 	})
-	if err := Guard(Cluster{Context: "azr-prd-idas-aks01", Namespace: "til-local"}); err == nil || !strings.Contains(err.Error(), "only local contexts") {
+	if err := Guard(Cluster{Context: "azr-prd-idas-aks01", Namespace: "til-lcl"}); err == nil || !strings.Contains(err.Error(), "only local contexts") {
 		t.Fatalf("the production context must be refused by name, got %v", err)
 	}
-	// Even a context *named* minikube pointing at a remote hostname is refused.
-	if err := Guard(Cluster{Context: "minikube", Namespace: "til-local"}); err == nil || !strings.Contains(err.Error(), "hostname") {
+	// Even a context *named* rancher-lcl pointing at a remote hostname is refused.
+	if err := Guard(Cluster{Context: "rancher-lcl", Namespace: "til-lcl"}); err == nil || !strings.Contains(err.Error(), "hostname") {
 		t.Fatalf("a hostname server must be refused, got %v", err)
 	}
-	if err := Guard(Cluster{Context: "rancher-desktop", Namespace: "x"}); err == nil {
-		t.Fatal("contexts outside the allowlist are refused")
+	for _, ctx := range []string{"rancher-desktop", "minikube"} {
+		if err := Guard(Cluster{Context: ctx, Namespace: "x"}); err == nil {
+			t.Fatalf("context %s is outside the allowlist and must be refused", ctx)
+		}
 	}
 }
 
 func TestGuard_RefusesBadNamespaceAndMissingContext(t *testing.T) {
-	fake(t, map[string]string{viewMinikube: "https://127.0.0.1:1"})
+	fake(t, map[string]string{viewLocal: "https://127.0.0.1:1"})
 	for _, ns := range []string{"", "a b", "kube/system"} {
-		if Guard(Cluster{Context: "minikube", Namespace: ns}) == nil {
+		if Guard(Cluster{Context: "rancher-lcl", Namespace: ns}) == nil {
 			t.Errorf("namespace %q must be refused", ns)
 		}
 	}
 	fake(t, map[string]string{})
-	if Guard(Cluster{Context: "minikube", Namespace: "x"}) == nil {
+	if Guard(Cluster{Context: "rancher-lcl", Namespace: "x"}) == nil {
 		t.Fatal("a missing context must be refused")
 	}
 }
 
-func TestMinikubeStatus(t *testing.T) {
-	fake(t, map[string]string{"minikube status": `{"Name":"minikube","Host":"Stopped","Kubelet":"Stopped","APIServer":"Stopped"}`}, "minikube status")
-	if running, err := MinikubeStatus(); running || err != nil {
-		t.Fatalf("stopped minikube (exit 7) is not an error: %v %v", running, err)
-	}
-	fake(t, map[string]string{"minikube status": `{"Name":"minikube","Host":"Running","Kubelet":"Running","APIServer":"Running"}`})
-	if running, err := MinikubeStatus(); !running || err != nil {
-		t.Fatalf("expected running, got %v %v", running, err)
-	}
-	// No profile yet: minikube exits non-zero without JSON; start creates it.
-	orig := runner
-	runner = func(context.Context, string, ...string) ([]byte, error) {
-		return []byte("* Profile \"minikube\" not found."), &exec.ExitError{}
-	}
-	if running, err := MinikubeStatus(); running || err != nil {
-		t.Fatalf("a missing profile means stopped, got %v %v", running, err)
-	}
-	runner = orig
+func TestStatus(t *testing.T) {
+	c := Cluster{Context: "rancher-lcl", Namespace: "til-lcl", Container: "rancher"}
+	inspect := "docker inspect -f {{.State.Running}} rancher"
+	ready := "kubectl get --raw /readyz --context rancher-lcl"
 
+	fake(t, map[string]string{inspect: "true\n", ready: "ok"})
+	if running, err := Status(c); !running || err != nil {
+		t.Fatalf("running container with a ready API: %v %v", running, err)
+	}
+	fake(t, map[string]string{inspect: "false\n"})
+	if running, err := Status(c); running || err != nil {
+		t.Fatalf("a stopped container is not an error: %v %v", running, err)
+	}
+	fake(t, map[string]string{inspect: "true\n", ready: ""}, ready)
+	if running, err := Status(c); running || err != nil {
+		t.Fatalf("a booting API is not running yet, not an error: %v %v", running, err)
+	}
 	fake(t, map[string]string{})
-	if _, err := MinikubeStatus(); err == nil {
-		t.Fatal("a missing minikube binary is an error")
+	if _, err := Status(c); err == nil || !strings.Contains(err.Error(), "sandbox") {
+		t.Fatalf("a missing container is an error, got %v", err)
 	}
 }
 
-func TestDockerEnv(t *testing.T) {
-	fake(t, map[string]string{"minikube docker-env": "DOCKER_TLS_VERIFY=1\nDOCKER_HOST=tcp://127.0.0.1:53841\nDOCKER_CERT_PATH=/h/.minikube/certs\nMINIKUBE_ACTIVE_DOCKERD=minikube\n# comment\n"})
-	env, err := DockerEnv()
-	if err != nil || len(env) != 4 || env[1] != "DOCKER_HOST=tcp://127.0.0.1:53841" {
-		t.Fatalf("unexpected env %v, %v", env, err)
+func TestImportImageArgvPassesValuesAsArguments(t *testing.T) {
+	argv := ImportImageArgv(Cluster{Container: "rancher"}, "local/til-order:1.0; rm -rf /")
+	if argv[0] != "sh" || strings.Contains(argv[2], "til-order") || argv[4] != "local/til-order:1.0; rm -rf /" || argv[5] != "rancher" || argv[6] != ContainerdSocket {
+		t.Fatalf("image and container must be positional args, not script text: %q", argv)
 	}
 }
 
 func TestClusterArgsAlwaysNameContextAndNamespace(t *testing.T) {
-	c := Cluster{Context: "minikube", Namespace: "til-local"}
-	if got := strings.Join(c.Args("upgrade", "--install"), " "); got != "upgrade --install --kube-context minikube --namespace til-local" {
+	c := Cluster{Context: "rancher-lcl", Namespace: "til-lcl"}
+	if got := strings.Join(c.Args("upgrade", "--install"), " "); got != "upgrade --install --kube-context rancher-lcl --namespace til-lcl" {
 		t.Fatalf("helm args %q", got)
 	}
-	if got := strings.Join(c.KubectlArgs("get", "pods"), " "); got != "get pods --context minikube --namespace til-local" {
+	if got := strings.Join(c.KubectlArgs("get", "pods"), " "); got != "get pods --context rancher-lcl --namespace til-lcl" {
 		t.Fatalf("kubectl args %q", got)
 	}
 }
@@ -150,7 +146,7 @@ const twoDeployments = `{"items":[
 
 func TestScaleDownOthers_KeepsShippedAndRecordsReplicas(t *testing.T) {
 	calls := recorder(t, twoDeployments)
-	c := Cluster{Context: "minikube", Namespace: "til"}
+	c := Cluster{Context: "rancher-lcl", Namespace: "til-lcl"}
 
 	scaled, err := ScaleDownOthers(c, []string{"til-order"})
 
@@ -158,8 +154,8 @@ func TestScaleDownOthers_KeepsShippedAndRecordsReplicas(t *testing.T) {
 		t.Fatalf("only til-dtm should be scaled, got %v %v", scaled, err)
 	}
 	want := []string{
-		"kubectl annotate deployment til-dtm --overwrite go-dark/replicas-before=2 --context minikube --namespace til",
-		"kubectl scale deployment til-dtm --replicas=0 --context minikube --namespace til",
+		"kubectl annotate deployment til-dtm --overwrite go-dark/replicas-before=2 --context rancher-lcl --namespace til-lcl",
+		"kubectl scale deployment til-dtm --replicas=0 --context rancher-lcl --namespace til-lcl",
 	}
 	if strings.Join(*calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("unexpected calls:\n%s", strings.Join(*calls, "\n"))
@@ -170,15 +166,15 @@ func TestRestoreScaled_PutsBackRecordedReplicas(t *testing.T) {
 	calls := recorder(t, `{"items":[
 	 {"metadata":{"name":"til-dtm","annotations":{"go-dark/replicas-before":"2"}},"spec":{"replicas":0}},
 	 {"metadata":{"name":"til-order"},"spec":{"replicas":1}}]}`)
-	c := Cluster{Context: "minikube", Namespace: "til"}
+	c := Cluster{Context: "rancher-lcl", Namespace: "til-lcl"}
 
 	restored, err := RestoreScaled(c)
 
 	if err != nil || len(restored) != 1 || restored[0] != "til-dtm" {
 		t.Fatalf("expected til-dtm restored, got %v %v", restored, err)
 	}
-	if (*calls)[0] != "kubectl scale deployment til-dtm --replicas=2 --context minikube --namespace til" ||
-		(*calls)[1] != "kubectl annotate deployment til-dtm go-dark/replicas-before- --context minikube --namespace til" {
+	if (*calls)[0] != "kubectl scale deployment til-dtm --replicas=2 --context rancher-lcl --namespace til-lcl" ||
+		(*calls)[1] != "kubectl annotate deployment til-dtm go-dark/replicas-before- --context rancher-lcl --namespace til-lcl" {
 		t.Fatalf("unexpected calls %v", *calls)
 	}
 	if names, _ := ScaledDown(c); len(names) != 1 {

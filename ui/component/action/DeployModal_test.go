@@ -3,6 +3,7 @@
 package componentaction
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,28 +18,28 @@ import (
 	"github.com/exr462/go-dark/ui/component"
 )
 
-// fakeCluster puts minikube/kubectl/docker/helm scripts on PATH. minikube
-// reports the given host state; `minikube start` flips it to Running.
+// fakeCluster puts docker/kubectl/helm scripts on PATH. docker reports the
+// rancher container as running or stopped; `docker start` flips it.
 func fakeCluster(t *testing.T, running bool, server string) string {
 	t.Helper()
 	bin := t.TempDir()
 	state := filepath.Join(bin, "state")
 	log := filepath.Join(bin, "calls.log")
-	host := "Stopped"
-	if running {
-		host = "Running"
-	}
-	_ = os.WriteFile(state, []byte(host), 0o644)
+	_ = os.WriteFile(state, []byte(fmt.Sprint(running)), 0o644)
 	scripts := map[string]string{
-		"minikube": `case "$1" in
-  status) s=$(cat ` + state + `); echo "{\"Host\":\"$s\",\"APIServer\":\"$s\"}"; [ "$s" = Running ] || exit 7;;
-  start) echo "Done! kubectl is now configured"; echo Running > ` + state + `;;
-  docker-env) echo DOCKER_HOST=tcp://127.0.0.1:1;;
-  ip) echo 192.168.49.2;;
+		"docker": `case "$1" in
+  inspect) cat ` + state + `;;
+  start) echo rancher; echo true > ` + state + `;;
+  exec) case "$*" in *"command -v ctr"*) exit 0;; esac; cat > /dev/null; echo "docker $*" >> ` + log + `;;
+  *) echo "docker $*" >> ` + log + `;;
 esac`,
-		"kubectl": `echo "` + server + `"`,
-		"docker":  `echo "docker $*" >> ` + log,
-		"helm":    `echo "helm $*" >> ` + log,
+		"kubectl": `case "$*" in
+  "config view"*) echo "` + server + `";;
+  "get --raw"*) [ "$(cat ` + state + `)" = true ] || exit 1; echo ok;;
+  "get nodes"*) echo arm64;;
+  "get deployments"*) echo '{"items":[]}';;
+esac`,
+		"helm": `echo "helm $*" >> ` + log,
 	}
 	for name, body := range scripts {
 		_ = os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"+body+"\n"), 0o755)
@@ -55,6 +56,7 @@ func deployTestUI(t *testing.T) *model.UI {
 	_ = os.MkdirAll(chart, 0o755)
 	_ = os.MkdirAll(filepath.Join(dir, "order-service"), 0o755)
 	_ = os.WriteFile(filepath.Join(chart, "Chart.yaml"), []byte("apiVersion: v2\nname: til-order\nversion: {JENKINS_VERSION}\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(chart, "values.yaml"), []byte("main:\n  name: til-order\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(chart, deploy.LocalValuesFile), []byte("main:\n  image: tfc/til-order\n  version: 1.16.2-SNAPSHOT\n"), 0o644)
 	_ = os.WriteFile(filepath.Join(dir, "order-service", "Dockerfile"), []byte("FROM scratch\n"), 0o644)
 	m := shell.NewManager()
@@ -73,15 +75,15 @@ func deployTestUI(t *testing.T) *model.UI {
 	}
 }
 
-func TestDeploy_StartsMinikubeThenDeploys(t *testing.T) {
+func TestDeploy_StartsTheClusterThenDeploys(t *testing.T) {
 	log := fakeCluster(t, false, "https://127.0.0.1:53846")
 	ui := deployTestUI(t)
 
 	OpenDeploy(ui)
 	ClusterChecked(ui, CheckCluster(ui)().(model.DeployPreflightMsg))
 	out := ansi.Strip(component.RenderDeployModal(ui))
-	if ui.ClusterRunning || !strings.Contains(out, "minikube is stopped - press s") || !strings.Contains(out, "tfc/til-order:1.16.2-SNAPSHOT") ||
-		!strings.Contains(out, "Skipped (no local chart values): til-report") {
+	if ui.ClusterRunning || !strings.Contains(out, "rancher is stopped or still booting - press s") || !strings.Contains(out, "tfc/til-order:1.16.2-SNAPSHOT") ||
+		!strings.Contains(out, "Skipped (no deployable chart): til-report") {
 		t.Fatalf("expected a stopped cluster, the plan and the skip:\n%s", out)
 	}
 	if DeployModal(ui, testKeyMsg("enter")) != nil || !strings.Contains(ui.StatusMsg, "isn't ready") {
@@ -89,14 +91,14 @@ func TestDeploy_StartsMinikubeThenDeploys(t *testing.T) {
 	}
 
 	DeployModal(ui, testKeyMsg("s"))
-	start := ui.Shells.Get(ui.MinikubeStartID)
-	if start == nil || start.Tag != TagMinikube {
-		t.Fatal("s must start minikube as a session")
+	start := ui.Shells.Get(ui.ClusterStartID)
+	if start == nil || start.Tag != TagCluster {
+		t.Fatal("s must start the rancher container as a session")
 	}
 	<-start.Done()
-	ClusterChecked(ui, MinikubeExited(ui, start.ID)().(model.DeployPreflightMsg))
+	ClusterChecked(ui, ClusterStartExited(ui, start.ID)().(model.DeployPreflightMsg))
 	if !ui.ClusterRunning || ui.ClusterErr != nil {
-		t.Fatalf("after minikube start the cluster must be ready, got %v %v", ui.ClusterRunning, ui.ClusterErr)
+		t.Fatalf("after starting the container the cluster must be ready, got %v %v", ui.ClusterRunning, ui.ClusterErr)
 	}
 
 	run := DeployModal(ui, testKeyMsg("d"))
@@ -104,11 +106,12 @@ func TestDeploy_StartsMinikubeThenDeploys(t *testing.T) {
 		t.Fatal("d must start the deployment")
 	}
 	DeployFinished(ui, run().(model.DeployFinishedMsg))
-	if ui.DeployErr != nil || !strings.Contains(ui.StatusMsg, "Deployed to minikube/til") {
+	if ui.DeployErr != nil || !strings.Contains(ui.StatusMsg, "Deployed to rancher-lcl/til-lcl") {
 		t.Fatalf("expected success, got %v / %q", ui.DeployErr, ui.StatusMsg)
 	}
 	calls, _ := os.ReadFile(log)
-	if !strings.Contains(string(calls), "docker build -t tfc/til-order:1.16.2-SNAPSHOT") || !strings.Contains(string(calls), "--kube-context minikube --namespace til\n") {
+	if !strings.Contains(string(calls), "docker build -t tfc/til-order:1.16.2-SNAPSHOT") || !strings.Contains(string(calls), "docker save tfc/til-order:1.16.2-SNAPSHOT") ||
+		!strings.Contains(string(calls), "docker exec -i rancher ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import -") || !strings.Contains(string(calls), "--kube-context rancher-lcl --namespace til-lcl\n") {
 		t.Fatalf("unexpected calls:\n%s", calls)
 	}
 	if out := ansi.Strip(component.RenderDeployModal(ui)); !strings.Contains(out, "image ✅  deploy ✅") {
