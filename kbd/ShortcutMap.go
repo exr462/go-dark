@@ -31,6 +31,7 @@ var ShortcutFields = []ShortcutField{
 	{EditShortcutsKey, action.OpenEditShortcuts, "Edit shortcuts"},
 	{DeployKey, action.OpenDeploy, "Open Deploy"},
 	{GraphKey, action.OpenGraph, "Open Dependency Graph"},
+	{EnvKey, action.OpenEnv, "Open Local Environment (install, start, stop, status)"},
 	{TerminalKey, action.OpenTerminal, "Open Terminal"},
 	{TerminalDetachKey, action.TerminalDetach, "Terminal: back to dashboard (shell keeps running)"},
 	{TerminalNewTabKey, action.TerminalNewTab, "Terminal: new tab"},

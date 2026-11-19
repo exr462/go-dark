@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/exr462/go-dark/env"
 	"github.com/exr462/go-dark/initializer"
 	"github.com/exr462/go-dark/model"
 	"github.com/exr462/go-dark/shell"
@@ -13,6 +14,11 @@ import (
 )
 
 func main() {
+	// `go-dark env ...` is the installer's command-line side: the installer
+	// screen runs the lifecycle actions through it as sessions.
+	if len(os.Args) > 1 && os.Args[1] == "env" {
+		os.Exit(env.CLI(os.Args[2:], os.Stdout))
+	}
 	f := initLogger()
 	defer func(f *os.File) {
 		_ = f.Close()

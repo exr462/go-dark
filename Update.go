@@ -103,6 +103,9 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == componentaction.TagCluster {
 			return m, tea.Batch(m.listenSessions(), componentaction.ClusterStartExited(m.ui, msg.ID))
 		}
+		if s := m.ui.Shells.Get(msg.ID); s != nil && s.Tag == componentaction.TagEnv {
+			return m, tea.Batch(m.listenSessions(), componentaction.EnvActionExited(m.ui, msg.ID))
+		}
 		return m, m.listenSessions()
 
 	case config.GitBranchesErrorMsg:
@@ -132,6 +135,10 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case model.ScaledMsg:
 		componentaction.Scaled(m.ui, msg)
+		return m, nil
+
+	case model.EnvCheckedMsg:
+		componentaction.EnvChecked(m.ui, msg)
 		return m, nil
 
 	case model.ShipStartMsg:
@@ -311,6 +318,8 @@ func (m *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, componentaction.GraphModal(m.ui, msg)
 		case model.StateAlignModal:
 			return m, componentaction.AlignModal(m.ui, msg)
+		case model.StateEnvModal:
+			return m, componentaction.EnvModal(m.ui, msg)
 		case model.StateTerminalCockpit:
 			if m.ui.Shells == nil {
 				m.ui.ViewState = model.StateDashboard

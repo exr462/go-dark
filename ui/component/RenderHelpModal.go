@@ -36,7 +36,8 @@ func RenderHelpModal(ui *model.UI) string {
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenMvn), "Maven Manager: Register MAVEN_HOME profiles and bind to projects"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenTerminal), "Terminal: real shells in tabs, one per project; they keep running in the background"))
 	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenGraph), "Dependency Graph: build waves, plus what the poms say (missing deps, outdated versions)"))
-	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy), "Deploy Console: Simulate a dependency-ordered Rancher/Kubernetes rollout"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy), "Ship: build the workspace, load the images and deploy to the local environment"))
+	body.WriteString(decorator.Row(action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv), "Local environment: install / repair, start, stop, status, uninstall the team's local Rancher"))
 	body.WriteString("\n")
 
 	body.WriteString(decorator.Section.Render("🖥 TERMINAL (every other key goes to the shell)") + "\n")

@@ -11,6 +11,7 @@ import (
 	"github.com/exr462/go-dark/config"
 	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/docker"
+	"github.com/exr462/go-dark/env"
 	"github.com/exr462/go-dark/kbd"
 	"github.com/exr462/go-dark/lsp"
 	"github.com/exr462/go-dark/maven"
@@ -59,6 +60,7 @@ const (
 	StateProjectsModal
 	StateGraphModal
 	StateAlignModal
+	StateEnvModal
 )
 
 type FuzzyMode int
@@ -255,6 +257,18 @@ type UI struct {
 	ShipStage      ShipStage          // Where the full train (build -> images -> deploy) is
 	ShipDriftAck   bool               // The user saw the version drift warning and ships anyway
 	ScaledDown     []string           // Deployments go-dark scaled to 0 to make room (restorable)
+
+	// !!! GLOBAL LOCAL ENVIRONMENT (installer) STATE MAPPINGS !!!
+	EnvIndex     int            // Which team environment the installer screen shows (index into Config.Environments)
+	EnvChecked   bool           // The checks ran at least once for this environment
+	EnvChecking  bool           // A check is running
+	EnvChecks    []env.Check    // Preflight results
+	EnvConflicts []env.Conflict // Other containers holding the environment's ports (e.g. the old sandbox)
+	EnvStatus    env.Status     // What is installed and running
+	EnvActionID  int            // Session of the running/last lifecycle action (0 when none)
+	EnvAction    string         // Name of that action (install, start, stop, uninstall, stop-sandbox)
+	EnvConfirm   string         // Action waiting for a confirmation key (uninstall, stop-sandbox)
+	EnvHint      string         // Command the user has to run themselves (Windows hosts file)
 }
 
 type FileLoadMsg string
@@ -305,6 +319,14 @@ const (
 
 // ShipStartMsg starts the train's build stage (sent once the checks pass).
 type ShipStartMsg struct{}
+
+// EnvCheckedMsg reports the installer screen's checks.
+type EnvCheckedMsg struct {
+	Team      string // which environment was checked
+	Checks    []env.Check
+	Conflicts []env.Conflict
+	Status    env.Status
+}
 
 // ScaledMsg reports a scale-down (z) or restore (u) on the ship screen.
 type ScaledMsg struct {

@@ -119,6 +119,9 @@ func DashboardPortal(ui *model.UI, providerFactory *lsp.ProviderFactory, msg tea
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy):
 		return OpenDeploy(ui)
 
+	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv):
+		return OpenEnv(ui)
+
 	case action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenSession):
 		ui.ViewState = model.StateSessionLogsModal
 		ui.SelectedSession = 0
