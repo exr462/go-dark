@@ -49,9 +49,11 @@ func byName(checks []Check) map[string]Check {
 	return m
 }
 
+var e = Env{Team: "rail"}
+
 func TestPreflight_AllGood(t *testing.T) {
 	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "8 8345035776\n", "docker compose version": "Docker Compose version v2.29.1"})
-	checks := Preflight()
+	checks := Preflight(e)
 	if Blocking(checks) {
 		t.Fatalf("nothing should fail: %+v", checks)
 	}
@@ -64,14 +66,14 @@ func TestPreflight_AllGood(t *testing.T) {
 func TestPreflight_MissingToolsComeWithInstallCommandsPerOS(t *testing.T) {
 	for os, want := range map[string]string{"darwin": "brew install helm", "windows": "winget install Helm.Helm", "linux": "snap install helm"} {
 		fakeMachine(t, os, map[string]string{"docker": "/bin/docker", "kubectl": "/bin/kubectl"}, map[string]string{"docker info": "4 8345035776", "docker compose version": "v2"})
-		got := byName(Preflight())
+		got := byName(Preflight(e))
 		if got["helm"].State != CheckFail || !strings.Contains(got["helm"].Fix, want) {
 			t.Errorf("%s: helm hint %+v", os, got["helm"])
 		}
 		if got["mkcert"].State != CheckFail || !strings.Contains(got["mkcert"].Fix, "mkcert -install") {
 			t.Errorf("%s: mkcert hint %+v", os, got["mkcert"])
 		}
-		if !Blocking(Preflight()) {
+		if !Blocking(Preflight(e)) {
 			t.Errorf("%s: missing tools must block", os)
 		}
 	}
@@ -79,19 +81,19 @@ func TestPreflight_MissingToolsComeWithInstallCommandsPerOS(t *testing.T) {
 
 func TestPreflight_DockerStatesAndResources(t *testing.T) {
 	fakeMachine(t, "linux", map[string]string{}, nil)
-	if c := byName(Preflight())["docker"]; c.State != CheckFail || !strings.Contains(c.Fix, "apt install docker.io") {
+	if c := byName(Preflight(e))["docker"]; c.State != CheckFail || !strings.Contains(c.Fix, "apt install docker.io") {
 		t.Fatalf("no docker: %+v", c)
 	}
 	fakeMachine(t, "darwin", allTools, map[string]string{})
-	if c := byName(Preflight())["docker"]; c.State != CheckFail || c.Fix != "start Docker Desktop" {
+	if c := byName(Preflight(e))["docker"]; c.State != CheckFail || c.Fix != "start Docker Desktop" {
 		t.Fatalf("stopped docker: %+v", c)
 	}
 	fakeMachine(t, "linux", allTools, map[string]string{})
-	if c := byName(Preflight())["docker"]; c.Fix != "sudo systemctl start docker" {
+	if c := byName(Preflight(e))["docker"]; c.Fix != "sudo systemctl start docker" {
 		t.Fatalf("stopped docker on linux: %+v", c)
 	}
 	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "2 4294967296", "docker compose version": "v2"})
-	checks := Preflight()
+	checks := Preflight(e)
 	if c := byName(checks)["docker"]; c.State != CheckWarn || !strings.Contains(c.Detail, "2 CPUs, 4.0 GB") || !strings.Contains(c.Fix, "8 GB") {
 		t.Fatalf("small docker must warn: %+v", c)
 	}
@@ -99,19 +101,53 @@ func TestPreflight_DockerStatesAndResources(t *testing.T) {
 		t.Fatal("a warning doesn't block")
 	}
 	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "8 8345035776"})
-	if c := byName(Preflight())["docker compose"]; c.State != CheckFail || !strings.Contains(c.Fix, "Docker Desktop") {
+	if c := byName(Preflight(e))["docker compose"]; c.State != CheckFail || !strings.Contains(c.Fix, "Docker Desktop") {
 		t.Fatalf("no compose: %+v", c)
 	}
 }
 
 func TestPreflight_BusyPortsBlock(t *testing.T) {
 	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "8 8345035776", "docker compose version": "v2"}, "80", "6550")
-	checks := Preflight()
+	checks := Preflight(e)
 	got := byName(checks)
 	if got["port 80"].State != CheckFail || got["port 6550"].State != CheckFail || got["port 443"].State != CheckOK || !Blocking(checks) {
 		t.Fatalf("ports 80 and 6550 are busy: %+v", checks)
 	}
 	if !strings.Contains(got["port 80"].Detail, "127.0.0.1:80") {
 		t.Fatalf("detail %+v", got["port 80"])
+	}
+}
+
+const oldSandbox = "rancher|local-cicd-sandbox|0.0.0.0:3800->80/tcp, 127.0.0.1:6550->6443/tcp\n" +
+	"traefik|local-cicd-sandbox|0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp\n" +
+	"sonarqube|local-cicd-sandbox|9000/tcp\n" +
+	"go-dark-rail-rancher|go-dark-rail|0.0.0.0:80->30080/tcp\n"
+
+func TestPreflight_PortsHeldByTheOldSandboxNameItAndHowToStopIt(t *testing.T) {
+	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "8 8345035776", "docker compose version": "v2", "docker ps": oldSandbox}, "80", "443", "6550")
+	got := byName(Preflight(e))
+	if got["port 80"].Detail != "published by container traefik (compose project local-cicd-sandbox)" || got["port 80"].Fix != "docker compose -p local-cicd-sandbox stop" {
+		t.Fatalf("port 80: %+v", got["port 80"])
+	}
+	if got["port 6550"].Detail != "published by container rancher (compose project local-cicd-sandbox)" || got["port 443"].State != CheckFail {
+		t.Fatalf("ports: %+v %+v", got["port 6550"], got["port 443"])
+	}
+	conflicts := Conflicts(e)
+	if len(conflicts) != 2 || conflicts[0].Container != "rancher" || len(conflicts[0].Ports) != 1 || conflicts[0].Ports[0] != 6550 ||
+		conflicts[1].Container != "traefik" || len(conflicts[1].Ports) != 2 {
+		t.Fatalf("conflicts %+v", conflicts)
+	}
+	if StopArgv(Conflict{Container: "x"})[1] != "stop" {
+		t.Fatal("a container without compose project is stopped by name")
+	}
+}
+
+func TestPreflight_OwnContainerHoldingThePortsIsFine(t *testing.T) {
+	fakeMachine(t, "darwin", allTools, map[string]string{"docker info": "8 8345035776", "docker compose version": "v2",
+		"docker ps":   "go-dark-rail-rancher|go-dark-rail|0.0.0.0:80->30080/tcp, 0.0.0.0:443->30443/tcp, 127.0.0.1:6550->6443/tcp\n",
+		"docker port": "0.0.0.0:80\n"}, "80", "443", "6550")
+	checks := Preflight(e)
+	if Blocking(checks) || byName(checks)["port 80"].Detail != "published by go-dark-rail-rancher" {
+		t.Fatalf("repairing a running environment must pass: %+v", checks)
 	}
 }

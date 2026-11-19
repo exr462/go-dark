@@ -40,6 +40,7 @@ const (
 	TerminalPrevTabKey
 	TerminalCloseTabKey
 	GraphKey
+	EnvKey
 	// Ceiling ⚠ This must be always as last and not used in the inputs[id] ⚠
 	Ceiling
 )

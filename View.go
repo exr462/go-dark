@@ -49,6 +49,8 @@ func (m *appModel) render() string {
 		return component.RenderGraphModal(m.ui)
 	case model.StateAlignModal:
 		return component.RenderAlignModal(m.ui)
+	case model.StateEnvModal:
+		return component.RenderEnvModal(m.ui)
 	case model.StateDashboard:
 		fallthrough
 	default:

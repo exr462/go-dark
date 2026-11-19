@@ -59,8 +59,9 @@ var (
 
 // Preflight checks what the installer needs: docker running with enough
 // resources, docker compose, kubectl, helm and mkcert on PATH, and the
-// published ports free.
-func Preflight() []Check {
+// published ports free (or held by the environment's own container, when
+// repairing). A port held by another container names it and how to stop it.
+func Preflight(e Env) []Check {
 	var checks []Check
 
 	checks = append(checks, dockerCheck())
@@ -76,16 +77,44 @@ func Preflight() []Check {
 			checks = append(checks, Check{Name: tool, Detail: path})
 		}
 	}
+	holders := map[int]Conflict{}
+	for _, c := range Conflicts(e) {
+		for _, p := range c.Ports {
+			holders[p] = c
+		}
+	}
 	for _, port := range Ports {
+		name := "port " + strconv.Itoa(port)
 		addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
-		if err := dial(addr); err == nil {
-			checks = append(checks, Check{Name: "port " + strconv.Itoa(port), State: CheckFail, Detail: "something already listens on " + addr,
-				Fix: "stop whatever listens on port " + strconv.Itoa(port) + " (docker ps shows containers publishing it)"})
-		} else {
-			checks = append(checks, Check{Name: "port " + strconv.Itoa(port), Detail: "free"})
+		busy := dial(addr) == nil
+		holder, held := holders[port]
+		switch {
+		case held:
+			checks = append(checks, Check{Name: name, State: CheckFail, Detail: "published by container " + holder.Container + conflictProject(holder),
+				Fix: strings.Join(StopArgv(holder), " ")})
+		case busy && ownPort(e, port):
+			checks = append(checks, Check{Name: name, Detail: "published by " + e.Container()})
+		case busy:
+			checks = append(checks, Check{Name: name, State: CheckFail, Detail: "something already listens on " + addr,
+				Fix: "stop whatever listens on port " + strconv.Itoa(port)})
+		default:
+			checks = append(checks, Check{Name: name, Detail: "free"})
 		}
 	}
 	return checks
+}
+
+func conflictProject(c Conflict) string {
+	if c.Project == "" {
+		return ""
+	}
+	return " (compose project " + c.Project + ")"
+}
+
+// ownPort reports whether the environment's own container publishes port.
+func ownPort(e Env, port int) bool {
+	out, err := output("docker", "port", e.Container(), strconv.Itoa(port))
+	return err == nil && strings.TrimSpace(string(out)) != ""
 }
 
 // dockerCheck wants a running daemon with MinCPUs and MinMemBytes; less is a
