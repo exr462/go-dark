@@ -25,6 +25,9 @@ type Config struct {
 	// LocalCluster is where the deploy screen deploys to. Only local
 	// contexts are accepted (see kube.Guard).
 	LocalCluster LocalCluster `json:"local_cluster"`
+	// Environments are the local environments declared by the subscribed
+	// teams' manifests; rebuilt from the cached manifests on every load.
+	Environments []TeamEnvironment `json:"-"`
 }
 
 // LocalCluster is the local Rancher sandbox go-dark deploys to, and how the
@@ -175,6 +178,7 @@ func (cfg *Config) RefreshProjects() bool {
 		log.Printf("team manifest: %v", e)
 	}
 	cfg.Projects = MergeManifests(cfg.Projects, manifests, unavailable, cfg.BasePath)
+	cfg.Environments = Environments(manifests)
 
 	// 3. Dynamically sync the Fetched status by checking if .git exists locally
 	for i := range cfg.Projects {
