@@ -25,6 +25,9 @@ func Sync(teams []config.Team) ([]config.Team, []error) {
 	var errs []error
 	for i, t := range teams {
 		updated[i] = t
+		if t.Builtin {
+			continue // ships inside go-dark, nothing to pull
+		}
 		if err := syncOne(t); err != nil {
 			errs = append(errs, fmt.Errorf("team %s: %w", t.Name, err))
 			continue
@@ -56,16 +59,33 @@ func Subscribe(teams []config.Team, gitURL string) ([]config.Team, error) {
 		}
 	}
 	name := config.TeamNameFromURL(gitURL)
+	replacesBuiltin := false
 	for _, t := range teams {
 		if t.Name == name {
-			return teams, fmt.Errorf("a team checkout named %q already exists", name)
+			if !t.Builtin {
+				return teams, fmt.Errorf("a team checkout named %q already exists", name)
+			}
+			replacesBuiltin = true
+		}
+	}
+	if replacesBuiltin {
+		// The built-in team's directory holds only the written manifest;
+		// make room for the clone.
+		if dir, err := config.TeamDir(config.Team{Name: name}); err == nil {
+			_ = os.RemoveAll(dir)
 		}
 	}
 	synced, errs := Sync([]config.Team{{Name: name, GitURL: gitURL}})
 	if len(errs) > 0 {
 		return teams, errs[0]
 	}
-	return append(teams, synced[0]), nil
+	var kept []config.Team
+	for _, t := range teams {
+		if !(t.Builtin && t.Name == name) {
+			kept = append(kept, t)
+		}
+	}
+	return append(kept, synced[0]), nil
 }
 
 // Unsubscribe removes a team subscription and its local checkout.

@@ -133,3 +133,29 @@ func TestApplySynced_LeavesConcurrentChangesAlone(t *testing.T) {
 		t.Fatalf("unexpected result %+v", got)
 	}
 }
+
+func TestSync_SkipsTheBuiltinTeam(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	teams, errs := Sync([]config.Team{config.BuiltinTeam()})
+	if len(errs) != 0 || len(teams) != 1 || !teams[0].Builtin {
+		t.Fatalf("the built-in team has no repo to pull, got %+v, %v", teams, errs)
+	}
+}
+
+func TestSubscribe_ReplacesASameNamedBuiltinTeam(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	url, _ := newManifestRepo(t, `{"team":"belgiantrain","projects":[{"name":"til-order","type":"maven"}]}`)
+	// The built-in team's directory already exists with its written manifest.
+	builtin := config.Team{Name: "rail-team", Manifest: "belgiantrain", Builtin: true}
+	dir, _ := config.TeamDir(builtin)
+	_ = os.MkdirAll(dir, 0o755)
+	_ = os.WriteFile(filepath.Join(dir, config.ManifestFileName), []byte(`{"team":"belgiantrain","projects":[]}`), 0o644)
+
+	teams, err := Subscribe([]config.Team{builtin}, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(teams) != 1 || teams[0].Builtin || teams[0].GitURL != url || teams[0].Manifest != "belgiantrain" {
+		t.Fatalf("the repo must replace the built-in team, got %+v", teams)
+	}
+}

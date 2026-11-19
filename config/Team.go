@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/exr462/go-dark/examples"
 )
 
 // ManifestFileName is the file a team keeps at the root of its manifest repo.
@@ -18,6 +20,59 @@ type Team struct {
 	// Manifest is the manifest's own "team" value, recorded at the last
 	// successful sync. Project IDs and Sources use it.
 	Manifest string `json:"manifest,omitempty"`
+	// Builtin marks the default team shipped inside go-dark (no git repo):
+	// its manifest is written to the team directory on every refresh.
+	Builtin bool `json:"builtin,omitempty"`
+}
+
+// BuiltinTeam is the default team a fresh profile starts with: the
+// belgiantrain manifest embedded in go-dark (examples/belgiantrain). Once a
+// git team providing the same manifest is subscribed, it takes over.
+func BuiltinTeam() Team {
+	return Team{Name: "belgiantrain", Manifest: "belgiantrain", Builtin: true}
+}
+
+// builtinManifests maps a built-in team's directory name to its manifest.
+var builtinManifests = map[string][]byte{"belgiantrain": examples.Belgiantrain}
+
+// writeBuiltin materializes a built-in team's manifest in its team
+// directory, so everything reading team checkouts (LoadCachedManifests, the
+// environment installer) treats it like a synced repo.
+func writeBuiltin(t Team) error {
+	data, ok := builtinManifests[t.Name]
+	if !ok {
+		return fmt.Errorf("unknown built-in team %q", t.Name)
+	}
+	dir, err := TeamDir(t)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, ManifestFileName), data, 0o644)
+}
+
+// withBuiltin seeds the built-in team into an empty profile (no teams, no
+// projects), and drops built-in teams that a subscribed git team replaces.
+func withBuiltin(teams []Team, projects []Project) []Team {
+	if len(teams) == 0 && len(projects) == 0 {
+		return []Team{BuiltinTeam()}
+	}
+	provided := map[string]bool{}
+	for _, t := range teams {
+		if !t.Builtin && t.Manifest != "" {
+			provided[t.Manifest] = true
+		}
+	}
+	kept := teams[:0:0]
+	for _, t := range teams {
+		if t.Builtin && provided[t.Manifest] {
+			continue
+		}
+		kept = append(kept, t)
+	}
+	return kept
 }
 
 // Manifest is the shared, team-owned description of a set of projects.

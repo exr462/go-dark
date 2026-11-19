@@ -119,7 +119,16 @@ func (cfg *Config) RefreshProjects() bool {
 	migrated := migrateLegacyProjects(cfg.Projects)
 
 	// 2. Merge the cached team manifests (synced at startup, see the team
-	//    package) with the user's local projects.
+	//    package) with the user's local projects. An empty profile starts
+	//    with the built-in team, whose manifest ships inside go-dark.
+	cfg.Teams = withBuiltin(cfg.Teams, cfg.Projects)
+	for _, t := range cfg.Teams {
+		if t.Builtin {
+			if err := writeBuiltin(t); err != nil {
+				log.Printf("team manifest: %v", err)
+			}
+		}
+	}
 	manifests, unavailable, manifestErrs := LoadCachedManifests(cfg.Teams)
 	for _, e := range manifestErrs {
 		log.Printf("team manifest: %v", e)
