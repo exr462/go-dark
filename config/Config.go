@@ -28,6 +28,9 @@ type Config struct {
 	// Environments are the local environments declared by the subscribed
 	// teams' manifests; rebuilt from the cached manifests on every load.
 	Environments []TeamEnvironment `json:"-"`
+	// ShipDisabled are the deployable projects (IDs) the user switched off
+	// on the ship screen; they stay in the umbrella chart, disabled.
+	ShipDisabled []string `json:"ship_disabled,omitempty"`
 }
 
 // LocalCluster is the local Rancher sandbox go-dark deploys to, and how the

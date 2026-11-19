@@ -1,6 +1,9 @@
 package model
 
 import (
+	"path/filepath"
+	"slices"
+
 	"github.com/exr462/go-dark/deploy"
 	"github.com/exr462/go-dark/env"
 	"github.com/exr462/go-dark/kube"
@@ -64,4 +67,30 @@ func (ui *UI) EnvProjects(team string) (cloned, total int) {
 		}
 	}
 	return cloned, total
+}
+
+// ShipTargets flattens the deploy waves, in screen order.
+func (ui *UI) ShipTargets() []deploy.Target {
+	var out []deploy.Target
+	for _, wave := range ui.DeployWaves {
+		out = append(out, wave...)
+	}
+	return out
+}
+
+// ShipEnabled reports whether a service is switched on for the umbrella
+// (the switches are remembered in config.json).
+func (ui *UI) ShipEnabled(t deploy.Target) bool {
+	return !slices.Contains(ui.Config.ShipDisabled, t.Project.ID)
+}
+
+// Umbrella is the one-release deployment of the team environment: the
+// chart is generated into the install dir's charts/. Nil for the legacy
+// target, which keeps one release per service.
+func (ui *UI) Umbrella() *deploy.Umbrella {
+	e, ok := ui.CurrentEnv()
+	if !ok {
+		return nil
+	}
+	return &deploy.Umbrella{Application: e.Application, Dir: filepath.Join(EnvDir(e), env.ChartsDir), Enabled: ui.ShipEnabled}
 }

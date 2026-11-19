@@ -242,21 +242,24 @@ type UI struct {
 	DepScreen DependencyScreenState
 
 	// !!! GLOBAL LOCAL DEPLOY STATE MAPPINGS (local Rancher sandbox) !!!
-	DeployWaves    [][]deploy.Target  // What will be deployed, in dependency waves
-	DeploySkipped  []deploy.Target    // Deployable projects that can't be deployed locally (and why)
-	DeployPlanErr  error              // e.g. a dependency cycle
-	DeployProgress *deploy.Progress   // Live per-target status of the current/last run
-	DeployRunning  bool               // A deployment is in progress
-	DeployFinished bool               // The last run ended (see DeployErr)
-	DeployErr      error              // Why the last run failed (nil on success)
-	DeployCancel   context.CancelFunc // Cancels the running deployment
-	ClusterChecked bool               // The preflight finished at least once
-	ClusterRunning bool               // the cluster's container runs and its API answers
-	ClusterErr     error              // container missing / guard refusal
-	ClusterStartID int                // Session starting the cluster's container (0 when none)
-	ShipStage      ShipStage          // Where the full train (build -> images -> deploy) is
-	ShipDriftAck   bool               // The user saw the version drift warning and ships anyway
-	ScaledDown     []string           // Deployments go-dark scaled to 0 to make room (restorable)
+	DeployWaves     [][]deploy.Target  // What will be deployed, in dependency waves
+	DeploySkipped   []deploy.Target    // Deployable projects that can't be deployed locally (and why)
+	DeployPlanErr   error              // e.g. a dependency cycle
+	DeployProgress  *deploy.Progress   // Live per-target status of the current/last run
+	DeployRunning   bool               // A deployment is in progress
+	DeployFinished  bool               // The last run ended (see DeployErr)
+	DeployErr       error              // Why the last run failed (nil on success)
+	DeployCancel    context.CancelFunc // Cancels the running deployment
+	ClusterChecked  bool               // The preflight finished at least once
+	ClusterRunning  bool               // the cluster's container runs and its API answers
+	ClusterErr      error              // container missing / guard refusal
+	ClusterStartID  int                // Session starting the cluster's container (0 when none)
+	ShipStage       ShipStage          // Where the full train (build -> images -> deploy) is
+	ShipDriftAck    bool               // The user saw the version drift warning and ships anyway
+	ScaledDown      []string           // Deployments go-dark scaled to 0 to make room (restorable)
+	SelectedDeploy  int                // Highlighted service on the ship screen (index into ShipTargets)
+	DeployMigrate   []string           // Per-service releases that must be uninstalled before the umbrella can install
+	DeployMigrating bool               // Those releases are being uninstalled
 
 	// !!! GLOBAL LOCAL ENVIRONMENT (installer) STATE MAPPINGS !!!
 	EnvIndex     int            // Which team environment the installer screen shows (index into Config.Environments)
@@ -301,7 +304,11 @@ type DeployPreflightMsg struct {
 	Running    bool
 	Err        error    // cluster container missing, or the guard refused the context
 	ScaledDown []string // deployments go-dark scaled to 0 earlier
+	Migrate    []string // per-service releases in the way of the umbrella release
 }
+
+// DeployMigratedMsg ends the uninstall of the per-service releases.
+type DeployMigratedMsg struct{ Err error }
 
 // DeployFinishedMsg ends a deployment run.
 type DeployFinishedMsg struct{ Err error }

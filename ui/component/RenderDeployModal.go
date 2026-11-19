@@ -19,20 +19,27 @@ func RenderDeployModal(ui *model.UI) string {
 	width := max(ui.WindowWidth-8, 20)
 	t := ui.DeployTarget()
 	c := t.Cluster
+	umbrella := ui.Umbrella()
 	var b strings.Builder
 	b.WriteString(decorator.Title.Render(fmt.Sprintf("🚢 Ship to the local cluster (%s)", action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenDeploy))) + "\n")
-	b.WriteString(decorator.Description.Render(fmt.Sprintf(
-		"Builds the workspace in dependency waves, loads each service's image into the local Rancher and installs its chart configured like %s (local database) as %s into %s/%s.", t.ConfigFrom, t.Env, c.Context, c.Namespace)) + "\n")
-	if t.Legacy {
-		b.WriteString(decorator.Meta.Render("  Target: config.json local_cluster (no subscribed team manifest declares an environment; "+action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv)+" installs one once it does)") + "\n")
-	} else {
+	if umbrella != nil {
+		b.WriteString(decorator.Description.Render(fmt.Sprintf(
+			"Builds the workspace in dependency waves, loads the switched-on services' images into the local Rancher and installs them as one release %q (umbrella chart %s in the install dir, each service a subchart configured like %s with the local database) as %s into %s/%s.",
+			umbrella.Application, umbrella.Name(), t.ConfigFrom, t.Env, c.Context, c.Namespace)) + "\n")
 		b.WriteString(decorator.Meta.Render(fmt.Sprintf("  Target: environment %q of team %s (%s installs, starts and stops it)", t.Env, t.Team, action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv))) + "\n")
+	} else {
+		b.WriteString(decorator.Description.Render(fmt.Sprintf(
+			"Builds the workspace in dependency waves, loads each service's image into the local Rancher and installs its chart configured like %s (local database) as %s into %s/%s.", t.ConfigFrom, t.Env, c.Context, c.Namespace)) + "\n")
+		b.WriteString(decorator.Meta.Render("  Target: config.json local_cluster, one release per service (no subscribed team manifest declares an environment; "+action.GetShortcutKeyBinding(ui.Config.ShortCuts, action.OpenEnv)+" installs one once it does)") + "\n")
 	}
 	b.WriteString("\n")
 
 	b.WriteString(clusterLine(ui) + "\n")
 	if n := len(ui.ScaledDown); n > 0 {
 		b.WriteString(ansi.Truncate(decorator.Warning.Render(fmt.Sprintf("⏬ %d deployment%s scaled to 0 by go-dark to make room: %s (u restores)", n, plural(n), strings.Join(ui.ScaledDown, ", "))), width, "…") + "\n")
+	}
+	if n := len(ui.DeployMigrate); n > 0 {
+		b.WriteString(ansi.Truncate(decorator.Warning.Render(fmt.Sprintf("⚠ %d per-service release%s from before the umbrella (%s) own the resources - m uninstalls them, the umbrella recreates them", n, plural(n), strings.Join(ui.DeployMigrate, ", "))), width, "…") + "\n")
 	}
 	b.WriteString(shipStages(ui) + "\n\n")
 
@@ -43,7 +50,7 @@ func RenderDeployModal(ui *model.UI) string {
 		b.WriteString(decorator.Meta.Render("  (No cloned, deployable project has a helm chart)") + "\n")
 	default:
 		rows := max(ui.WindowHeight-18, 4)
-		shown := 0
+		shown, index := 0, 0
 		for i, wave := range ui.DeployWaves {
 			for j, t := range wave {
 				if shown == rows {
@@ -54,8 +61,19 @@ func RenderDeployModal(ui *model.UI) string {
 				if j == 0 {
 					label = fmt.Sprintf("W%-2d", i+1)
 				}
+				cursor, toggle := " ", ""
+				if index == ui.SelectedDeploy {
+					cursor = decorator.Selected.Render(">")
+				}
+				if umbrella != nil {
+					toggle = "[x] "
+					if !ui.ShipEnabled(t) {
+						toggle = decorator.Meta.Render("[ ] ")
+					}
+				}
+				index++
 				st := ui.DeployProgress.Get(t.Project.ID)
-				line := fmt.Sprintf("%s %-24s %-44s image %s  deploy %s", graphWaveStyle.Render(label), t.Project.Name,
+				line := fmt.Sprintf("%s%s %s%-24s %-44s image %s  deploy %s", cursor, graphWaveStyle.Render(label), toggle, t.Project.Name,
 					t.Ref(), stepBadge(st.Image), stepBadge(st.Deploy))
 				if st.SessionID != 0 && (st.Image == deploy.StepFailed || st.Deploy == deploy.StepFailed) {
 					line += decorator.Meta.Render(fmt.Sprintf("  log: session #%d", st.SessionID))
@@ -93,6 +111,14 @@ func RenderDeployModal(ui *model.UI) string {
 		hints = append(hints,
 			fmt.Sprintf("[%s] Ship (build + deploy)", sessKeyHint.Render("enter")),
 			fmt.Sprintf("[%s] Deploy only", sessKeyHint.Render("d")),
+			fmt.Sprintf("[%s] Iterate selected (image + restart)", sessKeyHint.Render("i")))
+		if umbrella != nil {
+			hints = append(hints, fmt.Sprintf("[%s] Switch selected on/off", sessKeyHint.Render("space")))
+		}
+		if len(ui.DeployMigrate) > 0 {
+			hints = append(hints, fmt.Sprintf("[%s] Uninstall old releases", sessKeyHint.Render("m")))
+		}
+		hints = append(hints,
 			fmt.Sprintf("[%s] Align versions", sessKeyHint.Render("v")),
 			fmt.Sprintf("[%s] Make room (scale others to 0)", sessKeyHint.Render("z")))
 		if len(ui.ScaledDown) > 0 {
@@ -137,6 +163,8 @@ func stepBadge(s deploy.StepState) string {
 		return decorator.Error.Render("❌")
 	case deploy.StepCancelled:
 		return decorator.Meta.Render("⏹")
+	case deploy.StepSkipped:
+		return decorator.Meta.Render("–")
 	}
 	return decorator.Meta.Render("·")
 }

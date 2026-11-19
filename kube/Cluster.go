@@ -53,6 +53,10 @@ func run(name string, args ...string) ([]byte, error) {
 	return runner(ctx, name, args...)
 }
 
+// Output runs a short read-only kubectl/helm/docker command (callers pass
+// the context and namespace explicitly, see Args) and returns its stdout.
+func Output(name string, args ...string) ([]byte, error) { return run(name, args...) }
+
 // Guard returns an error unless c is an allowlisted context whose API server
 // is a literal loopback address. Hostnames are refused without being
 // resolved: internal hostnames resolve to private addresses too.
