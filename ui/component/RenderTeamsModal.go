@@ -27,7 +27,11 @@ func RenderTeamsModal(ui *model.UI) string {
 		if manifest == "" {
 			manifest = "not synced yet"
 		}
-		row := fmt.Sprintf("%s  [%s]  %s", t.Name, manifest, t.GitURL)
+		source := t.GitURL
+		if t.Builtin {
+			source = "built into go-dark (subscribe to the team's repo to replace it)"
+		}
+		row := fmt.Sprintf("%s  [%s]  %s", t.Name, manifest, source)
 		if i == ui.SelectedTeam && !ui.AddingTeam {
 			body.WriteString(decorator.Selected.Render("> "+row) + "\n")
 		} else {
